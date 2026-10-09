@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KM 라우터 설정</title>
+<link rel="stylesheet" href="css/app.css?v=3">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <span class="brand-name">KM 라우터</span>
+    <span class="brand-sub">설정</span>
+  </div>
+  <div id="link"></div>
+</header>
+
+<main>
+  <div id="notice"></div>
+  <div id="lock"></div>
+
+  <div id="main-sections" hidden>
+    <section class="card" id="hosts"></section>
+
+    <section class="card">
+      <div id="devices"></div>
+      <div id="add"></div>
+    </section>
+
+    <section class="card" id="inputs"></section>
+  </div>
+
+  <details class="card" id="log-sec">
+    <summary>개발자: 통신 로그</summary>
+    <label class="check"><input type="checkbox" id="log-board"> 보드 로그 줄도 보기</label>
+    <div id="log"></div>
+  </details>
+</main>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

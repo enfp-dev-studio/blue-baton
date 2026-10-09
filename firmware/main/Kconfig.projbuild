@@ -1,0 +1,11 @@
+menu "KM 라우터 설정"
+
+    config KM_WIFI_ENABLE
+        bool "Wi-Fi 설정 켜기 (서버형으로 바꿀 때만 켜기)"
+        default n
+        help
+            켜면 보드가 Wi-Fi(보드 Wi-Fi + 집 Wi-Fi)를 켜고 설정 API를 연다.
+            메인 기기에 USB로 붙여서 쓸 때는 끄는 것이 좋다.
+            보드 Wi-Fi에 메인 기기가 붙으면 그 기기의 인터넷 연결이 끊긴다.
+
+endmenu
