@@ -687,19 +687,20 @@ static radio_t radio_wanted(void)
 }
 
 /*
- * Input connection parameters. Latency to the output is input interval + output interval, so request the shortest
- * (7.5 ms, Core Vol 6 Part B 4.5.1; Latency 0). Real hardware: given a 7.5-15 ms range the controller picked 15 ms.
+ * Input connection parameters. Latency to the output is input interval + output interval, so request short
+ * ones (7.5-15 ms, Latency 0; the controller picks 15 ms next to 15 ms host links). Real hardware: a fixed 7.5 ms
+ * connected once, then every new connection failed with HCI 0x0D (limited resources) while two hosts were up.
  * If the device later requests other values, accept them. Supervision timeout 4 seconds.
  * Connection-attempt scan: user connections scan continuously (to find it fast); auto-reconnect shares the
  * radio at 30 ms/60 ms (50%).
  * Units: interval 1.25 ms, scan 0.625 ms, supervision 10 ms.
  */
 static const struct ble_gap_conn_params s_conn_user = {
-    .scan_itvl = 0x0010, .scan_window = 0x0010, .itvl_min = 6, .itvl_max = 6,
+    .scan_itvl = 0x0010, .scan_window = 0x0010, .itvl_min = 6, .itvl_max = 12,
     .latency = 0, .supervision_timeout = 400, .min_ce_len = 0, .max_ce_len = 0,
 };
 static const struct ble_gap_conn_params s_conn_auto = {
-    .scan_itvl = 0x0060, .scan_window = 0x0030, .itvl_min = 6, .itvl_max = 6,
+    .scan_itvl = 0x0060, .scan_window = 0x0030, .itvl_min = 6, .itvl_max = 12,
     .latency = 0, .supervision_timeout = 400, .min_ce_len = 0, .max_ce_len = 0,
 };
 
