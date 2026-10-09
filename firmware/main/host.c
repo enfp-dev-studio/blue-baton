@@ -32,6 +32,15 @@ static const char *TAG = "host";
 #define CANDIDATE_MS 60000       /* Time within which a candidate connection must finish pairing */
 #define PARAM_RETRY_MS 2000      /* Delay before re-requesting connection parameters after a collision with the peer's procedure */
 #define PARAM_RETRY_MAX 2
+/*
+ * Connection interval requests (units of 1.25 ms): 11.25 ms first, then 15 ms if the host rejects it.
+ * Apple QA1931 / Accessory Design Guidelines: a HID accessory may get down to 11.25 ms; Apple suggests asking for
+ * 11.25 ms and falling back to 15 ms (otherwise Interval Min >= 15 ms, a multiple of 15).
+ */
+#define ITVL_FAST 9
+#define ITVL_SAFE 12
+/* Mouse reports per connection interval before motion is merged (a connection event carries several packets) */
+#define MOUSE_PER_ITVL 2
 #define SEC_REQ_MS 1000          /* Send a Security Request if a bonded host has not started encryption within this time */
 /* Advertising interval (units of 0.625 ms): Apple recommends 20 ms, then 152.5 ms (Accessory Design Guidelines R31 58.5); the window uses 30 ms (Microsoft Swift Pair) */
 #define ADV_ITVL_RECONNECT_FAST 32
@@ -152,8 +161,11 @@ typedef struct {
     host_motion_t motion;
     uint8_t buttons;
     bool mouse_pending;
-    int64_t next_mouse_us;
+    int64_t mouse_tat_us;        /* Mouse pacing: theoretical arrival time of the next report (GCRA) */
+    int64_t mouse_since_us;      /* When the oldest unsent motion arrived (0: nothing waiting) */
     uint16_t itvl;               /* Connection interval (units of 1.25 ms) */
+    uint16_t latency;
+    bool itvl_fallback;          /* The host rejected ITVL_FAST; ask for ITVL_SAFE */
     bool pk_wait;                /* Waiting for passkey entry */
     int64_t deadline_us;         /* Candidate: must finish pairing by this time */
     int64_t param_retry_us;      /* If nonzero, re-request connection parameters at this time */
@@ -178,6 +190,12 @@ static int s_adv_hold;
 static int s_adv_mode;           /* 0 off, 1 reconnect, 2 window */
 static int s_adv_itvl;
 static struct ble_npl_callout s_tick;
+
+/* Mouse pacing statistics since the last stats read: how long motion waited on the board before it was sent */
+static uint32_t s_mouse_sent;
+static uint32_t s_mouse_merged;   /* Sends that carried motion held back from earlier reports */
+static int64_t s_mouse_wait_sum_us;
+static int64_t s_mouse_wait_max_us;
 
 static int host_gap_event(struct ble_gap_event *event, void *arg);
 static void adv_update(void);
@@ -479,6 +497,17 @@ static void send_consumer(host_link_t *l, const uint16_t *usages, uint8_t count)
     }
 }
 
+static int64_t mouse_step_us(const host_link_t *l)
+{
+    return (int64_t)(l->itvl ? l->itvl : ITVL_SAFE) * 1250 / MOUSE_PER_ITVL;
+}
+
+static void mouse_schedule(host_link_t *l, int64_t at_us)
+{
+    int64_t wait = at_us - now_us();
+    ble_npl_callout_reset(mouse_timer(l), ble_npl_time_ms_to_ticks32((uint32_t)(wait > 0 ? wait / 1000 : 0) + 1));
+}
+
 /* Send the accumulated mouse motion and buttons once */
 static void flush_mouse(host_link_t *l)
 {
@@ -496,11 +525,22 @@ static void flush_mouse(host_link_t *l)
         l->sent.buttons = l->buttons;
         notify(l, N_MOUSE, m, sizeof(m));
     }
-    l->mouse_pending = !host_motion_empty(&l->motion);   /* If it did not all fit, the rest goes in the next interval */
-    int64_t itvl_us = (int64_t)(l->itvl ? l->itvl : 12) * 1250;
-    l->next_mouse_us = now_us() + itvl_us;
+    int64_t now = now_us();
+    int64_t waited = l->mouse_since_us ? now - l->mouse_since_us : 0;
+    s_mouse_sent++;
+    if (waited > 1000) {
+        s_mouse_merged++;
+    }
+    s_mouse_wait_sum_us += waited;
+    if (waited > s_mouse_wait_max_us) {
+        s_mouse_wait_max_us = waited;
+    }
+    int64_t step = mouse_step_us(l);
+    l->mouse_tat_us = (l->mouse_tat_us > now ? l->mouse_tat_us : now) + step;
+    l->mouse_pending = !host_motion_empty(&l->motion);   /* If it did not all fit, the rest goes in the next slot */
+    l->mouse_since_us = l->mouse_pending ? now : 0;
     if (l->mouse_pending) {
-        ble_npl_callout_reset(mouse_timer(l), ble_npl_time_ms_to_ticks32((uint32_t)(itvl_us / 1000) + 1));
+        mouse_schedule(l, l->mouse_tat_us - step);
     }
 }
 
@@ -518,7 +558,10 @@ static void mouse_timer_cb(struct ble_npl_event *ev)
 }
 
 /*
- * Mouse: motion is sent at most once per connection interval, so it does not pile up in the per-connection queue and add latency (NimBLE ble_l2cap.c queues when the controller is full).
+ * Mouse: each report goes out at once, up to MOUSE_PER_ITVL per connection interval (GCRA pacing that allows a
+ * burst of one extra). Only beyond that is motion merged into the next report, so it does not pile up in the
+ * per-connection queue and add latency (NimBLE ble_l2cap.c queues when the controller is full). Real hardware (0.6):
+ * sending at most once per interval made motion that arrived just after a send wait up to a whole interval.
  * When buttons change, send right away together with the motion accumulated so far.
  */
 static void send_mouse(host_link_t *l, const router_out_t *o)
@@ -531,13 +574,16 @@ static void send_mouse(host_link_t *l, const router_out_t *o)
     if (!o->motion && !button_change) {
         return;
     }
-    l->mouse_pending = true;
     int64_t now = now_us();
-    if (button_change || now >= l->next_mouse_us) {
+    if (!l->mouse_pending) {
+        l->mouse_since_us = now;
+    }
+    l->mouse_pending = true;
+    int64_t step = mouse_step_us(l);
+    if (button_change || now >= l->mouse_tat_us - step) {
         flush_mouse(l);
     } else {
-        ble_npl_callout_reset(mouse_timer(l),
-                              ble_npl_time_ms_to_ticks32((uint32_t)((l->next_mouse_us - now) / 1000) + 1));
+        mouse_schedule(l, l->mouse_tat_us - step);
     }
 }
 
@@ -740,9 +786,15 @@ static void emit_link(const char *event, const host_link_t *l, const char *extra
 
 static void request_conn_params(host_link_t *l)
 {
-    /* 15 ms (Apple: a multiple of 15; Microsoft keyboards: 15 ms or more), Latency 4, supervision 6 s (Apple ADG R31 58.6, Microsoft Bluetooth Accessory Guidelines 4.4) */
+    /*
+     * 11.25 ms (ITVL_FAST), or 15 ms (ITVL_SAFE) after the host rejected it. Latency 4, supervision 6 s
+     * (Apple ADG R31 58.6: Interval Max x (Latency + 1) <= 2 s and x 3 < supervision timeout; Microsoft Bluetooth
+     * Accessory Guidelines 4.4). Latency only lets the board skip events with nothing to send; input still goes out
+     * at the next event.
+     */
+    uint16_t itvl = l->itvl_fallback ? ITVL_SAFE : ITVL_FAST;
     struct ble_gap_upd_params p = {
-        .itvl_min = 12, .itvl_max = 12, .latency = 4, .supervision_timeout = 600, .min_ce_len = 0, .max_ce_len = 0,
+        .itvl_min = itvl, .itvl_max = itvl, .latency = 4, .supervision_timeout = 600, .min_ce_len = 0, .max_ce_len = 0,
     };
     int rc = ble_gap_update_params(l->conn, &p);
     if (rc != 0) {
@@ -857,6 +909,7 @@ static host_link_t *link_ensure(uint16_t conn)
     l->state = index >= 0 ? HL_CONNECTED : HL_CANDIDATE;
     l->protocol_mode = 1;
     l->itvl = d.conn_itvl;
+    l->latency = d.conn_latency;
     l->deadline_us = now_us() + (int64_t)CANDIDATE_MS * 1000;
     if (index >= 0) {
         l->led = router_host_led(index);
@@ -1099,6 +1152,7 @@ static int host_gap_event(struct ble_gap_event *event, void *arg)
         struct ble_gap_conn_desc d;
         if (l && ble_gap_conn_find(l->conn, &d) == 0) {
             l->itvl = d.conn_itvl;
+            l->latency = d.conn_latency;
             /*
              * Our request is rejected if it collides with the peer's (host's) connection parameter procedure
              * (HCI 0x2A Different Transaction Collision, 0x23 LL Procedure Collision). Real hardware: 0x2A right
@@ -1107,9 +1161,17 @@ static int host_gap_event(struct ble_gap_event *event, void *arg)
              * other than collisions are not retried.
              */
             int st = event->conn_update.status;
-            if ((st == BLE_HS_HCI_ERR(BLE_ERR_DIFF_TRANS_COLL) || st == BLE_HS_HCI_ERR(BLE_ERR_LMP_COLLISION)) &&
-                l->param_retries < PARAM_RETRY_MAX) {
+            bool collision = st == BLE_HS_HCI_ERR(BLE_ERR_DIFF_TRANS_COLL) || st == BLE_HS_HCI_ERR(BLE_ERR_LMP_COLLISION);
+            if (collision && l->param_retries < PARAM_RETRY_MAX) {
                 l->param_retries++;
+                l->param_retry_us = now_us() + (int64_t)PARAM_RETRY_MS * 1000;
+            } else if (!collision && !l->itvl_fallback && (st != 0 || d.conn_itvl > ITVL_FAST)) {
+                /*
+                 * The host rejected 11.25 ms, or accepted the request but kept a longer interval. Real hardware
+                 * (macOS 26): status 0 with the interval left at 30 ms, later moved to 15 ms by the Mac itself.
+                 * Ask once with 15 ms so the link does not stay at 30 ms.
+                 */
+                l->itvl_fallback = true;
                 l->param_retry_us = now_us() + (int64_t)PARAM_RETRY_MS * 1000;
             }
             char extra[96];
@@ -1267,4 +1329,31 @@ void host_on_reset(void)
         ble_npl_callout_stop(&s_mouse_timer[i]);
     }
     memset(s_links, 0, sizeof(s_links));
+}
+
+size_t host_stats_json(char *buf, size_t len)
+{
+    int64_t avg = s_mouse_sent ? s_mouse_wait_sum_us / s_mouse_sent : 0;
+    size_t w = snprintf(buf, len, "{\"mouse_sent\":%lu,\"mouse_merged\":%lu,\"mouse_wait_avg_us\":%lld,"
+                        "\"mouse_wait_max_us\":%lld,\"hosts\":[",
+                        (unsigned long)s_mouse_sent, (unsigned long)s_mouse_merged, (long long)avg,
+                        (long long)s_mouse_wait_max_us);
+    bool first = true;
+    for (int i = 0; i < HOST_LINK_MAX && w < len; i++) {
+        const host_link_t *l = &s_links[i];
+        if (!l->used || l->index < 0) {
+            continue;
+        }
+        w += snprintf(buf + w, len - w, "%s{\"host\":%d,\"itvl\":%u,\"latency\":%u}", first ? "" : ",",
+                      l->index + 1, l->itvl, l->latency);
+        first = false;
+    }
+    if (w < len) {
+        w += snprintf(buf + w, len - w, "]}");
+    }
+    s_mouse_sent = 0;
+    s_mouse_merged = 0;
+    s_mouse_wait_sum_us = 0;
+    s_mouse_wait_max_us = 0;
+    return w < len ? w : len - 1;
 }

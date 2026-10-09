@@ -45,6 +45,7 @@ Changes from earlier versions are collected at the end under "0.5 → 0.6 change
 | `hello` | none | Firmware info, whether a switch combo is set, whether the Wi-Fi feature is present |
 | `status` | none | See "status response" below |
 | `monitor` | `on` | Input monitor lease (see "Access and input content"). Reply: `lease_ms` (60000 when on, 0 when off) |
+| `stats` | none | Latency statistics since the last `stats` (`stats`): `mouse_sent`, `mouse_merged` (sends that carried motion held back by pacing), `mouse_wait_avg_us`, `mouse_wait_max_us` (how long motion waited on the board), `hosts` (`host`, `itvl`, `latency` of each host link). Reading resets the counters |
 | `pin_set` | `pin` (4 to 8 digits) | Wi-Fi builds only: set the Wi-Fi setup API PIN |
 | `combo_get` | none | The host switch combos actually in effect (`combo`). If nothing is stored or the stored value is malformed, the default applies and `default:true`; if an invalid value is stored, `stored_invalid:true` |
 | `combo_set` | `combo` | Comma-separated list of combos in host order (e.g. `ctrl+alt+1,ctrl+alt+2,ctrl+alt+3`, up to 95 characters). Validated, then applied and saved immediately. If invalid, `code:"bad_combo"` |
@@ -87,7 +88,7 @@ Failure `code`
 
 ```text
 {"id":9,"ok":true,"scanning":false,"connected":true,"hid_ready":true,"peer":"00:00:5E:00:53:17",
- "peers":[{"addr":"00:00:5E:00:53:17","id_addr":"00:00:5E:00:53:17","state":"ready","hid_ready":true}],
+ "peers":[{"addr":"00:00:5E:00:53:17","id_addr":"00:00:5E:00:53:17","state":"ready","hid_ready":true,"itvl":6}],
  "radio":"auto","bonds":1,"bonds_max":8,"active_host":1}
 ```
 
@@ -172,7 +173,7 @@ hosts: [{"host":1,"addr":"AA:BB:CC:DD:EE:FF","name":"MacBook Pro","connected":tr
 | `host_repair_blocked` | `host`, `addr` | A bonded host tried to pair again (the board was removed on that computer). Outside the window, so it was rejected and disconnected. If it reconnects after the window is opened, it is accepted (number and name are kept) |
 | `host_ready` | `host`, `addr` | The host enabled notifications and can receive reports |
 | `host_name` | `host`, `addr`, `name` | The host's GAP Device Name |
-| `host_conn_params` | `host`, `addr`, `status`, `itvl`, `latency`, `timeout` | The host connection parameters changed. The board requests 15 ms, latency 4, supervision timeout 6 s |
+| `host_conn_params` | `host`, `addr`, `status`, `itvl`, `latency`, `timeout` | The host connection parameters changed. The board requests 11.25 ms (allowed for HID by Apple QA1931), and 15 ms once if the host rejects it or keeps a longer interval; latency 4, supervision timeout 6 s. The host has the final say (macOS 26 keeps 15 ms) |
 | `host_sec_request` | `host`, `addr`, `rc` | A bonded host did not start encryption within 1 s, so the board sent a Security Request (`rc` 0 = sent). A fallback; normally the host encrypts by itself |
 | `host_disconnected` | `host`, `addr`, `reason` | A host disconnected. The board advertises fast (20 ms) for 30 seconds, then at 152.5 ms |
 | `host_removed` | `host` | One host was removed |
@@ -231,6 +232,9 @@ Only while the window is open does the board present itself as a keyboard (IO ca
   `locked`, `no_pin` and `wrong_pin` codes are gone. `pin_set` remains only in Wi-Fi builds (for the Wi-Fi setup API).
   A PIN stored by earlier firmware is erased at boot in builds without Wi-Fi.
 - Input content (`report`, `route`) goes out only under the new `monitor` lease. New event `activity` (no content).
+- Latency: input devices are asked for 7.5 ms (was 7.5–15 ms, and the controller picked 15 ms); hosts for 11.25 ms
+  with a 15 ms fallback. Mouse reports go to the host at once, up to 2 per host interval (was at most 1, which made
+  motion wait up to an interval). New command `stats`; `status` `peers` entries have `itvl`.
 
 ## 0.4 → 0.5 changes
 

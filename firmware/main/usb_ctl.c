@@ -336,6 +336,15 @@ static void cmd_paired_list(int id)
     usb_ctl_emit(buf);
 }
 
+static void cmd_stats(int id)
+{
+    char stats[300];
+    ble_pair_stats_json(stats, sizeof(stats));
+    char buf[360];
+    snprintf(buf, sizeof(buf), "{\"id\":%d,\"ok\":true,\"stats\":%s}", id, stats);
+    usb_ctl_emit(buf);
+}
+
 static void handle_line(const char *line)
 {
     int id = 0;
@@ -357,6 +366,8 @@ static void handle_line(const char *line)
 #endif
     } else if (strcmp(cmd, "monitor") == 0) {
         cmd_monitor(id, line);
+    } else if (strcmp(cmd, "stats") == 0) {
+        cmd_stats(id);
     } else if (strcmp(cmd, "combo_get") == 0) {
         cmd_combo_get(id);
     } else if (strcmp(cmd, "combo_set") == 0) {

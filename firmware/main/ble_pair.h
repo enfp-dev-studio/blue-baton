@@ -93,3 +93,6 @@ esp_err_t ble_pair_host_remove(int index);
 
 /* Passkey shown on the host screen, entered from the GUI */
 esp_err_t ble_pair_host_passkey(uint32_t code);
+
+/* Latency statistics (host link intervals, how long mouse motion waited on the board) as a JSON object. Resets them */
+size_t ble_pair_stats_json(char *buf, size_t len);

@@ -687,18 +687,19 @@ static radio_t radio_wanted(void)
 }
 
 /*
- * Input connection parameters. Latency to the output is input interval + output interval, so request short
- * ones (7.5-15 ms, Latency 0). If the device later requests other values, accept them. Supervision timeout 4 seconds.
+ * Input connection parameters. Latency to the output is input interval + output interval, so request the shortest
+ * (7.5 ms, Core Vol 6 Part B 4.5.1; Latency 0). Real hardware: given a 7.5-15 ms range the controller picked 15 ms.
+ * If the device later requests other values, accept them. Supervision timeout 4 seconds.
  * Connection-attempt scan: user connections scan continuously (to find it fast); auto-reconnect shares the
  * radio at 30 ms/60 ms (50%).
  * Units: interval 1.25 ms, scan 0.625 ms, supervision 10 ms.
  */
 static const struct ble_gap_conn_params s_conn_user = {
-    .scan_itvl = 0x0010, .scan_window = 0x0010, .itvl_min = 6, .itvl_max = 12,
+    .scan_itvl = 0x0010, .scan_window = 0x0010, .itvl_min = 6, .itvl_max = 6,
     .latency = 0, .supervision_timeout = 400, .min_ce_len = 0, .max_ce_len = 0,
 };
 static const struct ble_gap_conn_params s_conn_auto = {
-    .scan_itvl = 0x0060, .scan_window = 0x0030, .itvl_min = 6, .itvl_max = 12,
+    .scan_itvl = 0x0060, .scan_window = 0x0030, .itvl_min = 6, .itvl_max = 6,
     .latency = 0, .supervision_timeout = 400, .min_ce_len = 0, .max_ce_len = 0,
 };
 
@@ -1849,7 +1850,7 @@ typedef enum {
     OP_SCAN, OP_CONNECT, OP_DISCONNECT, OP_ACCEPT, OP_PASSKEY, OP_CANCEL,
     OP_REMOVE, OP_CLEAR, OP_LIST, OP_PEERS, OP_PAIRED, OP_STATUS, OP_RADIO, OP_BONDS,
     OP_COMBOS, OP_HOST_SELECT, OP_HOST_GET,
-    OP_HOST_PAIR, OP_HOST_LIST, OP_HOST_REMOVE, OP_HOST_PASSKEY,
+    OP_HOST_PAIR, OP_HOST_LIST, OP_HOST_REMOVE, OP_HOST_PASSKEY, OP_STATS,
 } op_t;
 
 typedef struct {
@@ -2086,10 +2087,13 @@ static size_t peers_json(char *buf, size_t len)
         if (!p->used) {
             continue;
         }
-        char item[160];
-        int m = snprintf(item, sizeof(item), "%s{\"addr\":\"%s\",\"id_addr\":\"%s\",\"state\":\"%s\",\"hid_ready\":%s}",
+        struct ble_gap_conn_desc d;
+        unsigned itvl = ble_gap_conn_find(p->conn, &d) == 0 ? d.conn_itvl : 0;
+        char item[180];
+        int m = snprintf(item, sizeof(item),
+                         "%s{\"addr\":\"%s\",\"id_addr\":\"%s\",\"state\":\"%s\",\"hid_ready\":%s,\"itvl\":%u}",
                          first ? "" : ",", p->addr_str, p->id_valid ? p->id_str : "", state_name(p->state),
-                         p->state == PS_READY ? "true" : "false");
+                         p->state == PS_READY ? "true" : "false", itvl);
         if (m < 0 || n + (size_t)m + 2 > len) {
             break;
         }
@@ -2243,6 +2247,9 @@ static esp_err_t op_dispatch(req_t *r)
         return host_remove((int)r->num);
     case OP_HOST_PASSKEY:
         return host_passkey(r->num);
+    case OP_STATS:
+        r->out_len = host_stats_json(r->buf, r->len);
+        return ESP_OK;
     }
     return ESP_ERR_INVALID_ARG;
 }
@@ -2436,6 +2443,13 @@ esp_err_t ble_pair_host_pair(bool open)
 size_t ble_pair_host_list_json(char *buf, size_t len)
 {
     req_t r = {.op = OP_HOST_LIST, .buf = buf, .len = len};
+    host_call(&r);
+    return r.out_len;
+}
+
+size_t ble_pair_stats_json(char *buf, size_t len)
+{
+    req_t r = {.op = OP_STATS, .buf = buf, .len = len};
     host_call(&r);
     return r.out_len;
 }
