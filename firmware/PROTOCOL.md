@@ -12,7 +12,7 @@ Changes from earlier versions are collected at the end under "0.4 → 0.5 change
   ```
 - Board → host: one JSON line with the `KM< ` prefix
   ```text
-  KM< {"id":1,"ok":true,"fw":"km-router","version":"0.5","pin_set":true,"unlocked":false,"combo_set":false,"wifi_feature":false}
+  KM< {"id":1,"ok":true,"fw":"blue-baton","version":"0.5","pin_set":true,"unlocked":false,"combo_set":false,"wifi_feature":false}
   ```
 - A response carries the same `id` as its request. Notifications the board sends on its own (events) have an `event` field and no `id`.
 - Board logs (`I (123) km: ...`) come out on the same port. The host should read only lines that start with `KM< `. Locate `KM< `, then parse from there.
@@ -46,7 +46,7 @@ Changes from earlier versions are collected at the end under "0.4 → 0.5 change
 | `host_select` | `host` (1–3) | Yes | Select the active host directly. Same handling as a combo switch (release-all to the previous host) |
 | `host_pair` | `on` | Yes | Open or close the host pairing window. When opened, it accepts connections and pairing from new hosts for 180 seconds. It closes by itself once one host attaches. If 3 hosts are already paired, `code:"hosts_full"`. While it is open, input device scanning and user connection attempts are paused |
 | `host_list` | none | Yes | List of paired hosts (`hosts`). See "host_list entries" below |
-| `host_remove` | `host` (1–3) | Yes | Delete the bond of the host at that number. Disconnects it if connected. "KM Router" must also be removed on that computer before it can be added again |
+| `host_remove` | `host` (1–3) | Yes | Delete the bond of the host at that number. Disconnects it if connected. "Blue Baton" must also be removed on that computer before it can be added again |
 | `host_passkey` | `code` (6-digit string) | Yes | Answer `host_passkey_request` from the GUI (instead of typing on a keyboard attached to the router) |
 | `pair_scan` | `on` | Yes | Turn new-device scanning on/off. Once on, it stops by itself after 60 seconds (`scan_stopped` `reason:"timeout"`). Auto-reconnect pauses while scanning. If a user connection attempt is in progress, it is abandoned (`connect_failed` `status:"cancelled"`) and the scan starts right away |
 | `pair_list` | `all` (optional, default false) | Yes | Found devices list (`devices`). HID devices only by default; with `all:true`, every connectable device. Currently connected devices are excluded |
@@ -191,7 +191,7 @@ hosts: [{"host":1,"addr":"AA:BB:CC:DD:EE:FF","name":"MacBook Pro","connected":tr
 ### Adding a host (Mac, Windows)
 
 1. `host_pair` `{"on":true}` → `host_window` `open:true`
-2. Connect to "KM Router" in the computer's Bluetooth settings → `host_connected` `host:0`
+2. Connect to "Blue Baton" in the computer's Bluetooth settings → `host_connected` `host:0`
 3. `host_passkey_request` → type the 6 digits from the computer's screen on the router's keyboard and press Enter, or `host_passkey` `{"code":"123456"}`
 4. `host_passkey_sent` → `host_paired` `host:N` → `host_window` `open:false` → `host_ready` → `host_name`
 5. From then on, the computer reconnects by itself when it powers on (`host_connected` `bonded:true` → `host_ready`)

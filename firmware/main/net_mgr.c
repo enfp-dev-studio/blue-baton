@@ -92,7 +92,7 @@ esp_err_t net_mgr_start(void)
     /* The AP name uses the last two MAC bytes, so several boards in one room stay distinguishable */
     uint8_t mac[6];
     ESP_ERROR_CHECK(esp_read_mac(mac, ESP_MAC_WIFI_SOFTAP));
-    snprintf(s_ap_ssid, sizeof(s_ap_ssid), "KM-Router-%02X%02X", mac[4], mac[5]);
+    snprintf(s_ap_ssid, sizeof(s_ap_ssid), "Blue-Baton-%02X%02X", mac[4], mac[5]);
 
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());

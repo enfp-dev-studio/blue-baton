@@ -37,7 +37,9 @@ static const char *TAG = "host";
 #define ADV_ITVL_RECONNECT_FAST 32
 #define ADV_ITVL_WINDOW_FAST 48
 #define ADV_ITVL_SLOW 244
-#define DEVICE_NAME "KM Router"
+#define DEVICE_NAME "Blue Baton"   /* GAP name and advertising name (at most 18 bytes fit the advertising packet) */
+#define MANUFACTURER "Blue Baton (DIY)"
+#define MODEL "Blue Baton ESP32-S3"
 #define APPEARANCE_KEYBOARD 0x03C1
 #define HCI_USER_TERM 0x13
 
@@ -352,9 +354,9 @@ static int chr_access(uint16_t conn, uint16_t attr, struct ble_gatt_access_ctxt 
 
     switch (which) {
     case A_MANUF:
-        return append(ctxt, "KM Router (DIY)", 15);
+        return append(ctxt, MANUFACTURER, strlen(MANUFACTURER));
     case A_MODEL:
-        return append(ctxt, "KM Router ESP32-S3", 18);
+        return append(ctxt, MODEL, strlen(MODEL));
     case A_FWREV:
         return append(ctxt, KM_FW_VERSION, strlen(KM_FW_VERSION));
     case A_PNP: {

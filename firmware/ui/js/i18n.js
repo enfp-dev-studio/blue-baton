@@ -10,8 +10,8 @@
 
 const en = {
   /* ---- page (index.html, data-i18n) ---- */
-  'app.title': 'KM Router Settings',
-  'app.name': 'KM Router',
+  'app.title': 'Blue Baton Settings',
+  'app.name': 'Blue Baton',
   'app.subtitle': 'Settings',
   'log.title': 'Developer: communication log',
   'log.boardLines': 'Show board log lines too',
@@ -141,8 +141,8 @@ const en = {
   'hosts.noCombo': 'No combo',
   'hosts.add': 'Add',
   'hosts.windowTitle': 'Host pairing · {seconds}s',
-  'hosts.stepMac': 'macOS: System Settings → Bluetooth, click Connect next to “KM Router”',
-  'hosts.stepWindows': 'Windows: Settings → Bluetooth & devices → Add device → Bluetooth → “KM Router”',
+  'hosts.stepMac': 'macOS: System Settings → Bluetooth, click Connect next to “Blue Baton”',
+  'hosts.stepWindows': 'Windows: Settings → Bluetooth & devices → Add device → Bluetooth → “Blue Baton”',
   'hosts.stepCode': 'When a 6-digit code appears, enter it as described below',
   'hosts.verifying': 'Verifying…',
   'hosts.candidate': 'A computer ({addr}) connected. Waiting for pairing…',
@@ -210,7 +210,7 @@ const en = {
 
   /* ---- confirm dialogs (app.js) ---- */
   'confirm.hostName': 'Host {n}',
-  'confirm.removeHost': 'Remove {name}?\nTo add it again later, also remove “KM Router” from that computer’s Bluetooth settings.',
+  'confirm.removeHost': 'Remove {name}?\nTo add it again later, also remove “Blue Baton” from that computer’s Bluetooth settings.',
   'confirm.removeDevice': 'Remove the pairing for {name}?\nTo use it again, put the device in pairing mode and add it again.',
 
   /* ---- input monitor (inputs.js) ---- */
@@ -262,8 +262,8 @@ const en = {
 
 const ko = {
   /* ---- page (index.html, data-i18n) ---- */
-  'app.title': 'KM 라우터 설정',
-  'app.name': 'KM 라우터',
+  'app.title': 'Blue Baton 설정',
+  'app.name': 'Blue Baton',
   'app.subtitle': '설정',
   'log.title': '개발자: 통신 로그',
   'log.boardLines': '보드 로그 줄도 보기',
@@ -393,8 +393,8 @@ const ko = {
   'hosts.noCombo': '조합 없음',
   'hosts.add': '추가',
   'hosts.windowTitle': '호스트 추가 · {seconds}초',
-  'hosts.stepMac': 'Mac: 시스템 설정 → Bluetooth에서 근처 기기의 "KM Router" 옆 연결',
-  'hosts.stepWindows': 'Windows: 설정 → Bluetooth 및 장치 → 장치 추가 → Bluetooth → "KM Router"',
+  'hosts.stepMac': 'Mac: 시스템 설정 → Bluetooth에서 근처 기기의 "Blue Baton" 옆 연결',
+  'hosts.stepWindows': 'Windows: 설정 → Bluetooth 및 장치 → 장치 추가 → Bluetooth → "Blue Baton"',
   'hosts.stepCode': '숫자 6자리가 나오면 아래 안내대로 입력하세요',
   'hosts.verifying': '확인하는 중…',
   'hosts.candidate': '컴퓨터({addr})가 연결했어요. 페어링을 기다리는 중…',
@@ -462,7 +462,7 @@ const ko = {
 
   /* ---- confirm dialogs (app.js) ---- */
   'confirm.hostName': '호스트 {n}',
-  'confirm.removeHost': '{name}를 삭제할까요?\n그 컴퓨터의 Bluetooth 설정에서도 "KM Router"를 지워야 다시 추가할 수 있어요.',
+  'confirm.removeHost': '{name}를 삭제할까요?\n그 컴퓨터의 Bluetooth 설정에서도 "Blue Baton"를 지워야 다시 추가할 수 있어요.',
   'confirm.removeDevice': '{name}의 페어링을 삭제할까요?\n다시 쓰려면 기기를 페어링 모드로 켜고 새로 추가해야 해요.',
 
   /* ---- input monitor (inputs.js) ---- */

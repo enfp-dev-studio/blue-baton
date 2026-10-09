@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
-project(km_router)
+project(blue_baton)
 
 # NimBLE runs one security procedure at a time by default (esp_nimble_cfg.h: BLE_SM_MAX_PROCS 1).
 # A host's LTK request that finds no free slot gets no reply (ble_sm.c: ble_sm_ltk_req_rx returns

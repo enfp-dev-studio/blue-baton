@@ -1,5 +1,5 @@
 /*
- * KM Router settings UI.
+ * Blue Baton settings UI.
  * The transport is picked from the URL: USB (Web Serial) by default, the mock board with ?mock.
  * The UI code does not know which transport it is talking through.
  */

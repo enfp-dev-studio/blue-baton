@@ -111,7 +111,7 @@ static void cmd_hello(int id)
 
     char fields[256];
     snprintf(fields, sizeof(fields),
-             ",\"fw\":\"km-router\",\"version\":\"%s\",\"pin_set\":%s,\"unlocked\":%s,"
+             ",\"fw\":\"blue-baton\",\"version\":\"%s\",\"pin_set\":%s,\"unlocked\":%s,"
              "\"combo_set\":%s,\"wifi_feature\":%s",
              KM_FW_VERSION,
              cfg_pin_is_set() ? "true" : "false",

@@ -12,7 +12,7 @@
 #define CFG_WIFI_PASS_MAX 64
 #define CFG_AP_PASS_MAX 63
 /* Default board Wi-Fi password. Used for the first connection; can be changed in the web UI */
-#define CFG_DEFAULT_AP_PASS "kmrouter1"
+#define CFG_DEFAULT_AP_PASS "bluebaton1"
 
 /* Open the settings store (NVS, namespace km_cfg). Call after nvs_flash_init() */
 esp_err_t cfg_init(void);

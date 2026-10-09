@@ -327,7 +327,7 @@ class MockBoard {
     if (open) {
       this.stopScan('radio');
       this.hostWindow = this.later(180000, () => this.openHostWindow(false));
-      /* time the user takes to pick "KM Router" on the computer */
+      /* time the user takes to pick "Blue Baton" on the computer */
       this.later(2000, () => {
         if (!this.hostWindow || this.candidate) return;
         this.candidate = { addr: '00:1A:7D:00:00:0' + this.freeHost(), code: String(100000 + Math.floor(Math.random() * 900000)) };
@@ -387,7 +387,7 @@ class MockBoard {
     }
     switch (cmd) {
       case 'hello':
-        return this.reply(id, { fw: 'km-router', version: '0.5-mock', pin_set: this.pinSet, unlocked: this.unlocked, combo_set: !!this.combo, wifi_feature: false });
+        return this.reply(id, { fw: 'blue-baton', version: '0.5-mock', pin_set: this.pinSet, unlocked: this.unlocked, combo_set: !!this.combo, wifi_feature: false });
       case 'auth':
         if (req.pin !== this.pin) return this.fail(id, 'wrong_pin', 'Wrong PIN');
         this.unlocked = true;

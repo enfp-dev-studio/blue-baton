@@ -230,7 +230,7 @@ def make_handler(board, port):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="KM router USB serial bridge")
+    ap = argparse.ArgumentParser(description="Blue Baton USB serial bridge")
     ap.add_argument("--port", type=int, default=8766, help="HTTP port (127.0.0.1)")
     ap.add_argument("--serial", default="/dev/cu.usbmodem*", help="serial device glob")
     ap.add_argument("--log", default="", help="append every line with a timestamp to this file")

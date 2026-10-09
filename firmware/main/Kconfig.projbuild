@@ -1,4 +1,4 @@
-menu "KM router settings"
+menu "Blue Baton settings"
 
     config KM_WIFI_ENABLE
         bool "Enable Wi-Fi setup (only when switching to the server mode)"

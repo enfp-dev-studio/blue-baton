@@ -1,6 +1,6 @@
 # Settings UI (firmware/ui)
 
-A web page for pairing input devices and hosts with the board (KM Router) and watching its state. Plain ES modules, no build step.
+A web page for pairing input devices and hosts with the board (Blue Baton) and watching its state. Plain ES modules, no build step.
 Layers: transport (USB, bridge, mock) → protocol client → store → views.
 
 ## Opening it (three transports)
