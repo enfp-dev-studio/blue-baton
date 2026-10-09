@@ -143,3 +143,9 @@
   from { stroke-dashoffset: var(--start); }
   to { stroke-dashoffset: 113.1; }
 }
+
+/* The menu bar panel window is transparent: only its card is drawn (components/Panel.tsx) */
+html.bb-panel,
+html.bb-panel body {
+  background: transparent;
+}

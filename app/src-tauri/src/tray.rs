@@ -1,5 +1,8 @@
 //! Menu bar (macOS) / tray (Windows) icon and menu.
 //!
+//! Left click opens the panel under the icon (lib.rs, `toggle_panel`), like Google Drive; right click opens
+//! this menu.
+//!
 //! The settings window keeps the board state (the UI store); it sends a small model here whenever the
 //! hosts, the active host, or the input devices change, and the menu is rebuilt from it. Menu clicks go
 //! back to the window as `tray-action` events, so all board logic stays in one place (the UI).
@@ -8,7 +11,7 @@
 use serde::{Deserialize, Serialize};
 use tauri::image::Image;
 use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
-use tauri::tray::TrayIconBuilder;
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Wry};
 use tauri_plugin_autostart::ManagerExt;
 
@@ -91,8 +94,15 @@ pub fn create(app: &AppHandle, dev_api_on: bool) -> tauri::Result<()> {
         .icon_as_template(true)
         .tooltip("Blue Baton")
         .menu(&menu)
-        .show_menu_on_left_click(true)
+        .show_menu_on_left_click(false)
         .on_menu_event(|app, event| on_menu(app, event.id().as_ref()))
+        .on_tray_icon_event(|tray, event| {
+            // The positioner needs the icon's position to place the panel under it
+            tauri_plugin_positioner::on_tray_event(tray.app_handle(), &event);
+            if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event {
+                crate::toggle_panel(tray.app_handle());
+            }
+        })
         .build(app)?;
     Ok(())
 }

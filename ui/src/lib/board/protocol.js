@@ -19,7 +19,12 @@ export class BoardClient {
   constructor(transport, { timeoutMs = 5000 } = {}) {
     this.transport = transport;
     this.timeoutMs = timeoutMs;
-    this.nextId = 1;
+    /*
+     * Several clients can share one board (the app's panel and settings window, the dev bridge's monitors), and
+     * every reply reaches all of them. Each client starts its ids at a random point so they do not collide.
+     * The firmware reads ids as 32-bit ints.
+     */
+    this.nextId = 1 + Math.floor(Math.random() * 1e9);
     this.pending = new Map();
     this.listeners = new Set();
     transport.onLine = (line) => this.#onLine(line);

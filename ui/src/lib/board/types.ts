@@ -109,4 +109,5 @@ export interface Controller {
   inApp: boolean;
   needsSerial: boolean;
   useMock: boolean;
+  role: 'main' | 'panel';
 }

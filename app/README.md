@@ -2,9 +2,12 @@
 
 A small menu bar (macOS) / tray (Windows) app built with [Tauri 2](https://tauri.app). About 5 MB.
 
-- Menu bar icon with the active host number. The menu lists the three hosts (click to switch), the connected
-  input devices, Open Blue Baton…, Add Host…, Launch at Login, Developer API, and Quit.
-- The window is the settings UI (`../ui`). Closing it keeps the app running in the menu bar.
+- Lives in the menu bar only, never in the Dock (LSUIElement), like Google Drive.
+- Left click on the icon opens a panel under it: the three hosts (click to switch, the baton slides), the
+  connected input devices, Add Host…, Settings…, Quit. It closes when you click anywhere else.
+- Right click opens a menu: the hosts, input devices, Open Blue Baton…, Add Host…, Launch at Login,
+  Developer API, Quit. The icon shows the active host number.
+- The settings window is the full UI (`../ui`); the panel is the same UI with `?view=panel`. Closing the window keeps the app running.
 - The app owns the board's USB serial port (`src-tauri/src/board.rs`), finds it by USB ID (0x303A:0x1001),
   and reconnects after an unplug.
 - The settings PIN is remembered in the system keychain, so the menu works after a restart without unlocking.

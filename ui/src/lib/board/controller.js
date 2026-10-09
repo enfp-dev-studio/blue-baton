@@ -22,7 +22,11 @@ const REFRESH_ON = new Set(['ble_ready', 'paired', 'hid_ready', 'disconnected', 
 /* Events that need the user while the window may be hidden (menu bar app): bring the window forward */
 const NEEDS_USER = new Set(['host_passkey_request', 'passkey_request', 'numcmp', 'passkey_display']);
 
-export function createController(params = new URLSearchParams(location.search)) {
+/*
+ * role: 'main' is the settings window (it also drives the tray menu and brings itself forward for pairing
+ * prompts); 'panel' is the small panel under the menu bar icon, a second client of the same board.
+ */
+export function createController(params = new URLSearchParams(location.search), { role = 'main' } = {}) {
   const inApp = TauriTransport.available();
   const useMock = !inApp && params.has('mock');
   const useBridge = !inApp && params.has('bridge');
@@ -34,6 +38,7 @@ export function createController(params = new URLSearchParams(location.search)) 
   const monitorRoot = document.createElement('div');
   const monitor = new InputMonitor(monitorRoot);
   const app = inApp ? window.__TAURI__ : null;
+  const isMain = role === 'main';
 
   store.state.transport = transport.label;
   store.state.addOpen = false;
@@ -73,7 +78,7 @@ export function createController(params = new URLSearchParams(location.search)) 
     store.log('<', JSON.stringify(ev).slice(0, 300));
     monitor.onEvent(ev);
     store.applyEvent(ev);
-    if (app && NEEDS_USER.has(ev.event)) {
+    if (app && isMain && NEEDS_USER.has(ev.event)) {
       app.core.invoke('window_show');
       app.core.invoke('notify', { title: t('app.name'), body: t(ev.event === 'host_passkey_request' ? 'hosts.passkeyHelp' : 'add.title') });
     }
@@ -316,7 +321,7 @@ export function createController(params = new URLSearchParams(location.search)) 
 
   /* ---- Menu bar app: keep the tray menu in step with the store, and take its clicks ---- */
 
-  if (app) {
+  if (app && isMain) {
     let last = '';
     store.subscribe((s) => {
       const model = trayModel(s);
@@ -352,7 +357,7 @@ export function createController(params = new URLSearchParams(location.search)) 
     }
   })();
 
-  return { store, actions, monitorRoot, inApp, needsSerial, useMock };
+  return { store, actions, monitorRoot, inApp, needsSerial, useMock, role };
 }
 
 /* What the tray menu shows. Labels come from the UI language so the menu matches the window */

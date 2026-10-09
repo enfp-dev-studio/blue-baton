@@ -21,11 +21,28 @@
         "minWidth": 380,
         "minHeight": 520,
         "visible": false
+      },
+      {
+        "label": "panel",
+        "title": "Blue Baton",
+        "url": "index.html?view=panel",
+        "width": 340,
+        "height": 420,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "shadow": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "focus": false,
+        "visibleOnAllWorkspaces": true
       }
     ],
     "security": {
       "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost"
-    }
+    },
+    "macOSPrivateApi": true
   },
   "bundle": {
     "active": true,

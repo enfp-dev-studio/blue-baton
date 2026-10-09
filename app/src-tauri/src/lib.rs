@@ -1,7 +1,8 @@
 //! Blue Baton menu bar app.
 //!
 //! - Owns the board's USB serial port (board.rs) and hands lines to the settings window.
-//! - Menu bar / tray icon with the active host and quick switching (tray.rs).
+//! - Menu bar / tray icon with the active host: left click opens a panel under it (quick switching),
+//!   right click a menu (tray.rs). No Dock icon (LSUIElement in Info.plist).
 //! - The settings window is the shared UI (../../ui); closing it only hides it.
 //! - Remembers the settings PIN in the system keychain so the tray works without unlocking each time.
 //! - Optional developer API compatible with tools/bridge.py (devapi.rs).
@@ -10,12 +11,14 @@ mod board;
 mod devapi;
 mod tray;
 
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, WindowEvent};
 use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_notification::NotificationExt;
+use tauri_plugin_positioner::{Position, WindowExt};
 
 const KEYCHAIN_SERVICE: &str = "com.enfpdev.bluebaton";
 const KEYCHAIN_PIN: &str = "board-pin";
@@ -54,10 +57,9 @@ fn save_settings(app: &AppHandle, s: &Settings) {
     }
 }
 
+/// The settings window. The app stays out of the Dock even then (LSUIElement, like Google Drive)
 pub(crate) fn show_main(app: &AppHandle) {
-    // A menu bar app has no Dock icon; it gets one while its window is open, like other menu bar utilities
-    #[cfg(target_os = "macos")]
-    let _ = app.set_activation_policy(tauri::ActivationPolicy::Regular);
+    hide_panel(app);
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.unminimize();
         let _ = w.show();
@@ -69,8 +71,43 @@ fn hide_main(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.hide();
     }
+}
+
+/* ---- the panel under the menu bar icon ---- */
+
+/// When the panel last hid because it lost focus. Clicking the icon while the panel is open first takes the
+/// focus away (the panel hides) and then delivers the click; without this the click would reopen it at once
+static PANEL_HIDDEN_AT: AtomicU64 = AtomicU64::new(0);
+
+fn now_ms() -> u64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0)
+}
+
+pub(crate) fn hide_panel(app: &AppHandle) {
+    if let Some(p) = app.get_webview_window("panel") {
+        if p.is_visible().unwrap_or(false) {
+            let _ = p.hide();
+            PANEL_HIDDEN_AT.store(now_ms(), Ordering::SeqCst);
+        }
+    }
+}
+
+pub(crate) fn toggle_panel(app: &AppHandle) {
+    let Some(p) = app.get_webview_window("panel") else { return };
+    if p.is_visible().unwrap_or(false) {
+        hide_panel(app);
+        return;
+    }
+    if now_ms().saturating_sub(PANEL_HIDDEN_AT.load(Ordering::SeqCst)) < 300 {
+        return;
+    }
+    // Under the icon on macOS (menu bar at the top); above it on Windows (taskbar at the bottom)
     #[cfg(target_os = "macos")]
-    let _ = app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+    let _ = p.move_window(Position::TrayBottomCenter);
+    #[cfg(not(target_os = "macos"))]
+    let _ = p.move_window(Position::TrayCenter);
+    let _ = p.show();
+    let _ = p.set_focus();
 }
 
 pub(crate) fn refresh_tray(app: &AppHandle) {
@@ -139,6 +176,16 @@ fn window_show(app: AppHandle) {
 }
 
 #[tauri::command]
+fn panel_hide(app: AppHandle) {
+    hide_panel(&app);
+}
+
+#[tauri::command]
+fn app_quit(app: AppHandle) {
+    app.exit(0);
+}
+
+#[tauri::command]
 fn notify(app: AppHandle, title: String, body: String) {
     let _ = app.notification().builder().title(title).body(body).show();
 }
@@ -170,6 +217,7 @@ pub fn run() {
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_main(app)))
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec![HIDDEN_ARG])))
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_positioner::init())
         .setup(|app| {
             let handle = app.handle().clone();
             #[cfg(target_os = "macos")]
@@ -197,13 +245,22 @@ pub fn run() {
                     }
                 });
             }
+            if let Some(p) = app.get_webview_window("panel") {
+                let h = handle.clone();
+                p.on_window_event(move |e| {
+                    // Like a menu: it closes when you click anywhere else
+                    if let WindowEvent::Focused(false) = e {
+                        hide_panel(&h);
+                    }
+                });
+            }
             if !std::env::args().any(|a| a == HIDDEN_ARG) {
                 show_main(&handle);
             }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            board_status, board_send, tray_update, window_show, notify, pin_load, pin_save, pin_clear
+            board_status, board_send, tray_update, window_show, panel_hide, app_quit, notify, pin_load, pin_save, pin_clear
         ])
         .build(tauri::generate_context!())
         .expect("error while building Blue Baton")
