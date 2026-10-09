@@ -48,7 +48,7 @@ export class InputMonitor {
     };
     const e = this.el;
     root.replaceChildren(
-      h('div', { class: 'sec-head' }, h('h2', {}, t('inputs.title')), h('span', { class: 'hint' }, t('inputs.hint'))),
+      h('div', { class: 'panel-head' }, h('h2', {}, t('inputs.title')), h('span', { class: 'hint' }, t('inputs.hint'))),
       h('h3', {}, t('inputs.mouse')),
       h('div', { class: 'grid4' }, cBtn, cDx, cDy, cWh),
       h('p', { class: 'hint' }, tParts('inputs.mouseStats', { count: e.count, rate: e.rate }), ' ',

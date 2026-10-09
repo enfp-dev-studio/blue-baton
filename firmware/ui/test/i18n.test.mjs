@@ -38,7 +38,7 @@ test('language choice: ?lang wins, then the browser language, default English', 
 test('t fills placeholders, tParts keeps non-string params in place', () => {
   assert.equal(t('no.such.key'), 'no.such.key');
   const node = { countdown: true };
-  const parts = tParts('hosts.windowTitle', { seconds: node });
+  const parts = tParts('add.scanning', { seconds: node });
   assert.ok(parts.includes(node));
-  assert.equal(parts.map((p) => (p === node ? '42' : p)).join(''), t('hosts.windowTitle', { seconds: 42 }));
+  assert.equal(parts.map((p) => (p === node ? '42' : p)).join(''), t('add.scanning', { seconds: 42 }));
 });

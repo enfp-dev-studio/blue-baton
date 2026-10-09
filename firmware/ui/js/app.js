@@ -61,6 +61,7 @@ client.on((ev) => {
       return;
     case 'report':
       monitor.onEvent(ev);   /* too many to log */
+      livePulse(ev.addr);
       return;
     default:
       break;
@@ -96,6 +97,25 @@ client.on((ev) => {
     refreshTimer = setTimeout(refresh, 150);
   }
 });
+
+/*
+ * Live input: the sending device and the host receiving it light up briefly. Reports arrive dozens of times
+ * a second, so this touches classes directly instead of redrawing a region.
+ */
+const pulseTimers = new WeakMap();
+
+function pulse(el) {
+  if (!el) return;
+  el.classList.add('live');
+  clearTimeout(pulseTimers.get(el));
+  pulseTimers.set(el, setTimeout(() => el.classList.remove('live'), 160));
+}
+
+function livePulse(addr) {
+  pulse(document.querySelector(`.device[data-addr="${CSS.escape(addr)}"]`));
+  const n = store.state.activeHost;
+  if (store.state.hosts.get(n)?.state === 'ready') pulse(document.querySelector(`.host[data-host="${n}"]`));
+}
 
 async function refresh() {
   if (store.state.link !== 'connected' || !store.state.unlocked) return;
@@ -291,6 +311,16 @@ $('log-board').addEventListener('change', (e) => {
   store.changed();
 });
 $('log-sec').addEventListener('toggle', () => store.changed());
+
+/* Remember whether Diagnostics is open (per browser; storage can be unavailable, e.g. private windows) */
+try {
+  if (localStorage.getItem('bb.diagOpen') === '1') $('diag-sec').open = true;
+} catch { /* ignore */ }
+$('diag-sec').addEventListener('toggle', () => {
+  try {
+    localStorage.setItem('bb.diagOpen', $('diag-sec').open ? '1' : '0');
+  } catch { /* ignore */ }
+});
 
 /* Countdowns update only the number. Values without events (such as the radio state) are resynced every 5 s */
 setInterval(() => {

@@ -3,10 +3,6 @@
 import { h, icon } from './dom.js';
 import { FAIL_STAGE, RADIO, hostStateText, hostStateTone, kindIcon, kindText, reasonText, stateText, stateTone, t, tParts } from './i18n.js';
 
-function badge(text, tone) {
-  return h('span', { class: `badge ${tone}` }, text);
-}
-
 /*
  * Seconds left. Redrawing a whole region every second would recreate its inputs and lose focus and the
  * screen reader position, so only the number is updated (the 1 s timer in app.js reads data-until).
@@ -19,21 +15,66 @@ function countdown(until) {
   return h('span', { 'data-until': String(until) }, String(secondsLeft(until)));
 }
 
+/* ---- Shared pieces ---- */
+
+/* Status as a dot and a word, colored by tone (ok, busy, bad, idle) */
+function stateTag(text, tone) {
+  return h('span', { class: `state ${tone}` }, text);
+}
+
+/*
+ * Countdown ring: drains over the time left. The animation runs on its own from the current fraction, so the
+ * region is not redrawn every second; only the number inside follows data-until (app.js).
+ */
+function ring(until, total) {
+  const left = secondsLeft(until);
+  const start = (113.1 * (1 - left / total)).toFixed(1);
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', '0 0 46 46');
+  svg.setAttribute('aria-hidden', 'true');
+  for (const cls of ['track', 'fill']) {
+    const c = document.createElementNS(ns, 'circle');
+    c.setAttribute('cx', '23');
+    c.setAttribute('cy', '23');
+    c.setAttribute('r', '18');
+    c.setAttribute('class', cls);
+    svg.append(c);
+  }
+  return h('div', { class: 'ring', style: `--dur:${left}s;--start:${start}`, title: t('hosts.secondsLeft', { seconds: left }) },
+    svg, countdown(until));
+}
+
+/* Switch combos as keycaps. On a Mac the modifiers show as the symbols printed on Mac keyboards */
+const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '');
+const KEY_LABEL = IS_MAC
+  ? { ctrl: '⌃', control: '⌃', alt: '⌥', option: '⌥', opt: '⌥', cmd: '⌘', gui: '⌘', win: '⌘', meta: '⌘', super: '⌘', shift: '⇧' }
+  : { ctrl: 'Ctrl', control: 'Ctrl', alt: 'Alt', option: 'Alt', opt: 'Alt', cmd: 'Win', gui: 'Win', win: 'Win', meta: 'Win', super: 'Win', shift: 'Shift' };
+
+function keycaps(combo) {
+  if (!combo) return h('span', { class: 'hint' }, t('hosts.noCombo'));
+  const keys = combo.split('+').map((k) => k.trim()).filter(Boolean);
+  return h('span', { class: 'keys', title: combo },
+    keys.map((k) => h('kbd', {}, KEY_LABEL[k.toLowerCase()] || (k.length === 1 ? k.toUpperCase() : k))));
+}
+
 /* ---- Top bar: board link and lock ---- */
 
 export function renderLink(s, a) {
   if (s.link !== 'connected') {
     return h('div', { class: 'link' },
-      h('span', { class: 'link-state' }, s.link === 'connecting' ? t('link.connecting') : t('link.disconnected')),
-      h('button', { class: 'primary', onclick: a.connect, disabled: s.link === 'connecting' }, icon('usb', 16), ' ' + t('link.connect')),
+      h('span', { class: 'link-pill' }, stateTag(s.link === 'connecting' ? t('link.connecting') : t('link.disconnected'),
+        s.link === 'connecting' ? 'busy' : 'idle')),
+      h('button', { class: 'primary small', onclick: a.connect, disabled: s.link === 'connecting' }, icon('usb', 16), t('link.connect')),
     );
   }
+  const busy = s.radio !== 'idle';
   return h('div', { class: 'link' },
-    h('span', { class: 'dot ok', title: t('link.connected') }),
-    h('span', { class: 'link-state' }, t('link.info', { transport: s.transport, fw: s.fw || '?' })),
-    s.unlocked ? badge(RADIO[s.radio] || s.radio, s.radio === 'idle' ? 'idle' : 'busy') : null,
-    s.unlocked ? h('button', { class: 'ghost', onclick: a.lock, title: t('link.lockTitle') }, icon('lock', 16), ' ' + t('link.lock')) : null,
-    h('button', { class: 'ghost', onclick: a.disconnectLink, title: t('link.releaseTitle') }, t('link.release')),
+    h('span', { class: 'link-pill', title: t('link.connected') },
+      stateTag(t('link.info', { transport: s.transport, fw: s.fw || '?' }), 'ok')),
+    s.unlocked ? h('span', { class: `radio-chip${busy ? ' busy' : ''}` }, RADIO[s.radio] || s.radio) : null,
+    s.unlocked ? h('button', { class: 'ghost small', onclick: a.lock, title: t('link.lockTitle') }, icon('lock', 15), t('link.lock')) : null,
+    h('button', { class: 'ghost small', onclick: a.disconnectLink, title: t('link.releaseTitle') }, t('link.release')),
   );
 }
 
@@ -45,7 +86,8 @@ export function renderLock(s, a) {
     const pin = e.target.querySelector('input').value;
     setting ? a.setPin(pin) : a.unlock(pin);
   };
-  return h('form', { class: 'card lock', onsubmit: submit },
+  return h('form', { class: 'panel lock', onsubmit: submit },
+    h('div', { class: 'lock-mark' }, icon('lock', 24)),
     h('h2', {}, setting ? t('lock.setTitle') : t('lock.lockedTitle')),
     h('p', { class: 'hint' }, setting ? t('lock.setHint') : t('lock.unlockHint')),
     h('div', { class: 'row' },
@@ -68,7 +110,7 @@ export function renderNotice(s, a) {
 function hostSlot(s, n, a) {
   const hostDev = s.hosts.get(n);
   const on = s.activeHost === n;
-  return h('li', { class: `host${on ? ' on' : ''}` },
+  return h('li', { class: `host${on ? ' on' : ''}${hostDev ? '' : ' vacant'}`, 'data-host': String(n) },
     h('button', {
       class: 'host-pick',
       role: 'radio',
@@ -76,16 +118,18 @@ function hostSlot(s, n, a) {
       onclick: () => a.selectHost(n),
       title: t('hosts.pickTitle'),
     },
-    h('span', { class: 'host-title' },
+    h('span', { class: 'host-top' },
       h('span', { class: 'host-num' }, String(n)),
-      h('span', { class: 'host-name' }, hostDev ? hostDev.name || t('hosts.unnamed') : t('hosts.empty')),
+      hostDev ? stateTag(hostStateText(hostDev.state), hostStateTone(hostDev.state)) : null,
+      h('span', { class: 'host-ico' }, icon('computer', 18)),
     ),
-    hostDev ? badge(hostStateText(hostDev.state), hostStateTone(hostDev.state)) : null,
-    h('span', { class: 'host-combo mono' }, s.combos[n - 1] || t('hosts.noCombo'))),
+    h('span', { class: 'host-name' }, hostDev ? hostDev.name || t('hosts.unnamed') : t('hosts.empty')),
+    keycaps(s.combos[n - 1])),
     h('div', { class: 'host-actions' },
+      h('span'),
       hostDev
         ? h('button', { class: 'ghost danger small', onclick: () => a.removeHost(n, hostDev) }, t('common.remove'))
-        : h('button', { class: 'small', onclick: a.openHostWindow, disabled: s.hostWindow.open }, t('hosts.add'))),
+        : h('button', { class: 'small', onclick: a.openHostWindow, disabled: s.hostWindow.open }, icon('plus', 14), t('hosts.add'))),
   );
 }
 
@@ -96,24 +140,27 @@ function hostPasskeyBox(s, a) {
     e.preventDefault();
     a.hostPasskey(e.target.querySelector('input').value);
   };
-  const dots = Array.from({ length: 6 }, (_, i) => h('span', { class: `pk-dot${i < p.len ? ' on' : ''}` }));
+  const boxes = Array.from({ length: 6 }, (_, i) => h('span', { class: `pk-box${i < p.len ? ' on' : ''}` }));
   return h('form', { class: 'prompt', onsubmit: submit },
     h('p', {}, t('hosts.passkeyHelp')),
-    h('div', { class: 'pk-dots', 'aria-label': t('hosts.passkeyDigits', { n: p.len }) }, dots),
+    h('div', { class: 'pk-boxes', 'aria-label': t('hosts.passkeyDigits', { n: p.len }) }, boxes),
     h('p', { class: 'hint' }, t('hosts.passkeyFallback')),
-    h('div', { class: 'row' },
+    h('div', { class: 'row', style: 'margin-top:10px' },
       h('input', { inputmode: 'numeric', maxlength: 6, pattern: '\\d{6}', placeholder: '123456', 'data-keep': 'host-passkey', 'aria-label': t('hosts.passkeyLabel'), required: true }),
       h('button', { class: 'primary', type: 'submit' }, t('common.send')),
     ),
   );
 }
 
+const HOST_WINDOW_S = 180;
+
 function hostWindowBox(s, a) {
   if (!s.hostWindow.open) return null;
   const c = s.hostCandidate;
-  return h('div', { class: 'add' },
-    h('div', { class: 'sec-head' },
-      h('h3', {}, tParts('hosts.windowTitle', { seconds: countdown(s.hostWindow.until) })),
+  return h('div', { class: 'sheet' },
+    h('div', { class: 'sheet-head' },
+      ring(s.hostWindow.until, HOST_WINDOW_S),
+      h('h3', {}, t('hosts.windowTitle')),
       h('button', { class: 'ghost small', onclick: a.closeHostWindow }, t('common.close')),
     ),
     h('ol', { class: 'steps' },
@@ -121,18 +168,32 @@ function hostWindowBox(s, a) {
       h('li', {}, t('hosts.stepWindows')),
       h('li', {}, t('hosts.stepCode')),
     ),
-    c ? h('p', { class: 'hint' }, c.state === 'securing' ? t('hosts.verifying') : t('hosts.candidate', { addr: c.addr })) : null,
+    c ? h('p', { class: 'hint', style: 'margin-bottom:12px' }, stateTag(c.state === 'securing' ? t('hosts.verifying') : t('hosts.candidate', { addr: c.addr }), 'busy')) : null,
     hostPasskeyBox(s, a),
   );
 }
 
+/* The baton slides from the host it was on to the new one. The region is rebuilt on a switch, so the
+ * previous position is kept here and handed to the CSS animation as --from */
+let batonAt = null;
+
 export function renderHosts(s, a) {
+  const to = s.activeHost - 1;
+  const from = batonAt ?? to;
+  batonAt = to;
+  const active = s.hosts.get(s.activeHost);
   return h('div', {},
-    h('div', { class: 'sec-head' },
-      h('h2', {}, t('hosts.title')),
-      h('span', { class: 'hint' }, t('hosts.hint')),
+    h('div', { class: 'panel-head' },
+      h('div', {},
+        h('span', { class: 'eyebrow' }, t('hosts.eyebrow')),
+        h('h2', {}, t('hosts.title'))),
+      active
+        ? h('span', { class: 'sending' }, icon('arrow', 16), tParts('hosts.sendingTo', { name: h('b', {}, active.name || t('hosts.unnamed')) }))
+        : h('span', { class: 'hint' }, s.hosts.size ? t('hosts.hint') : t('hosts.noneActive')),
     ),
-    h('ul', { class: 'hosts', role: 'radiogroup', 'aria-label': t('hosts.groupLabel') }, [1, 2, 3].map((n) => hostSlot(s, n, a))),
+    h('ul', { class: 'relay', role: 'radiogroup', 'aria-label': t('hosts.groupLabel'), style: `--from:${from};--to:${to}` },
+      h('li', { class: 'baton', 'aria-hidden': 'true', role: 'presentation' }),
+      [1, 2, 3].map((n) => hostSlot(s, n, a))),
     hostWindowBox(s, a),
   );
 }
@@ -154,20 +215,20 @@ function deviceSubline(d) {
  * Only when auto-connect is off (the user disconnected it, or it failed repeatedly) do we offer a button to turn it back on.
  */
 function deviceAction(d, connected, a) {
-  if (connected) return h('button', { onclick: () => a.disconnectDevice(d.addr) }, t('devices.disconnect'));
-  if (d.state === 'failed') return h('button', { onclick: () => a.connectDevice(d.id) }, t('devices.retry'));
-  if (d.paired && !d.auto) return h('button', { onclick: () => a.connectDevice(d.id) }, t('devices.autoOn'));
+  if (connected) return h('button', { class: 'small', onclick: () => a.disconnectDevice(d.addr) }, t('devices.disconnect'));
+  if (d.state === 'failed') return h('button', { class: 'small', onclick: () => a.connectDevice(d.id) }, t('devices.retry'));
+  if (d.paired && !d.auto) return h('button', { class: 'small', onclick: () => a.connectDevice(d.id) }, t('devices.autoOn'));
   return null;
 }
 
 function deviceRow(d, a) {
   const connected = d.state !== 'offline' && d.state !== 'failed';
-  return h('li', { class: 'device' },
+  return h('li', { class: 'device', 'data-addr': d.addr },
     h('span', { class: `device-icon ${stateTone(d.state)}` }, icon(kindIcon(d.kinds, d.appearance), 22)),
     h('div', { class: 'device-main' },
       h('div', { class: 'device-title' },
         h('span', { class: 'device-name' }, d.name || t('common.unnamedDevice')),
-        badge(stateText(d.state), stateTone(d.state)),
+        stateTag(stateText(d.state), stateTone(d.state)),
       ),
       h('div', { class: 'device-meta' },
         h('span', {}, kindText(d.kinds, d.appearance)),
@@ -176,7 +237,7 @@ function deviceRow(d, a) {
       deviceSubline(d) ? h('div', { class: 'device-sub' }, deviceSubline(d)) : null,
     ),
     h('div', { class: 'device-actions' }, deviceAction(d, connected, a),
-      d.paired ? h('button', { class: 'ghost danger', onclick: () => a.removeDevice(d) }, t('common.remove')) : null,
+      d.paired ? h('button', { class: 'ghost danger small', onclick: () => a.removeDevice(d) }, t('common.remove')) : null,
     ),
   );
 }
@@ -184,8 +245,10 @@ function deviceRow(d, a) {
 export function renderDevices(s, a) {
   const list = [...s.devices.values()].sort((x, y) => (y.lastSeq || 0) - (x.lastSeq || 0));
   return h('div', {},
-    h('div', { class: 'sec-head' },
-      h('h2', {}, t('devices.title')),
+    h('div', { class: 'panel-head' },
+      h('div', {},
+        h('span', { class: 'eyebrow' }, t('devices.eyebrow')),
+        h('h2', {}, t('devices.title'))),
       h('span', { class: 'hint' }, t('devices.summary', { bonds: s.bonds, max: s.bondsMax || '?' })),
     ),
     list.length
@@ -200,7 +263,7 @@ export function renderDevices(s, a) {
         onclick: a.openAdd,
         disabled: s.hostWindow.open,
         title: s.hostWindow.open ? t('devices.addBlocked') : '',
-      }, icon('plus', 16), ' ' + t('devices.add')),
+      }, icon('plus', 16), t('devices.add')),
   );
 }
 
@@ -245,7 +308,7 @@ function foundRow(f, a) {
     h('div', { class: 'device-main' },
       h('div', { class: 'device-title' },
         h('span', { class: 'device-name' }, f.name || t('common.unnamedDevice')),
-        f.paired ? badge(t('add.paired'), 'idle') : null,
+        f.paired ? h('span', { class: 'chip' }, t('add.paired')) : null,
       ),
       h('div', { class: 'device-meta' },
         h('span', {}, kindText([], f.appearance)),
@@ -261,11 +324,14 @@ function foundRow(f, a) {
   );
 }
 
+const SCAN_S = 60;
+
 export function renderAdd(s, a) {
   if (!s.addOpen) return h('div');
   const found = [...s.found.values()].filter((f) => s.showAll || f.hid !== false).sort((x, y) => y.rssi - x.rssi);
-  return h('div', { class: 'add' },
-    h('div', { class: 'sec-head' },
+  return h('div', { class: 'sheet' },
+    h('div', { class: 'sheet-head' },
+      s.scanning ? ring(s.scanUntil, SCAN_S) : null,
       h('h3', {}, t('add.title')),
       h('button', { class: 'ghost small', onclick: a.closeAdd }, t('common.close')),
     ),

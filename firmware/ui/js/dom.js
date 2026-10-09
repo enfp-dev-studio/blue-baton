@@ -41,6 +41,8 @@ const ICONS = {
   usb: 'M12 3v14 M9 6l3-3 3 3 M8 11v2h8v-2 M12 17a2 2 0 1 0 0 4 2 2 0 0 0 0-4z',
   plus: 'M12 5v14 M5 12h14',
   lock: 'M6 11h12v9H6z M8 11V8a4 4 0 0 1 8 0v3',
+  computer: 'M3 5h18v11H3z M9 20h6 M12 16v4',
+  arrow: 'M5 12h14 M13 6l6 6-6 6',
 };
 
 /* Small line icons (they take the text color) */
