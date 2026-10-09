@@ -1,0 +1,181 @@
+//! Menu bar (macOS) / tray (Windows) icon and menu.
+//!
+//! The settings window keeps the board state (the UI store); it sends a small model here whenever the
+//! hosts, the active host, or the input devices change, and the menu is rebuilt from it. Menu clicks go
+//! back to the window as `tray-action` events, so all board logic stays in one place (the UI).
+//! Labels come from the UI too, so the menu follows the UI language.
+
+use serde::{Deserialize, Serialize};
+use tauri::image::Image;
+use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
+use tauri::tray::TrayIconBuilder;
+use tauri::{AppHandle, Emitter, Wry};
+use tauri_plugin_autostart::ManagerExt;
+
+pub const TRAY_ID: &str = "main";
+
+#[derive(Deserialize, Clone, Default)]
+pub struct HostItem {
+    pub n: u8,
+    pub name: String,
+    /// ready | connected | secured | pairing | offline | empty
+    pub state: String,
+}
+
+#[derive(Deserialize, Clone, Default)]
+pub struct InputItem {
+    pub name: String,
+    pub state: String,
+    pub ready: bool,
+}
+
+#[derive(Deserialize, Clone)]
+pub struct Labels {
+    pub open: String,
+    pub add_host: String,
+    pub autostart: String,
+    pub dev_api: String,
+    pub quit: String,
+    pub empty: String,
+    pub offline: String,
+    pub inputs: String,
+    pub no_inputs: String,
+    pub board_off: String,
+    pub locked: String,
+}
+
+impl Default for Labels {
+    fn default() -> Self {
+        Labels {
+            open: "Open Blue Baton…".into(),
+            add_host: "Add Host…".into(),
+            autostart: "Launch at Login".into(),
+            dev_api: "Developer API (127.0.0.1:8766)".into(),
+            quit: "Quit Blue Baton".into(),
+            empty: "Empty".into(),
+            offline: "Offline".into(),
+            inputs: "Input devices".into(),
+            no_inputs: "No input device connected".into(),
+            board_off: "Board not connected".into(),
+            locked: "Locked · open Blue Baton to unlock".into(),
+        }
+    }
+}
+
+#[derive(Deserialize, Clone, Default)]
+pub struct Model {
+    /// 1-3
+    pub active: u8,
+    pub hosts: Vec<HostItem>,
+    pub inputs: Vec<InputItem>,
+    /// connected | disconnected | locked
+    pub board: String,
+    pub labels: Labels,
+    pub tooltip: String,
+}
+
+#[derive(Serialize, Clone)]
+pub struct Action {
+    pub kind: &'static str,
+    pub host: u8,
+}
+
+fn tray_icon() -> tauri::Result<Image<'static>> {
+    Image::from_bytes(include_bytes!("../icons/tray.png"))
+}
+
+pub fn create(app: &AppHandle, dev_api_on: bool) -> tauri::Result<()> {
+    let menu = build_menu(app, &Model { board: "disconnected".into(), ..Default::default() }, dev_api_on)?;
+    TrayIconBuilder::with_id(TRAY_ID)
+        .icon(tray_icon()?)
+        .icon_as_template(true)
+        .tooltip("Blue Baton")
+        .menu(&menu)
+        .show_menu_on_left_click(true)
+        .on_menu_event(|app, event| on_menu(app, event.id().as_ref()))
+        .build(app)?;
+    Ok(())
+}
+
+pub fn update(app: &AppHandle, model: &Model, dev_api_on: bool) -> tauri::Result<()> {
+    let Some(tray) = app.tray_by_id(TRAY_ID) else { return Ok(()) };
+    tray.set_menu(Some(build_menu(app, model, dev_api_on)?))?;
+    let ready = model.board == "connected"
+        && model.hosts.iter().any(|h| h.n == model.active && h.state == "ready");
+    // macOS shows the title next to the icon: the host that gets the input
+    let title = if model.board == "connected" && model.active > 0 { model.active.to_string() } else { String::new() };
+    #[cfg(target_os = "macos")]
+    tray.set_title(Some(if ready { title } else if title.is_empty() { String::new() } else { format!("{title}?") }))?;
+    #[cfg(not(target_os = "macos"))]
+    let _ = (ready, title);
+    tray.set_tooltip(Some(if model.tooltip.is_empty() { "Blue Baton".to_string() } else { model.tooltip.clone() }))?;
+    Ok(())
+}
+
+fn build_menu(app: &AppHandle, model: &Model, dev_api_on: bool) -> tauri::Result<Menu<Wry>> {
+    let l = &model.labels;
+    let menu = Menu::new(app)?;
+    let connected = model.board == "connected";
+    if !connected {
+        let text = if model.board == "locked" { &l.locked } else { &l.board_off };
+        menu.append(&MenuItem::with_id(app, "status", text, false, None::<&str>)?)?;
+    }
+    if connected {
+        for n in 1..=3u8 {
+            let host = model.hosts.iter().find(|h| h.n == n);
+            let (label, enabled) = match host {
+                Some(h) if h.state == "empty" => (format!("{n}   {}", l.empty), false),
+                Some(h) if h.state == "ready" => (format!("{n}   {}", h.name), true),
+                Some(h) => (format!("{n}   {}  ·  {}", h.name, l.offline), true),
+                None => (format!("{n}   {}", l.empty), false),
+            };
+            let item = CheckMenuItem::with_id(app, format!("host-{n}"), label, enabled, model.active == n, None::<&str>)?;
+            menu.append(&item)?;
+        }
+        menu.append(&PredefinedMenuItem::separator(app)?)?;
+        menu.append(&MenuItem::with_id(app, "inputs-title", &l.inputs, false, None::<&str>)?)?;
+        let live: Vec<&InputItem> = model.inputs.iter().collect();
+        if live.is_empty() {
+            menu.append(&MenuItem::with_id(app, "inputs-none", &l.no_inputs, false, None::<&str>)?)?;
+        }
+        for (i, d) in live.iter().enumerate() {
+            let mark = if d.ready { "●" } else { "○" };
+            let text = format!("{mark}  {}  ·  {}", d.name, d.state);
+            menu.append(&MenuItem::with_id(app, format!("input-{i}"), text, false, None::<&str>)?)?;
+        }
+    }
+    menu.append(&PredefinedMenuItem::separator(app)?)?;
+    menu.append(&MenuItem::with_id(app, "open", &l.open, true, None::<&str>)?)?;
+    menu.append(&MenuItem::with_id(app, "add-host", &l.add_host, connected, None::<&str>)?)?;
+    menu.append(&PredefinedMenuItem::separator(app)?)?;
+    let autostart = app.autolaunch().is_enabled().unwrap_or(false);
+    menu.append(&CheckMenuItem::with_id(app, "autostart", &l.autostart, true, autostart, None::<&str>)?)?;
+    menu.append(&CheckMenuItem::with_id(app, "devapi", &l.dev_api, true, dev_api_on, None::<&str>)?)?;
+    menu.append(&PredefinedMenuItem::separator(app)?)?;
+    menu.append(&MenuItem::with_id(app, "quit", &l.quit, true, None::<&str>)?)?;
+    Ok(menu)
+}
+
+fn on_menu(app: &AppHandle, id: &str) {
+    match id {
+        "open" => crate::show_main(app),
+        "add-host" => {
+            crate::show_main(app);
+            let _ = app.emit("tray-action", Action { kind: "add_host", host: 0 });
+        }
+        "autostart" => {
+            let auto = app.autolaunch();
+            let _ = if auto.is_enabled().unwrap_or(false) { auto.disable() } else { auto.enable() };
+            crate::refresh_tray(app);
+        }
+        "devapi" => crate::toggle_dev_api(app),
+        "quit" => app.exit(0),
+        _ => {
+            if let Some(n) = id.strip_prefix("host-").and_then(|s| s.parse::<u8>().ok()) {
+                let _ = app.emit("tray-action", Action { kind: "select_host", host: n });
+                // The menu shows the new choice when the UI confirms it (tray_update)
+                crate::refresh_tray(app);
+            }
+        }
+    }
+}

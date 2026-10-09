@@ -9,7 +9,7 @@ The router stays connected to the input devices and to every host at the same ti
 BLE keyboard ─┐                       ┌─ BLE HID → host 1
 BLE mouse ────┴─→ ESP32-S3 (NimBLE) ─┼─ BLE HID → host 2
                     │                 └─ BLE HID → host 3
-                    └─ USB: settings UI and logs
+                    └─ USB: menu bar app (settings, quick switch)
 ```
 
 Status: firmware 0.5. Two Macs verified on real hardware (input from a BLE mouse reaches the active Mac; hosts switch from the settings UI). Keyboard combo switching and Windows hosts are implemented but not yet verified on hardware.
@@ -22,8 +22,9 @@ License: not decided yet. Until a license is added, no rights are granted to reu
 |---|---|
 | [firmware/main/](firmware/main/) | Firmware (ESP-IDF v6.1, NimBLE). Input side `ble_pair.c`, report decoding `hid_input.c`, switching `router.c`, host side `host.c` |
 | [firmware/PROTOCOL.md](firmware/PROTOCOL.md) | USB control protocol (one JSON object per line) |
-| [firmware/ui/](firmware/ui/) | Settings UI (plain ES modules, no build step; local bridge, Web Serial, or mock board) |
-| [firmware/tools/](firmware/tools/) | Local bridge `bridge.py`, flash helper `flash.sh` |
+| [app/](app/) | Menu bar / tray app (Tauri): owns the board's USB port, quick host switching, settings window |
+| [ui/](ui/) | Settings UI (React, Tailwind CSS, shadcn/ui; also runs in a browser via Web Serial or the dev bridge) |
+| [firmware/tools/](firmware/tools/) | Dev bridge `bridge.py`, flash helper `flash.sh` |
 | [firmware/test/](firmware/test/) | Tests that run without the board (C and JS) |
 
 ## Build, flash, test
@@ -40,4 +41,4 @@ firmware/tools/flash.sh
 firmware/test/run.sh
 ```
 
-How to open the settings UI: [firmware/ui/README.md](firmware/ui/README.md).
+The menu bar app: [app/README.md](app/README.md). The settings UI on its own: [ui/README.md](ui/README.md).

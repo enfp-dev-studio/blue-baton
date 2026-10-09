@@ -19,7 +19,7 @@ cc -std=c11 -Wall -Wextra -Werror -g -fsanitize=address,undefined \
 "${OUT}_text"
 if command -v node >/dev/null 2>&1; then
   echo "== ui JS: report map, mock board flow, i18n tables"
-  node --test ../ui/test/
+  node --test ../../ui/test/
 else
   echo "== ui JS: skipped (node not found)"
 fi

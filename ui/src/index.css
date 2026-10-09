@@ -1,0 +1,145 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* Blue Baton theme for shadcn/ui: one accent (baton blue) on a cool neutral base, ink navy in dark mode */
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  color-scheme: light;
+  --radius: 0.875rem;
+  --background: oklch(0.973 0.006 264);
+  --foreground: oklch(0.19 0.03 266);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.19 0.03 266);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.19 0.03 266);
+  --primary: oklch(0.55 0.22 266);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.955 0.008 264);
+  --secondary-foreground: oklch(0.25 0.03 266);
+  --muted: oklch(0.955 0.008 264);
+  --muted-foreground: oklch(0.52 0.03 262);
+  --accent: oklch(0.94 0.02 266);
+  --accent-foreground: oklch(0.25 0.06 266);
+  --destructive: oklch(0.56 0.2 29);
+  --border: oklch(0.905 0.01 264);
+  --input: oklch(0.89 0.012 264);
+  --ring: oklch(0.55 0.22 266);
+  --ok: oklch(0.55 0.14 152);
+  --busy: oklch(0.62 0.14 70);
+  --glow: oklch(0.55 0.22 266 / 0.3);
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.19 0.03 266);
+  --sidebar-primary: oklch(0.55 0.22 266);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.955 0.008 264);
+  --sidebar-accent-foreground: oklch(0.25 0.03 266);
+  --sidebar-border: oklch(0.905 0.01 264);
+  --sidebar-ring: oklch(0.55 0.22 266);
+  --chart-1: oklch(0.55 0.22 266);
+  --chart-2: oklch(0.65 0.15 200);
+  --chart-3: oklch(0.6 0.14 152);
+  --chart-4: oklch(0.7 0.14 70);
+  --chart-5: oklch(0.6 0.18 330);
+}
+
+.dark {
+  color-scheme: dark;
+  --background: oklch(0.145 0.025 265);
+  --foreground: oklch(0.94 0.012 265);
+  --card: oklch(0.18 0.03 265);
+  --card-foreground: oklch(0.94 0.012 265);
+  --popover: oklch(0.2 0.032 265);
+  --popover-foreground: oklch(0.94 0.012 265);
+  --primary: oklch(0.66 0.18 266);
+  --primary-foreground: oklch(0.16 0.04 266);
+  --secondary: oklch(0.23 0.035 265);
+  --secondary-foreground: oklch(0.92 0.012 265);
+  --muted: oklch(0.23 0.035 265);
+  --muted-foreground: oklch(0.71 0.03 265);
+  --accent: oklch(0.26 0.05 266);
+  --accent-foreground: oklch(0.94 0.012 265);
+  --destructive: oklch(0.7 0.17 25);
+  --border: oklch(1 0 0 / 8%);
+  --input: oklch(1 0 0 / 13%);
+  --ring: oklch(0.66 0.18 266);
+  --ok: oklch(0.76 0.16 152);
+  --busy: oklch(0.8 0.13 75);
+  --glow: oklch(0.66 0.18 266 / 0.4);
+  --sidebar: oklch(0.18 0.03 265);
+  --sidebar-foreground: oklch(0.94 0.012 265);
+  --sidebar-primary: oklch(0.66 0.18 266);
+  --sidebar-primary-foreground: oklch(0.16 0.04 266);
+  --sidebar-accent: oklch(0.23 0.035 265);
+  --sidebar-accent-foreground: oklch(0.94 0.012 265);
+  --sidebar-border: oklch(1 0 0 / 8%);
+  --sidebar-ring: oklch(0.66 0.18 266);
+  --chart-1: oklch(0.66 0.18 266);
+  --chart-2: oklch(0.7 0.13 200);
+  --chart-3: oklch(0.72 0.14 152);
+  --chart-4: oklch(0.78 0.13 75);
+  --chart-5: oklch(0.7 0.17 330);
+}
+
+@theme inline {
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Apple SD Gothic Neo", "Pretendard", "Malgun Gothic", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-ok: var(--ok);
+  --color-busy: var(--busy);
+  --color-glow: var(--glow);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --animate-blink: blink 1.2s ease-in-out infinite;
+  @keyframes blink {
+    50% { opacity: 0.35; }
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Countdown ring (components/parts.tsx): drains from the fraction left when it appeared */
+@keyframes bb-drain {
+  from { stroke-dashoffset: var(--start); }
+  to { stroke-dashoffset: 113.1; }
+}

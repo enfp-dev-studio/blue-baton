@@ -1,0 +1,50 @@
+import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
+import { Toaster } from '@/components/ui/sonner';
+import { TooltipProvider } from '@/components/ui/tooltip';
+import { AddDeviceDialog, ConfirmDialog, HostPairingDialog, type ConfirmRequest } from '@/components/Dialogs';
+import { DevicesPanel } from '@/components/DevicesPanel';
+import { Diagnostics } from '@/components/Diagnostics';
+import { Header } from '@/components/Header';
+import { HostsPanel } from '@/components/HostsPanel';
+import { ConnectCard, LockCard } from '@/components/LockCard';
+import type { Controller } from '@/lib/board/types';
+import { useBoard } from '@/lib/useBoard';
+
+export function App({ ctl }: { ctl: Controller }) {
+  const s = useBoard(ctl);
+  const a = ctl.actions;
+  const [confirm, setConfirm] = useState<ConfirmRequest | null>(null);
+
+  /* Board notices become toasts */
+  useEffect(() => {
+    const n = s.notice;
+    if (!n) return;
+    if (n.kind === 'error') toast.error(n.text, { id: n.at });
+    else toast(n.text, { id: n.at });
+  }, [s.notice?.at]);
+
+  const ready = s.link === 'connected' && s.unlocked;
+  return (
+    <TooltipProvider>
+      <div className="min-h-screen bg-[radial-gradient(1200px_420px_at_50%_-180px,var(--glow),transparent_70%)]">
+        <Header s={s} a={a} ctl={ctl} />
+        <main className="mx-auto grid max-w-[900px] gap-4 px-3 pb-14 pt-6 sm:px-4">
+          {s.link !== 'connected' && <ConnectCard s={s} a={a} ctl={ctl} />}
+          {s.link === 'connected' && !s.unlocked && <LockCard s={s} a={a} />}
+          {ready && (
+            <>
+              <HostsPanel s={s} a={a} confirm={setConfirm} />
+              <DevicesPanel s={s} a={a} confirm={setConfirm} />
+            </>
+          )}
+          <Diagnostics s={s} ctl={ctl} />
+        </main>
+        {ready && <HostPairingDialog s={s} a={a} />}
+        {ready && <AddDeviceDialog s={s} a={a} />}
+        <ConfirmDialog req={confirm} onClose={() => setConfirm(null)} />
+        <Toaster position="bottom-center" richColors />
+      </div>
+    </TooltipProvider>
+  );
+}

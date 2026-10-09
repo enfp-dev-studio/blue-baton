@@ -35,7 +35,8 @@ from urllib.parse import urlparse
 
 import serial  # pyserial
 
-UI_DIR = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "ui"))
+# The built settings UI (ui/dist; run `npm run build` in ui/ first)
+UI_DIR = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", "ui", "dist"))
 
 
 class Board:
