@@ -338,11 +338,25 @@ static void cmd_paired_list(int id)
 
 static void cmd_stats(int id)
 {
-    char stats[300];
+    char stats[360];
     ble_pair_stats_json(stats, sizeof(stats));
-    char buf[360];
+    char buf[420];
     snprintf(buf, sizeof(buf), "{\"id\":%d,\"ok\":true,\"stats\":%s}", id, stats);
     usb_ctl_emit(buf);
+}
+
+static void cmd_input_itvl(int id, const char *line)
+{
+    int lo = 0, hi = 0;
+    if (!json_get_int(line, "min", &lo) || !json_get_int(line, "max", &hi)) {
+        reply_err_code(id, "bad_request", "min and max (units of 1.25 ms) are missing");
+        return;
+    }
+    if (ble_pair_input_itvl((uint16_t)lo, (uint16_t)hi) != ESP_OK) {
+        reply_err_code(id, "bad_request", "min 6..3200, max >= min");
+        return;
+    }
+    reply_ok(id, "");
 }
 
 static void handle_line(const char *line)
@@ -368,6 +382,8 @@ static void handle_line(const char *line)
         cmd_monitor(id, line);
     } else if (strcmp(cmd, "stats") == 0) {
         cmd_stats(id);
+    } else if (strcmp(cmd, "input_itvl") == 0) {
+        cmd_input_itvl(id, line);
     } else if (strcmp(cmd, "combo_get") == 0) {
         cmd_combo_get(id);
     } else if (strcmp(cmd, "combo_set") == 0) {

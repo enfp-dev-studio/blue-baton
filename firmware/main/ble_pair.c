@@ -695,11 +695,11 @@ static radio_t radio_wanted(void)
  * radio at 30 ms/60 ms (50%).
  * Units: interval 1.25 ms, scan 0.625 ms, supervision 10 ms.
  */
-static const struct ble_gap_conn_params s_conn_user = {
+static struct ble_gap_conn_params s_conn_user = {
     .scan_itvl = 0x0010, .scan_window = 0x0010, .itvl_min = 6, .itvl_max = 12,
     .latency = 0, .supervision_timeout = 400, .min_ce_len = 0, .max_ce_len = 0,
 };
-static const struct ble_gap_conn_params s_conn_auto = {
+static struct ble_gap_conn_params s_conn_auto = {
     .scan_itvl = 0x0060, .scan_window = 0x0030, .itvl_min = 6, .itvl_max = 12,
     .latency = 0, .supervision_timeout = 400, .min_ce_len = 0, .max_ce_len = 0,
 };
@@ -744,6 +744,19 @@ static void radio_start_connect(void)
     emit(buf);
 }
 
+/*
+ * If starting auto-reconnect fails, try again after AUTO_RETRY_MS. Real hardware: LE Create Connection was refused
+ * with HCI 0x0D (limited resources) and the radio then stayed idle, so the device never came back.
+ */
+#define AUTO_RETRY_MS 2000
+static struct ble_npl_callout s_auto_retry;
+
+static void auto_retry_cb(struct ble_npl_event *ev)
+{
+    s_auto_dirty = true;
+    radio_update();
+}
+
 /* Put bonded devices in the accept list and wait. Connects to whichever listed device advertises first (any advertising type) */
 static void radio_start_auto(void)
 {
@@ -758,6 +771,10 @@ static void radio_start_auto(void)
     }
     if (rc != 0) {
         ESP_LOGE(TAG, "autoconnect start failed rc=%d", rc);
+        char buf[80];
+        snprintf(buf, sizeof(buf), "{\"event\":\"autoconnect_failed\",\"rc\":%d,\"retry_ms\":%d}", rc, AUTO_RETRY_MS);
+        emit(buf);
+        ble_npl_callout_reset(&s_auto_retry, ble_npl_time_ms_to_ticks32(AUTO_RETRY_MS));
         return;
     }
     s_radio = RADIO_AUTO;
@@ -1851,7 +1868,7 @@ typedef enum {
     OP_SCAN, OP_CONNECT, OP_DISCONNECT, OP_ACCEPT, OP_PASSKEY, OP_CANCEL,
     OP_REMOVE, OP_CLEAR, OP_LIST, OP_PEERS, OP_PAIRED, OP_STATUS, OP_RADIO, OP_BONDS,
     OP_COMBOS, OP_HOST_SELECT, OP_HOST_GET,
-    OP_HOST_PAIR, OP_HOST_LIST, OP_HOST_REMOVE, OP_HOST_PASSKEY, OP_STATS,
+    OP_HOST_PAIR, OP_HOST_LIST, OP_HOST_REMOVE, OP_HOST_PASSKEY, OP_STATS, OP_INPUT_ITVL,
 } op_t;
 
 typedef struct {
@@ -2251,6 +2268,14 @@ static esp_err_t op_dispatch(req_t *r)
     case OP_STATS:
         r->out_len = host_stats_json(r->buf, r->len);
         return ESP_OK;
+    case OP_INPUT_ITVL: {
+        uint16_t lo = (uint16_t)(r->num & 0xFFFF), hi = (uint16_t)(r->num >> 16);
+        s_conn_user.itvl_min = s_conn_auto.itvl_min = lo;
+        s_conn_user.itvl_max = s_conn_auto.itvl_max = hi;
+        s_auto_dirty = true;   /* Restart a running auto-reconnect with the new values */
+        radio_update();
+        return ESP_OK;
+    }
     }
     return ESP_ERR_INVALID_ARG;
 }
@@ -2288,6 +2313,7 @@ esp_err_t ble_pair_init(ble_pair_event_fn event)
     ESP_RETURN_ON_ERROR(nimble_port_init(), TAG, "nimble init failed");
     ble_npl_event_init(&s_req_ev, req_run, NULL);
     ble_npl_callout_init(&s_sec_retry, nimble_port_get_dflt_eventq(), sec_retry_cb, NULL);
+    ble_npl_callout_init(&s_auto_retry, nimble_port_get_dflt_eventq(), auto_retry_cb, NULL);
     ble_gap_event_listener_register(&s_gap_listener, gap_listener, NULL);
 
     ble_hs_cfg.sync_cb = on_sync;
@@ -2446,6 +2472,15 @@ size_t ble_pair_host_list_json(char *buf, size_t len)
     req_t r = {.op = OP_HOST_LIST, .buf = buf, .len = len};
     host_call(&r);
     return r.out_len;
+}
+
+esp_err_t ble_pair_input_itvl(uint16_t min, uint16_t max)
+{
+    if (min < 6 || max < min || max > 3200) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    req_t r = {.op = OP_INPUT_ITVL, .num = (uint32_t)min | ((uint32_t)max << 16)};
+    return host_call(&r);
 }
 
 size_t ble_pair_stats_json(char *buf, size_t len)
