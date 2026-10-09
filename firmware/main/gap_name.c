@@ -13,12 +13,12 @@
 
 static const char *TAG = "gap_name";
 
-/* 읽는 중인 연결의 상태. 연결 핸들로 찾는다 */
+/* State of a connection being read. Looked up by connection handle */
 typedef struct {
     bool used;
     uint16_t conn;
-    uint16_t handle;   /* 0이면 아직 응답이 없다 */
-    bool more;         /* Read By Type 응답이 꽉 차서 값이 더 있을 수 있다 */
+    uint16_t handle;   /* 0 means no response yet */
+    bool more;         /* The Read By Type response was full, so the value may continue */
     int len;
     char buf[GAP_NAME_MAX + 1];
     gap_name_fn fn;
@@ -54,7 +54,7 @@ static void append(name_read_t *r, const struct os_mbuf *om, uint16_t offset)
 {
     uint16_t n = OS_MBUF_PKTLEN(om);
     if (offset != r->len || r->len >= GAP_NAME_MAX) {
-        return;   /* 순서가 어긋난 조각은 받지 않는다 */
+        return;   /* Ignore out-of-order fragments */
     }
     if (n > GAP_NAME_MAX - r->len) {
         n = GAP_NAME_MAX - r->len;
@@ -71,9 +71,9 @@ static int on_long(uint16_t conn, const struct ble_gatt_error *error, struct ble
     }
     if (error->status == 0 && attr && attr->om) {
         append(r, attr->om, attr->offset);
-        return r->len >= GAP_NAME_MAX ? 1 : 0;   /* 다 받았으면 남은 조각은 읽지 않는다 */
+        return r->len >= GAP_NAME_MAX ? 1 : 0;   /* Once full, do not read the remaining fragments */
     }
-    /* EDONE 또는 오류: 그때까지 받은 만큼 쓴다 (Read By Type로 받은 앞부분은 남아 있다) */
+    /* EDONE or error: use what has been received so far (the head from Read By Type is still there) */
     if (error->status != BLE_HS_EDONE) {
         ESP_LOGW(TAG, "read long status=%d, using %d bytes", error->status, r->len);
     }
@@ -88,21 +88,23 @@ static int on_by_type(uint16_t conn, const struct ble_gatt_error *error, struct 
         return 1;
     }
     if (error->status == 0 && attr && attr->om) {
-        if (r->handle == 0) {   /* Device Name은 하나다. 혹시 더 오면 첫 것만 쓴다 */
+        if (r->handle == 0) {   /* There is one Device Name. If more arrive, use only the first */
             r->handle = attr->handle;
             uint16_t n = OS_MBUF_PKTLEN(attr->om);
             append(r, attr->om, 0);
             /*
-             * 응답은 보낸 쪽의 그때 MTU로 잘린다. 재연결 직후에는 MTU 교환과 겹쳐, 응답은 23(기본값) 기준으로
-             * 잘려 오는데 지금 MTU는 이미 커져 있을 수 있다 (실기: Mac 재연결 때 19바이트에서 잘림).
-             * 그래서 기본 MTU 기준(19바이트) 이상이면 늘 이어 읽는다. 값이 거기서 끝나면 빈 응답이 온다.
+             * The response is truncated to the sender's MTU at that moment. Right after a reconnect this overlaps
+             * the MTU exchange: the response arrives truncated for 23 (the default) while the current MTU may
+             * already be larger (real hardware: cut at 19 bytes on Mac reconnect).
+             * So always continue reading at the default-MTU size (19 bytes) or more. If the value ends there,
+             * an empty response comes back.
              */
             r->more = n >= BLE_ATT_MTU_DFLT - 4 && r->len < GAP_NAME_MAX;
         }
         return 0;
     }
     if (error->status == BLE_HS_EDONE && r->more) {
-        /* 긴 읽기는 받은 다음 바이트부터 이어 읽는다 */
+        /* The long read continues from the byte after what was received */
         if (ble_gattc_read_long(conn, r->handle, (uint16_t)r->len, on_long, NULL) == 0) {
             return 0;
         }

@@ -23,7 +23,7 @@
 #define WIFI_FEATURE_JSON "false"
 #endif
 
-/* PIN을 맞춰 연 상태. 잠그기 명령이나 재부팅 전까지 유지한다 */
+/* Unlocked by a matching PIN. Stays until the lock command or a reboot */
 static bool s_unlocked;
 
 void usb_ctl_emit(const char *json)
@@ -46,32 +46,27 @@ static void reply_err_code(int id, const char *code, const char *message)
     usb_ctl_emit(buf);
 }
 
-static void reply_err(int id, const char *message)
-{
-    reply_err_code(id, "error", message);
-}
-
-/* BLE 명령의 실패. 화면은 code를 보고 문구를 고른다 */
+/* Failure of a BLE command. The UI picks its wording from code */
 static void reply_ble_err(int id, esp_err_t err)
 {
     switch (err) {
     case ESP_ERR_INVALID_STATE:
-        reply_err_code(id, "busy", "지금은 할 수 없습니다 (BLE 준비 전, 이미 연결됨, 다른 요청 진행 중)");
+        reply_err_code(id, "busy", "Not possible right now (BLE not ready, already connected, or another request in progress)");
         break;
     case ESP_ERR_NOT_FOUND:
-        reply_err_code(id, "not_found", "그 주소의 장치가 없습니다");
+        reply_err_code(id, "not_found", "No device with that address");
         break;
     case ESP_ERR_NO_MEM:
-        reply_err_code(id, "no_slot", "입력 장치 자리가 모두 찼습니다");
+        reply_err_code(id, "no_slot", "All input device slots are in use");
         break;
     case ESP_ERR_INVALID_ARG:
-        reply_err_code(id, "bad_addr", "주소 형식이 틀렸습니다 (AA:BB:CC:DD:EE:FF)");
+        reply_err_code(id, "bad_addr", "Invalid address format (AA:BB:CC:DD:EE:FF)");
         break;
     case ESP_ERR_NOT_ALLOWED:
-        reply_err_code(id, "host_window", "호스트 추가 창이 열려 있습니다. 창을 닫은 뒤 입력 장치를 추가하세요");
+        reply_err_code(id, "host_window", "The host pairing window is open. Close it before adding an input device");
         break;
     default:
-        reply_err_code(id, "failed", "실패했습니다");
+        reply_err_code(id, "failed", "Failed");
         break;
     }
 }
@@ -85,13 +80,13 @@ static void reply_ble(int id, esp_err_t err)
     }
 }
 
-/* 잠겨 있으면 에러를 보내고 false */
+/* If locked, send an error and return false */
 static bool require_unlock(int id)
 {
     if (s_unlocked) {
         return true;
     }
-    reply_err(id, "잠금 상태입니다. auth 명령으로 PIN을 먼저 입력하세요");
+    reply_err_code(id, "locked", "Locked. Send auth with the PIN first");
     return false;
 }
 
@@ -155,16 +150,16 @@ static void cmd_status(int id)
 static void cmd_auth(int id, const char *line)
 {
     if (!cfg_pin_is_set()) {
-        reply_err(id, "PIN이 아직 없습니다. pin_set으로 먼저 정하세요");
+        reply_err_code(id, "no_pin", "No PIN is set yet. Set one with pin_set first");
         return;
     }
     char pin[CFG_PIN_MAX + 1];
     if (!json_get_string(line, "pin", pin, sizeof(pin))) {
-        reply_err(id, "pin 값이 없습니다");
+        reply_err_code(id, "bad_request", "pin is missing");
         return;
     }
     if (!cfg_pin_check(pin)) {
-        reply_err(id, "PIN이 맞지 않습니다");
+        reply_err_code(id, "wrong_pin", "Wrong PIN");
         return;
     }
     s_unlocked = true;
@@ -174,28 +169,28 @@ static void cmd_auth(int id, const char *line)
 static void cmd_pin_set(int id, const char *line)
 {
     if (cfg_pin_is_set() && !s_unlocked) {
-        reply_err(id, "PIN이 이미 있습니다. 먼저 auth로 잠금을 푸세요");
+        reply_err_code(id, "locked", "A PIN is already set. Unlock with auth first");
         return;
     }
     char pin[CFG_PIN_MAX + 1];
     if (!json_get_string(line, "pin", pin, sizeof(pin)) || !is_digits(pin, 4, CFG_PIN_MAX)) {
-        reply_err(id, "PIN은 숫자 4~8자리여야 합니다");
+        reply_err_code(id, "bad_pin", "PIN must be 4 to 8 digits");
         return;
     }
     if (cfg_pin_set(pin) != ESP_OK) {
-        reply_err(id, "PIN 저장에 실패했습니다");
+        reply_err_code(id, "failed", "Failed to save the PIN");
         return;
     }
     s_unlocked = true;
     reply_ok(id, "");
 }
 
-/* 기본 조합. 저장된 값이 없으면 이것을 쓴다 (ble_pair.c의 DEFAULT_COMBOS와 같다) */
+/* Default combos. Used when nothing is stored (same as DEFAULT_COMBOS in ble_pair.c) */
 #define DEFAULT_COMBOS "ctrl+alt+1,ctrl+alt+2,ctrl+alt+3"
 
 static void cmd_combo_get(int id)
 {
-    /* 실제로 적용되는 조합을 알려 준다. 저장된 값이 형식에 맞지 않으면 보드는 기본값을 쓴다 */
+    /* Report the combos actually in effect. If the stored value is malformed, the board uses the default */
     char combo[CFG_COMBO_MAX + 1] = {0};
     bool stored = cfg_combo_get(combo, sizeof(combo));
     combo_t parsed[ROUTER_HOST_MAX];
@@ -208,21 +203,21 @@ static void cmd_combo_get(int id)
     reply_ok(id, fields);
 }
 
-/* 호스트 순서대로 쉼표로 나눈 조합 목록. 형식을 먼저 검사하고 적용한 뒤 저장한다 */
+/* Comma-separated combo list in host order. Validate the format first, apply, then save */
 static void cmd_combo_set(int id, const char *line)
 {
     char combo[CFG_COMBO_MAX + 1];
     if (!json_get_string(line, "combo", combo, sizeof(combo)) || combo[0] == '\0') {
-        reply_err_code(id, "bad_combo", "combo 값이 없습니다 (예: ctrl+alt+1,ctrl+alt+2,ctrl+alt+3)");
+        reply_err_code(id, "bad_combo", "combo is missing (e.g. ctrl+alt+1,ctrl+alt+2,ctrl+alt+3)");
         return;
     }
     if (ble_pair_set_combos(combo) != ESP_OK) {
         reply_err_code(id, "bad_combo",
-                       "조합 형식이 틀렸습니다. 수정 키(ctrl, shift, alt, cmd)와 일반 키 하나, 호스트는 쉼표로 3개까지");
+                       "Invalid combo. Use modifiers (ctrl, shift, alt, cmd) plus one key; up to 3 hosts, comma-separated");
         return;
     }
     if (cfg_combo_set(combo) != ESP_OK) {
-        reply_err(id, "저장에 실패했습니다");
+        reply_err_code(id, "failed", "Failed to save");
         return;
     }
     reply_ok(id, "");
@@ -232,12 +227,12 @@ static void cmd_host_pair(int id, const char *line)
 {
     bool on = false;
     if (!json_get_bool(line, "on", &on)) {
-        reply_err(id, "on(true 또는 false)이 없습니다");
+        reply_err_code(id, "bad_request", "on (true or false) is missing");
         return;
     }
     esp_err_t err = ble_pair_host_pair(on);
     if (err == ESP_ERR_NO_MEM) {
-        reply_err_code(id, "hosts_full", "호스트 3대가 모두 찼습니다. 하나를 지운 뒤 다시 여세요");
+        reply_err_code(id, "hosts_full", "All 3 host slots are in use. Remove one, then open the window again");
         return;
     }
     reply_ble(id, err);
@@ -256,12 +251,12 @@ static void cmd_host_remove(int id, const char *line)
 {
     int host = 0;
     if (!json_get_int(line, "host", &host) || host < 1 || host > 3) {
-        reply_err_code(id, "bad_host", "host는 1~3입니다");
+        reply_err_code(id, "bad_host", "host must be 1 to 3");
         return;
     }
     esp_err_t err = ble_pair_host_remove(host - 1);
     if (err == ESP_ERR_NOT_FOUND) {
-        reply_err_code(id, "not_found", "그 번호에 페어링된 호스트가 없습니다");
+        reply_err_code(id, "not_found", "No host is paired at that number");
         return;
     }
     reply_ble(id, err);
@@ -271,12 +266,12 @@ static void cmd_host_passkey(int id, const char *line)
 {
     char code[8];
     if (!json_get_string(line, "code", code, sizeof(code)) || !is_digits(code, 6, 6)) {
-        reply_err_code(id, "bad_code", "패스키는 숫자 6자리입니다");
+        reply_err_code(id, "bad_code", "Passkey must be 6 digits");
         return;
     }
     esp_err_t err = ble_pair_host_passkey((uint32_t)strtoul(code, NULL, 10));
     if (err != ESP_OK) {
-        reply_err_code(id, "no_request", "지금은 패스키를 받을 호스트가 없습니다");
+        reply_err_code(id, "no_request", "No host is waiting for a passkey");
         return;
     }
     reply_ok(id, "");
@@ -286,7 +281,7 @@ static void cmd_host_select(int id, const char *line)
 {
     int host = 0;
     if (!json_get_int(line, "host", &host) || host < 1 || host > 3) {
-        reply_err_code(id, "bad_host", "host는 1~3입니다");
+        reply_err_code(id, "bad_host", "host must be 1 to 3");
         return;
     }
     reply_ble(id, ble_pair_select_host(host - 1));
@@ -296,7 +291,7 @@ static void cmd_pair_scan(int id, const char *line)
 {
     bool on = false;
     if (!json_get_bool(line, "on", &on)) {
-        reply_err(id, "on(true 또는 false)이 없습니다");
+        reply_err_code(id, "bad_request", "on (true or false) is missing");
         return;
     }
     reply_ble(id, ble_pair_scan(on));
@@ -313,12 +308,12 @@ static void cmd_pair_list(int id, const char *line)
     reply_ok(id, fields);
 }
 
-/* addr를 받는 BLE 명령 (connect, disconnect, paired_remove) */
+/* BLE commands that take addr (connect, disconnect, paired_remove) */
 static void cmd_with_addr(int id, const char *line, esp_err_t (*fn)(const char *))
 {
     char addr[18];
     if (!json_get_string(line, "addr", addr, sizeof(addr))) {
-        reply_err_code(id, "bad_addr", "addr 값이 없습니다");
+        reply_err_code(id, "bad_addr", "addr is missing");
         return;
     }
     reply_ble(id, fn(addr));
@@ -328,11 +323,11 @@ static void cmd_pair_accept(int id, const char *line)
 {
     bool accept = false;
     if (!json_get_bool(line, "accept", &accept)) {
-        reply_err(id, "accept(true 또는 false)이 없습니다");
+        reply_err_code(id, "bad_request", "accept (true or false) is missing");
         return;
     }
     if (ble_pair_accept(accept) != ESP_OK) {
-        reply_err_code(id, "no_request", "지금은 수락할 요청이 없습니다");
+        reply_err_code(id, "no_request", "No request to accept right now");
         return;
     }
     reply_ok(id, "");
@@ -342,11 +337,11 @@ static void cmd_passkey(int id, const char *line)
 {
     char code[8];
     if (!json_get_string(line, "code", code, sizeof(code)) || !is_digits(code, 6, 6)) {
-        reply_err(id, "패스키는 숫자 6자리입니다");
+        reply_err_code(id, "bad_code", "Passkey must be 6 digits");
         return;
     }
     if (ble_pair_passkey((uint32_t)strtoul(code, NULL, 10)) != ESP_OK) {
-        reply_err_code(id, "no_request", "지금은 패스키를 받을 요청이 없습니다");
+        reply_err_code(id, "no_request", "No request is waiting for a passkey");
         return;
     }
     reply_ok(id, "");
@@ -354,7 +349,7 @@ static void cmd_passkey(int id, const char *line)
 
 static void cmd_paired_list(int id)
 {
-    /* 본딩 8개 x 항목 약 150바이트 */
+    /* 8 bonds x about 150 bytes per entry */
     static char list[1300];
     ble_pair_paired_json(list, sizeof(list));
     static char buf[1400];
@@ -369,7 +364,7 @@ static void handle_line(const char *line)
 
     char cmd[24];
     if (!json_get_string(line, "cmd", cmd, sizeof(cmd))) {
-        reply_err(id, "cmd가 없습니다");
+        reply_err_code(id, "bad_request", "cmd is missing");
         return;
     }
 
@@ -422,7 +417,7 @@ static void handle_line(const char *line)
             reply_ok(id, "");
         }
     } else {
-        reply_err(id, "알 수 없는 명령입니다");
+        reply_err_code(id, "unknown_cmd", "Unknown command");
     }
 }
 

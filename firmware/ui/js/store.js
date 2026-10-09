@@ -1,9 +1,10 @@
 /*
- * 화면 상태. 보드가 진실이므로 상태는 보드의 응답과 이벤트로만 바뀐다 (낙관적으로 바꾸지 않는다).
+ * UI state. The board is the source of truth, so state changes only through board replies and events
+ * (no optimistic updates).
  *
- * 기기는 하나의 목록이다 (GUI 제안서 5.1):
- *   devices: 페어링된 기기와 지금 연결(페어링) 중인 기기. 키는 identity 주소
- *   found:   스캔에서 찾았고 아직 페어링되지 않은 기기. 키는 무선 주소. "기기 추가" 창에서만 보인다
+ * Devices form a single list (GUI proposal 5.1):
+ *   devices: paired devices plus the device currently connecting (pairing). Keyed by identity address
+ *   found:   devices found by a scan that are not paired yet. Keyed by over-the-air address. Shown only in "Add device"
  */
 
 const LOG_MAX = 400;
@@ -22,12 +23,12 @@ export class Store {
       scanUntil: 0,
       bonds: 0,
       bondsMax: 0,
-      activeHost: 1,               /* 1부터 */
-      hosts: new Map(),            /* 번호(1~3) -> {host, addr, name, state, connected} (host_list가 원천) */
+      activeHost: 1,               /* 1-based */
+      hosts: new Map(),            /* number (1 to 3) -> {host, addr, name, state, connected} (host_list is the source) */
       hostWindow: { open: false, until: 0 },
-      hostCandidate: null,         /* 창에서 붙은, 아직 번호가 없는 호스트 {addr, state} */
-      hostPrompt: null,            /* 호스트 패스키 입력 {addr, len} */
-      combos: [],                  /* 호스트별 전환 키 조합 문자열 */
+      hostCandidate: null,         /* host that connected through the pairing window and has no number yet {addr, state} */
+      hostPrompt: null,            /* host passkey entry {addr, len} */
+      combos: [],                  /* switch combo string per host */
       combosDefault: true,
       devices: new Map(),
       found: new Map(),
@@ -45,7 +46,7 @@ export class Store {
     return () => this.listeners.delete(fn);
   }
 
-  /* 여러 이벤트가 몰려 와도 화면은 한 프레임에 한 번만 그린다 */
+  /* However many events arrive at once, render at most once per frame */
   changed() {
     if (this.scheduled) return;
     this.scheduled = true;
@@ -72,7 +73,7 @@ export class Store {
     this.changed();
   }
 
-  /* ---- 기기 목록 ---- */
+  /* ---- Device list ---- */
 
   deviceByAddr(addr) {
     for (const d of this.state.devices.values()) if (d.addr === addr || d.id === addr) return d;
@@ -88,12 +89,12 @@ export class Store {
     return d;
   }
 
-  /* paired_list 응답: 페어링된 기기의 원천. 연결 상태는 이벤트와 status로 채운다 */
+  /* paired_list reply: the source of paired devices. Connection state comes from events and status */
   applyPaired(list) {
     const s = this.state;
     const keep = new Set(list.map((p) => p.addr));
     for (const [key, d] of s.devices) {
-      /* 목록에 없는 기기: 지금 페어링 중인 연결만 남긴다 */
+      /* Not in the list: keep it only if it is a connection that is pairing right now */
       if (!keep.has(key) && !(d.state !== 'offline' && !d.paired)) s.devices.delete(key);
     }
     for (const p of list) {
@@ -112,7 +113,7 @@ export class Store {
     this.changed();
   }
 
-  /* host_list 응답 */
+  /* host_list reply */
   applyHosts(list) {
     const s = this.state;
     s.hosts = new Map(list.map((x) => [x.host, { ...x, state: x.connected ? x.state : 'offline' }]));
@@ -128,13 +129,13 @@ export class Store {
     s.activeHost = st.active_host ?? s.activeHost;
     for (const p of st.peers || []) {
       const d = this.deviceByAddr(p.addr) || (p.id_addr && this.state.devices.get(p.id_addr));
-      /* 보드는 페어링 중인 연결도 securing으로 알린다. 화면에서는 새 기기면 "페어링하는 중"으로 둔다 */
+      /* The board reports a pairing connection as securing too. For a new device the UI keeps showing "Pairing" */
       if (d && !(d.state === 'pairing' && p.state === 'securing')) d.state = p.state;
     }
     this.changed();
   }
 
-  /* ---- 보드 이벤트 ---- */
+  /* ---- Board events ---- */
 
   applyEvent(ev) {
     const s = this.state;
@@ -177,7 +178,7 @@ export class Store {
         s.found.delete(ev.addr);
         const key = ev.id_addr || ev.addr;
         const d = this.#device(key, { name: f?.name || '', appearance: f?.appearance || 0 });
-        if (f) d.foundEntry = f;   /* 새 페어링이 실패하면 찾은 목록으로 되돌린다 */
+        if (f) d.foundEntry = f;   /* if the new pairing fails, it goes back to the found list */
         d.addr = ev.addr;
         d.paired = d.paired || ev.bonded;
         d.state = ev.bonded ? 'securing' : 'pairing';
@@ -198,7 +199,7 @@ export class Store {
       case 'paired': {
         let d = this.deviceByAddr(ev.addr);
         if (d && d.id !== ev.id_addr) {
-          /* 새 장치는 연결 때 무선 주소로 잡혔다. identity로 옮긴다 */
+          /* A new device was keyed by its over-the-air address on connect. Move it to the identity address */
           s.devices.delete(d.id);
           d.id = ev.id_addr;
           s.devices.set(d.id, d);
@@ -237,7 +238,7 @@ export class Store {
             d.lastReason = ev.reason;
           } else {
             s.devices.delete(d.id);
-            /* 페어링을 못 마친 기기는 다시 시도할 수 있게 찾은 목록으로 돌린다 (보드 목록에도 다시 오른다) */
+            /* A device that did not finish pairing goes back to the found list so it can be retried (the board lists it again too) */
             if (d.foundEntry) s.found.set(d.addr, { ...d.foundEntry, state: 'found' });
           }
         }
@@ -245,7 +246,7 @@ export class Store {
         break;
       }
       case 'autoconnect': {
-        /* 자동 연결 대상이 다시 잡혔다: 사용자가 켠 기기는 auto가 다시 true가 된다 (paired_list로 확정) */
+        /* The auto-connect targets were recomputed: a device the user turned back on gets auto = true again (confirmed by paired_list) */
         s.radio = 'auto';
         break;
       }

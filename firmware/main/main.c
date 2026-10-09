@@ -32,8 +32,8 @@ static void heartbeat_task(void *param)
 void app_main(void)
 {
     /*
-     * PIN, 전환 키 조합, 페어링 기록(km_cfg)과 NimBLE 본딩 키(nimble_bond)가 NVS에 있으므로
-     * BLE보다 먼저 연다. 페이지가 없거나 형식이 바뀐 경우는 ESP-IDF 예제의 표준 처리대로 지우고 다시 연다.
+     * The PIN, switch combos, pairing records (km_cfg) and NimBLE bond keys (nimble_bond) live in NVS,
+     * so open it before BLE. If there are no free pages or the format changed, erase and reopen as the ESP-IDF examples do.
      */
     esp_err_t err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {

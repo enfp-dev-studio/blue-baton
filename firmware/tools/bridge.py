@@ -1,25 +1,25 @@
 #!/usr/bin/env python3
 """
-로컬 브리지: 보드의 USB 시리얼 포트를 이 프로그램 하나가 잡고, 여러 곳에 나눠 준다 (GUI 제안서 5.4).
+Local bridge: this one program holds the board's USB serial port and shares it with several clients (GUI proposal 5.4).
 
-  - 설정 화면(브라우저), 개발 모니터, 로그 저장이 동시에 붙는다. 포트를 두고 서로 막지 않는다.
-  - 플래시할 때는 /release로 포트를 놓고, 끝나면 /acquire로 다시 잡는다 (tools/flash.sh).
-  - 설정 화면 파일(firmware/ui)도 같이 서빙한다. 같은 주소에서 열리므로 브라우저 보안 제약이 없다.
+  - The settings UI (browser), a dev monitor, and a log writer can attach at the same time without fighting over the port.
+  - To flash, /release frees the port and /acquire takes it back afterwards (tools/flash.sh).
+  - Also serves the settings UI files (firmware/ui). Same origin, so no browser security restrictions get in the way.
 
-HTTP (127.0.0.1에만 연다)
-  GET  /events        보드에서 온 줄을 서버 전송 이벤트(text/event-stream)로 보낸다. 한 줄 = data 한 개
-  POST /send          본문 한 줄(JSON 명령)을 보드로 보낸다
-  POST /release       포트를 놓는다 (플래시 전에)
-  POST /acquire       포트를 다시 잡는다
+HTTP (listens on 127.0.0.1 only)
+  GET  /events        Lines from the board as server-sent events (text/event-stream). One line = one data field
+  POST /send          Sends the one-line body (a JSON command) to the board
+  POST /release       Frees the port (before flashing)
+  POST /acquire       Takes the port back
   GET  /status        {"port", "open", "released", "clients"}
-  GET  그 밖          firmware/ui의 정적 파일. "/"는 "/?bridge"로 보낸다
+  GET  anything else  Static files from firmware/ui. "/" redirects to "/?bridge"
 
-보안: 키 입력이 지나가는 보드라서 아무 웹페이지나 명령을 보내면 안 된다.
-  - 127.0.0.1에만 바인딩한다.
-  - POST는 Origin이 없거나(명령줄 도구) 이 브리지 자신일 때만 받는다. 다른 사이트의 요청은 거부한다.
-  - CORS 헤더를 주지 않으므로 다른 사이트는 /events를 읽을 수 없다.
+Security: keystrokes pass through this board, so arbitrary web pages must not be able to send commands.
+  - Binds to 127.0.0.1 only.
+  - POST is accepted only with no Origin (command-line tools) or this bridge's own origin. Requests from other sites are refused.
+  - No CORS headers are sent, so other sites cannot read /events.
 
-실행: ESP-IDF 파이썬(pyserial 포함)으로
+Run with the ESP-IDF Python (includes pyserial):
   ~/.espressif/python_env/idf6.1_py3.14_env/bin/python firmware/tools/bridge.py
 """
 
@@ -39,7 +39,7 @@ UI_DIR = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "ui"))
 
 
 class Board:
-    """시리얼 포트 하나와 구독자들. 포트가 빠지면 다시 찾는다."""
+    """One serial port and its subscribers. Finds the port again if it disappears."""
 
     def __init__(self, port_glob, log_path):
         self.port_glob = port_glob
@@ -62,7 +62,7 @@ class Board:
             return False
         try:
             ser = serial.Serial(port, 115200, timeout=0.1)
-            # USB Serial/JTAG는 DTR/RTS 조합으로 리셋된다. 리셋하지 않는 조합으로 둔다 (live.py와 같음)
+            # USB Serial/JTAG resets on certain DTR/RTS combinations. Use one that does not reset (same as live.py)
             ser.dtr = True
             ser.rts = False
         except (OSError, serial.SerialException) as e:
@@ -113,7 +113,7 @@ class Board:
                 try:
                     q.put_nowait(line)
                 except queue.Full:
-                    pass  # 너무 느린 구독자는 줄을 잃는다 (다른 구독자를 막지 않는다)
+                    pass  # A subscriber that is too slow loses lines (it does not block the others)
 
     def send(self, line):
         with self.lock:
@@ -150,10 +150,10 @@ def make_handler(board, port):
             super().__init__(*a, directory=UI_DIR, **kw)
 
         def log_message(self, fmt, *args):
-            pass  # 요청마다 찍지 않는다
+            pass  # do not log every request
 
         def end_headers(self):
-            # 개발용 서버다: 화면 파일을 고치면 새로고침 한 번에 반영되게 캐시하지 않는다
+            # This is a dev server: no caching, so edits to the UI files show up after one reload
             if not self.path.startswith("/events"):
                 self.send_header("Cache-Control", "no-store")
             super().end_headers()

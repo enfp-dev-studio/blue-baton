@@ -11,8 +11,9 @@
 #include "web_server.h"
 
 /*
- * Wi-Fi 설정 API (KM_WIFI_ENABLE=y일 때만 빌드됨).
- * 지금은 USB 연결을 먼저 쓰므로 화면(HTML)은 붙이지 않았다. 서버형으로 바꿀 때 같은 명령 형식으로 붙인다.
+ * Wi-Fi setup API (built only when KM_WIFI_ENABLE=y).
+ * USB comes first for now, so no UI (HTML) is attached. It will be added with the same command format when
+ * switching to the server mode.
  */
 
 static const char *TAG = "web";
@@ -33,7 +34,7 @@ static bool authorized(httpd_req_t *req)
     return cfg_pin_check(pin);
 }
 
-/* 요청 본문을 전부 읽는다. 실패하면 buf는 빈 문자열이 된다 */
+/* Read the whole request body. On failure buf becomes an empty string */
 static void read_body(httpd_req_t *req, char *buf, size_t size)
 {
     buf[0] = '\0';
@@ -103,7 +104,7 @@ static esp_err_t unlock_post(httpd_req_t *req)
     bool ok = json_get_string(body, "pin", pin, sizeof(pin)) &&
               cfg_pin_is_set() && cfg_pin_check(pin);
     if (!ok) {
-        return send_error(req, "401 Unauthorized", "PIN이 맞지 않습니다");
+        return send_error(req, "401 Unauthorized", "Wrong PIN");
     }
     return send_ok(req);
 }
@@ -113,14 +114,14 @@ static esp_err_t pin_post(httpd_req_t *req)
     char body[BODY_MAX];
     read_body(req, body, sizeof(body));
     if (cfg_pin_is_set() && !authorized(req)) {
-        return send_error(req, "401 Unauthorized", "현재 PIN이 필요합니다");
+        return send_error(req, "401 Unauthorized", "The current PIN is required");
     }
     char pin[CFG_PIN_MAX + 1];
     if (!json_get_string(body, "pin", pin, sizeof(pin)) || strlen(pin) < 4) {
-        return send_error(req, "400 Bad Request", "PIN은 숫자 4~8자리여야 합니다");
+        return send_error(req, "400 Bad Request", "PIN must be 4 to 8 digits");
     }
     if (cfg_pin_set(pin) != ESP_OK) {
-        return send_error(req, "500 Internal Server Error", "PIN 저장에 실패했습니다");
+        return send_error(req, "500 Internal Server Error", "Failed to save the PIN");
     }
     return send_ok(req);
 }
@@ -130,25 +131,25 @@ static esp_err_t wifi_post(httpd_req_t *req)
     char body[BODY_MAX];
     read_body(req, body, sizeof(body));
     if (!authorized(req)) {
-        return send_error(req, "401 Unauthorized", "PIN을 먼저 입력하세요");
+        return send_error(req, "401 Unauthorized", "Enter the PIN first");
     }
     char ssid[CFG_WIFI_SSID_MAX + 1];
     char pass[CFG_WIFI_PASS_MAX + 1] = {0};
     bool has_ssid = json_get_string(body, "ssid", ssid, sizeof(ssid));
-    /* 비밀번호 키는 있어야 하고, 값은 비워 둘 수 있다 (열린 Wi-Fi) */
+    /* The password key is required, but its value may be empty (open Wi-Fi) */
     bool has_pass = json_get_string(body, "password", pass, sizeof(pass));
     size_t pass_len = strlen(pass);
     bool pass_ok = pass_len == 0 || pass_len >= 8;
     if (!has_ssid || ssid[0] == '\0' || !has_pass || !pass_ok) {
         return send_error(req, "400 Bad Request",
-                          "Wi-Fi 이름은 1~32자, 비밀번호는 8~64자 또는 비워 두기");
+                          "Wi-Fi name must be 1 to 32 characters; password 8 to 64 characters or empty");
     }
     esp_err_t err = cfg_wifi_set(ssid, pass);
     if (err == ESP_OK) {
         err = net_mgr_wifi_apply(ssid, pass);
     }
     if (err != ESP_OK) {
-        return send_error(req, "500 Internal Server Error", "Wi-Fi 설정 저장에 실패했습니다");
+        return send_error(req, "500 Internal Server Error", "Failed to save the Wi-Fi settings");
     }
     return send_ok(req);
 }
@@ -158,7 +159,7 @@ static esp_err_t wifi_clear_post(httpd_req_t *req)
     char body[BODY_MAX];
     read_body(req, body, sizeof(body));
     if (!authorized(req)) {
-        return send_error(req, "401 Unauthorized", "PIN을 먼저 입력하세요");
+        return send_error(req, "401 Unauthorized", "Enter the PIN first");
     }
     cfg_wifi_clear();
     net_mgr_wifi_clear();
@@ -170,14 +171,14 @@ static esp_err_t ap_pass_post(httpd_req_t *req)
     char body[BODY_MAX];
     read_body(req, body, sizeof(body));
     if (!authorized(req)) {
-        return send_error(req, "401 Unauthorized", "PIN을 먼저 입력하세요");
+        return send_error(req, "401 Unauthorized", "Enter the PIN first");
     }
     char pass[CFG_AP_PASS_MAX + 1];
     if (!json_get_string(body, "password", pass, sizeof(pass)) || strlen(pass) < 8) {
-        return send_error(req, "400 Bad Request", "보드 Wi-Fi 비밀번호는 8~63자여야 합니다");
+        return send_error(req, "400 Bad Request", "Board Wi-Fi password must be 8 to 63 characters");
     }
     if (cfg_ap_pass_set(pass) != ESP_OK) {
-        return send_error(req, "500 Internal Server Error", "비밀번호 저장에 실패했습니다");
+        return send_error(req, "500 Internal Server Error", "Failed to save the password");
     }
     net_mgr_ap_apply();
     return send_ok(req);

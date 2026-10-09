@@ -1,10 +1,10 @@
-/* 화면 쪽 Report Map 해석 시험. 실행: node --test firmware/ui/test/ */
+/* UI-side Report Map parsing tests. Run: node --test firmware/ui/test/ */
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { PAGE, ReportDecoder, parseReportMap, pressedUsages } from '../js/hid/report-map.js';
 
-/* 실기 Report Map (entries/007) */
+/* Report Maps from real hardware (entries/007) */
 const MOUSE_MAP =
   '05010902A10185010901A1000509190129051500250195057501810295017503810105010930093116018026FF7F75109502' +
   '810609381581257F750895018106C0C0';
@@ -28,7 +28,7 @@ const field = (dec, page, usage) => dec.fields.find((f) => f.page === page && f.
 
 test('real mouse: buttons, 16-bit X/Y (signed), wheel', () => {
   const d = decoderFor('M', MOUSE_MAP, [[25, 1]]);
-  /* 왼쪽 버튼, X=+5, Y=-5, 휠 +1 */
+  /* left button, X=+5, Y=-5, wheel +1 */
   const dec = d.decode('M', 25, bytes('010500FBFF01'));
   assert.equal(field(dec, PAGE.BUTTON, 1).value, 1);
   assert.equal(field(dec, PAGE.DESKTOP, 0x30).value, 5);
@@ -39,8 +39,8 @@ test('real mouse: buttons, 16-bit X/Y (signed), wheel', () => {
 test('real keyboard: five input reports with the expected sizes', () => {
   const layouts = parseReportMap(bytes(KB_MAP));
   assert.deepEqual([...layouts.keys()].sort(), [1, 2, 3, 4, 5]);
-  assert.equal(layouts.get(4).bits, 120);   /* NKRO 비트맵 15바이트 */
-  assert.equal(layouts.get(3).bits, 64);    /* 수정 키 + 예약 + 키 6개 */
+  assert.equal(layouts.get(4).bits, 120);   /* 15-byte NKRO bitmap */
+  assert.equal(layouts.get(3).bits, 64);    /* modifiers + reserved + 6 keys */
 });
 
 test('real keyboard: NKRO bitmap bit index is the usage', () => {
@@ -73,7 +73,7 @@ test('report id byte in payload is stripped only when it is really there', () =>
 });
 
 test('fewer usages than report count: the last usage repeats (HID 1.11 6.2.2.8)', () => {
-  /* Usage X, Report Count 3 -> 세 필드 모두 X */
+  /* Usage X, Report Count 3 -> all three fields are X */
   const layouts = parseReportMap(bytes('05010902A101093015002501750195038102C0'));
   const fields = layouts.get(0).fields;
   assert.equal(fields.length, 3);
@@ -81,7 +81,7 @@ test('fewer usages than report count: the last usage repeats (HID 1.11 6.2.2.8)'
 });
 
 test('push/pop restores global state', () => {
-  /* Push 후 Report Size 바꾸고 Pop: 원래 Report Size 8로 돌아와야 한다 */
+  /* Push, change Report Size, Pop: Report Size must be back to 8 */
   const layouts = parseReportMap(bytes('05010902A10175089501A47501B409308102C0'));
   assert.equal(layouts.get(0).fields[0].size, 8);
 });

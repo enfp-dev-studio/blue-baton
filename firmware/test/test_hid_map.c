@@ -1,8 +1,8 @@
 /*
- * hid_map.c 단위 시험. 보드 없이 Mac(또는 Linux)에서 돈다.
+ * Unit tests for hid_map.c. Runs on a Mac (or Linux) without a board.
  *   firmware/test/run.sh
- * 실기에서 받은 Report Map 2개와, HID 1.11 규격상 나올 수 있는 형식(4바이트 Usage, Push/Pop,
- * Long Item, 중첩 컬렉션, 깨진 입력)을 넣는다.
+ * Feeds two Report Maps captured from real hardware, plus forms allowed by HID 1.11 (4-byte Usage, Push/Pop,
+ * Long Item, nested collections, malformed input).
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -43,13 +43,13 @@ static void check(const char *name, const char *hex, uint8_t want)
 
 int main(void)
 {
-    /* 실기: Xiaoxin Mplus 5.0 (66바이트) */
+    /* Real hardware: Xiaoxin Mplus 5.0 (66 bytes) */
     check("real mouse (Xiaoxin Mplus 5.0)",
           "05010902A10185010901A1000509190129051500250195057501810295017503810105010930093116018026FF7F75109502"
           "810609381581257F750895018106C0C0",
           HID_KIND_MOUSE);
 
-    /* 실기: ABKO AK84BT-1 (236바이트). 마우스, 소비자 제어, 키보드(6키), 키보드(NKRO), 제조사 소비자 컬렉션 */
+    /* Real hardware: ABKO AK84BT-1 (236 bytes). Mouse, consumer control, keyboard (6-key), keyboard (NKRO), vendor consumer collection */
     check("real keyboard (ABKO AK84BT-1)",
           "05010902A10185010901A100050919012905150025019505750181029501750381010501093009311581257F750895028106"
           "09381581257F750895018106050C0A38021581257F750895018106C0C0050C0901A101850275109501150126FF0319012AFF"
@@ -63,22 +63,22 @@ int main(void)
     check("system control", "05010980A101C0", HID_KIND_SYSTEM);
     check("keypad counts as keyboard", "05010907A101C0", HID_KIND_KEYBOARD);
     check("pointer counts as mouse", "05010901A101C0", HID_KIND_MOUSE);
-    /* 4바이트 Usage: 위 16비트가 Usage Page (HID 1.11 6.2.2.8) */
+    /* 4-byte Usage: the upper 16 bits are the Usage Page (HID 1.11 6.2.2.8) */
     check("extended usage page in usage", "0B06000100A101C0", HID_KIND_KEYBOARD);
-    /* Push로 Consumer를 저장하고 Generic Desktop으로 바꾼 뒤 Pop으로 되돌림 */
+    /* Push saves Consumer, switch to Generic Desktop, then Pop restores it */
     check("push/pop usage page", "050CA40501B40901A101C0", HID_KIND_CONSUMER);
-    /* Application 안의 Physical 컬렉션은 장치 종류가 아니다 */
+    /* A Physical collection inside an Application is not a device kind */
     check("nested collection only top level", "05010902A1010901A100C0C0", HID_KIND_MOUSE);
-    /* top-level Application 안에 또 Application이 있어도 top-level만 센다 */
+    /* Even with an Application nested inside a top-level Application, only the top level counts */
     check("application inside application", "05010902A101050C0901A101C0C0", HID_KIND_MOUSE);
-    /* Long Item(0xFE)은 건너뛴다 */
+    /* Long Items (0xFE) are skipped */
     check("long item skipped", "FE0210AABB05010906A101C0", HID_KIND_KEYBOARD);
     check("vendor collection is other", "0600FF0901A101C0", HID_KIND_OTHER);
-    /* Usage 없이 연 컬렉션은 판정하지 않는다 */
+    /* A collection opened without a Usage is not classified */
     check("collection without usage", "0501A101C0", 0);
-    /* Local 항목은 Main 항목마다 초기화된다: Input 뒤의 Collection은 앞 Usage를 쓰지 않는다 */
+    /* Local items reset after every Main item: a Collection after an Input does not use the earlier Usage */
     check("local items reset after main", "050109068100A101C0", 0);
-    /* 깨진 입력: 데이터가 모자란 항목에서 멈춘다 (넘어 읽으면 안 된다) */
+    /* Malformed input: stop at an item whose data is short (must not read past the end) */
     check("truncated item", "050109", 0);
     check("truncated long item", "FE05", 0);
     check("empty", "", 0);

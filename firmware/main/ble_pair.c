@@ -37,35 +37,40 @@
 #define UUID_REPORT 0x2A4D
 #define UUID_CCCD 0x2902
 #define UUID_REPORT_REF 0x2908
-/* 광고의 외형(appearance)이 HID 분류(0x03C0~0x03FF)면 입력 장치로 본다 */
+/* Treat it as an input device if the advertised appearance is in the HID category (0x03C0-0x03FF) */
 #define HID_APPEARANCE_MASK 0xFFC0
 #define HID_APPEARANCE_BASE 0x03C0
 #define CHR_PROP_NOTIFY 0x10
 
 #define FOUND_MAX 16
-#define PEER_MAX 2           /* 동시 입력 연결 (설계값: 입력 2 + 호스트 3) */
-#define SVC_MAX 3            /* 한 장치의 HID 서비스 인스턴스 (HOGP: 여러 개일 수 있다) */
-#define REPORT_MAX 16        /* 한 장치의 입력 리포트 전체 */
+#define PEER_MAX 2           /* Concurrent input connections (design value: 2 input + 3 host) */
+#define SVC_MAX 3            /* HID service instances per device (HOGP: there may be several) */
+#define REPORT_MAX 16        /* Total input reports per device */
 #define CHR_MAX 48
-#define MAP_MAX 512          /* HID Service 규격의 Report Map 최대 길이 */
-#define SCAN_MS 60000        /* 새 장치 스캔은 60초 뒤 스스로 멈춘다 (자동 재연결을 오래 막지 않게) */
-#define CONNECT_MS 10000     /* 사용자가 고른 장치로의 연결 시도 제한 */
-#define FAIL_LIMIT 3         /* 준비 전에 연속으로 끊기면 그 장치의 자동 재연결을 멈춘다 */
-#define HCI_USER_TERM 0x13   /* HCI 사유: 사용자가 연결을 끊음 */
+#define MAP_MAX 512          /* Maximum Report Map length per the HID Service spec */
+#define SCAN_MS 60000        /* Scanning for new devices stops by itself after 60 seconds (so auto-reconnect is not blocked for long) */
+#define CONNECT_MS 10000     /* Time limit for a connection attempt to a user-selected device */
+#define FAIL_LIMIT 3         /* Stop auto-reconnect for a device that disconnects this many times in a row before becoming ready */
+#define HCI_USER_TERM 0x13   /* HCI reason: remote user terminated connection */
+
+/* The NimBLE pool overrides in firmware/CMakeLists.txt must reach NimBLE (host reconnects depend on them) */
+_Static_assert(MYNEWT_VAL(BLE_SM_MAX_PROCS) == CONFIG_BT_NIMBLE_MAX_CONNECTIONS, "BLE_SM_MAX_PROCS override missing");
+_Static_assert(MYNEWT_VAL(BLE_GAP_MAX_PENDING_CONN_PARAM_UPDATE) == CONFIG_BT_NIMBLE_MAX_CONNECTIONS,
+               "BLE_GAP_MAX_PENDING_CONN_PARAM_UPDATE override missing");
 
 static const char *TAG = "pair";
 
-/* ---------- 상태 (모두 NimBLE 호스트 태스크가 소유) ---------- */
+/* ---------- State (all owned by the NimBLE host task) ---------- */
 
 typedef struct {
     bool used;
-    ble_addr_t addr;         /* 광고 주소. 컨트롤러가 RPA를 풀었으면 identity 타입(2, 3)으로 온다 */
+    ble_addr_t addr;         /* Advertising address. If the controller resolved an RPA, it arrives with an identity type (2, 3) */
     char addr_str[18];
     char name[24];
     uint16_t appearance;
     int8_t rssi;
-    bool hid;                /* 광고나 스캔 응답에 HID UUID 또는 HID 외형이 있었다 */
-    bool announced;          /* device_found 이벤트를 보냈다 */
+    bool hid;                /* The advertisement or scan response had the HID UUID or an HID appearance */
+    bool announced;          /* The device_found event was sent */
     TickType_t seen;
 } found_dev_t;
 
@@ -83,31 +88,31 @@ typedef struct {
     uint16_t map_len;
     bool map_truncated;
     uint8_t map[MAP_MAX];
-    hid_layout_t layout;     /* Report Map을 해석한 입력 필드 (라우터가 쓴다) */
+    hid_layout_t layout;     /* Input fields parsed from the Report Map (used by the router) */
     bool layout_ok;
 } hid_svc_t;
 
 typedef struct {
-    uint16_t val;            /* 입력 리포트(0x2A4D, notify) 값 핸들 */
-    uint16_t cccd;           /* 0이면 없음 */
-    uint16_t ref;            /* Report Reference 디스크립터, 0이면 없음 */
+    uint16_t val;            /* Value handle of the input report (0x2A4D, notify) */
+    uint16_t cccd;           /* 0 if absent */
+    uint16_t ref;            /* Report Reference descriptor, 0 if absent */
     uint8_t svc;
-    uint8_t report_id;       /* Report Reference의 ID. 디스크립터가 없으면 0 (리포트가 하나뿐인 장치) */
+    uint8_t report_id;       /* ID from the Report Reference. 0 if there is no descriptor (a device with a single report) */
 } report_t;
 
 typedef struct {
     bool used;
     uint16_t conn;
     peer_state_t state;
-    bool user;               /* 사용자가 고른 연결 (자동 재연결이 아님) */
-    bool sec_wait;           /* 다른 연결의 보안 절차가 끝나기를 기다린다 */
-    uint8_t io_action;       /* 응답을 기다리는 페어링 입력 (BLE_SM_IOACT_*) */
-    ble_addr_t ota;          /* 연결된 on-air 주소 */
+    bool user;               /* User-selected connection (not an auto-reconnect) */
+    bool sec_wait;           /* Waiting for another connection's security procedure to finish */
+    uint8_t io_action;       /* Pairing input awaiting a response (BLE_SM_IOACT_*) */
+    ble_addr_t ota;          /* On-air address of the connection */
     char addr_str[18];
-    bool id_valid;           /* 암호화 뒤 확정된 identity 주소 */
+    bool id_valid;           /* Identity address confirmed after encryption */
     ble_addr_t id;
     char id_str[18];
-    /* GATT 탐색 */
+    /* GATT discovery */
     disc_stage_t stage;
     uint8_t idx;
     hid_svc_t svc[SVC_MAX];
@@ -121,7 +126,7 @@ typedef struct {
 
 typedef enum { RADIO_IDLE, RADIO_SCAN, RADIO_CONNECT, RADIO_AUTO, RADIO_CANCEL } radio_t;
 
-/* 자동 재연결 제외 표시. 사용자가 끊었거나 연속으로 실패한 장치 (RAM에만, 재부팅하면 풀린다) */
+/* Auto-reconnect exclusion marks. Devices the user disconnected or that failed repeatedly (RAM only, cleared on reboot) */
 typedef struct {
     bool used;
     ble_addr_t id;
@@ -138,20 +143,20 @@ static auto_ctl_t s_auto[CFG_PAIRED_MAX];
 
 static radio_t s_radio;
 static bool s_want_scan;
-static bool s_user_pending;          /* 사용자가 고른 연결 대상이 있다 */
+static bool s_user_pending;          /* There is a user-selected connection target */
 static ble_addr_t s_user_target;
 static char s_user_target_str[18];
-static bool s_radio_hold;            /* 본딩 삭제처럼 라디오를 멈춰야 하는 작업 중 */
-static bool s_auto_dirty;            /* 자동 재연결 대상이 바뀌었다 (accept list를 다시 만든다) */
-static peer_t *s_sec_owner;          /* 지금 보안 절차를 진행 중인 연결 (전체에서 하나, N-13) */
+static bool s_radio_hold;            /* An operation that needs the radio stopped (such as bond deletion) is in progress */
+static bool s_auto_dirty;            /* Auto-reconnect targets changed (rebuild the accept list) */
+static peer_t *s_sec_owner;          /* Connection currently running a security procedure (one overall, N-13) */
 
-static char s_evt[1500];             /* Report Map처럼 긴 이벤트용 */
+static char s_evt[1500];             /* For long events such as the Report Map */
 
 static int gap_event(struct ble_gap_event *event, void *arg);
 static void radio_update(void);
 static void disc_next(peer_t *p);
 
-/* NimBLE 본딩 저장소 초기화. 공개 헤더가 없어서 ESP-IDF 예제(blecent)처럼 직접 선언한다 */
+/* NimBLE bond store init. There is no public header, so declare it directly as the ESP-IDF example (blecent) does */
 void ble_store_config_init(void);
 
 static void emit(const char *json)
@@ -161,11 +166,11 @@ static void emit(const char *json)
     }
 }
 
-/* ---------- 주소 ---------- */
+/* ---------- Addresses ---------- */
 
 static void val_to_str(const uint8_t val[6], char *out)
 {
-    /* NimBLE은 주소 바이트를 뒤에서부터 저장하므로 거꾸로 적는다 */
+    /* NimBLE stores address bytes in reverse order, so write them backwards */
     snprintf(out, 18, "%02X:%02X:%02X:%02X:%02X:%02X",
              val[5], val[4], val[3], val[2], val[1], val[0]);
 }
@@ -182,7 +187,7 @@ static bool str_to_val(const char *s, uint8_t val[6])
     return true;
 }
 
-/* identity 주소 타입은 0(public), 1(random). 컨트롤러가 풀어 준 타입 2, 3도 같은 기기다 */
+/* Identity address types are 0 (public), 1 (random). Types 2 and 3 resolved by the controller are the same device */
 static bool addr_eq(const ble_addr_t *a, const ble_addr_t *b)
 {
     return (a->type & 1) == (b->type & 1) && memcmp(a->val, b->val, 6) == 0;
@@ -195,12 +200,12 @@ static ble_addr_t id_norm(const ble_addr_t *a)
     return r;
 }
 
-/* ---------- 본딩 (원천: NimBLE 저장소) ---------- */
+/* ---------- Bonds (source of truth: NimBLE store) ---------- */
 
 /*
- * 새 페어링과 "저장된 키로 암호화 복원"을 구분하기 위한 표시.
- * 새 페어링이면 상대 키(PEER_SEC)가 저장소에 쓰이고, 복원이면 쓰이지 않는다.
- * NimBLE은 ble_hs 락을 잡은 채 저장소 콜백을 부르므로, 훅에서는 주소만 기록한다.
+ * Marker that tells a new pairing apart from "encryption restored with stored keys".
+ * A new pairing writes the peer keys (PEER_SEC) to the store; a restore does not.
+ * NimBLE calls store callbacks while holding the ble_hs lock, so the hook only records the address.
  */
 static ble_store_write_fn *s_store_write_next;
 static ble_addr_t s_new_bond_addr;
@@ -215,7 +220,7 @@ static int store_write_hook(int obj_type, const union ble_store_value *val)
     return s_store_write_next(obj_type, val);
 }
 
-/* 호스트가 sync 중에 저장소를 다시 초기화하면 콜백이 원래 것으로 돌아가므로, sync마다 다시 건다 */
+/* If the host reinitializes the store during sync, the callback reverts to the original, so reinstall on every sync */
 static void install_store_hook(void)
 {
     if (ble_hs_cfg.store_write_cb != store_write_hook) {
@@ -245,7 +250,7 @@ static bool bonds_has(const ble_addr_t *a)
     return false;
 }
 
-/* 주소 바이트로 본딩을 찾는다 (사용자는 타입 없이 주소 문자열만 준다) */
+/* Find a bond by address bytes (the user gives only the address string, without a type) */
 static bool bonds_find_val(const uint8_t val[6], ble_addr_t *out)
 {
     ble_addr_t list[CFG_PAIRED_MAX];
@@ -295,9 +300,9 @@ static uint32_t meta_next_seq(void)
 }
 
 /*
- * 두 저장소를 맞춘다. 원천은 본딩이다.
- * - 메타는 있는데 본딩이 없다: 키가 없으므로 연결할 수 없다. 메타를 지운다.
- * - 본딩은 있는데 메타가 없다(고아 본딩): 빈 메타를 만들어 목록에 보이고 지울 수 있게 한다.
+ * Reconcile the two stores. Bonds are the source of truth.
+ * - Metadata without a bond: there are no keys, so it cannot connect. Delete the metadata.
+ * - Bond without metadata (orphan bond): create empty metadata so it shows in the list and can be removed.
  */
 static void bonds_reconcile(void)
 {
@@ -325,7 +330,7 @@ static void bonds_reconcile(void)
     }
 }
 
-/* ---------- 자동 재연결 제외 표시 ---------- */
+/* ---------- Auto-reconnect exclusion marks ---------- */
 
 static auto_ctl_t *auto_ctl(const ble_addr_t *id, bool create)
 {
@@ -356,7 +361,7 @@ static void auto_resume(const ble_addr_t *id)
     }
 }
 
-/* ---------- 찾은 장치 ---------- */
+/* ---------- Found devices ---------- */
 
 static bool is_hid_fields(const struct ble_hs_adv_fields *f)
 {
@@ -388,7 +393,7 @@ static found_dev_t *found_by_val(const uint8_t val[6])
     return NULL;
 }
 
-/* 빈 칸이 없으면 가장 오래전에 본 장치를 밀어낸다 */
+/* If no slot is free, evict the device seen longest ago */
 static found_dev_t *found_alloc(void)
 {
     TickType_t now = xTaskGetTickCount();
@@ -417,8 +422,8 @@ static void emit_found(const found_dev_t *d)
 }
 
 /*
- * 광고와 스캔 응답을 주소별로 합친다. 이름과 UUID가 스캔 응답에만 있는 장치도 있다.
- * directed 광고는 본딩된 장치의 재연결 요청이므로 자동 재연결이 받고, 목록에는 올리지 않는다.
+ * Merge advertisements and scan responses by address. Some devices put the name and UUIDs only in the scan response.
+ * Directed advertising is a reconnect request from a bonded device, so auto-reconnect handles it and it is not listed.
  */
 static void note_adv(const struct ble_gap_disc_desc *d)
 {
@@ -433,7 +438,7 @@ static void note_adv(const struct ble_gap_disc_desc *d)
     found_dev_t *e = found_get(&d->addr);
     if (!e) {
         if (d->event_type == BLE_HCI_ADV_RPT_EVTYPE_SCAN_RSP) {
-            return;   /* 짝이 되는 광고를 아직 못 봤다 */
+            return;   /* The matching advertisement has not been seen yet */
         }
         e = found_alloc();
         memset(e, 0, sizeof(*e));
@@ -468,7 +473,7 @@ static void note_adv(const struct ble_gap_disc_desc *d)
     }
 }
 
-/* ---------- 연결 ---------- */
+/* ---------- Connections ---------- */
 
 static peer_t *peer_by_conn(uint16_t conn)
 {
@@ -480,7 +485,47 @@ static peer_t *peer_by_conn(uint16_t conn)
     return NULL;
 }
 
-/* identity(확정 뒤) 또는 on-air 주소로 연결을 찾는다 */
+/*
+ * Create the peer state for an input connection, or return the existing one.
+ *
+ * NimBLE (ESP-IDF 6.1) delivers BLE_GAP_EVENT_CONNECT only after the remote feature and version exchange
+ * (ble_gap.c). A device that sends a Security Request right after connecting makes NimBLE start encryption
+ * or pairing by itself (ble_sm.c: ble_sm_sec_req_rx), so ENC_CHANGE or PASSKEY_ACTION can arrive before
+ * CONNECT. The host side hit this on real hardware (host.c: link_ensure). The first event creates the peer
+ * so that none of these is lost; CONNECT then finishes the radio bookkeeping.
+ */
+static peer_t *peer_ensure(uint16_t conn)
+{
+    peer_t *p = peer_by_conn(conn);
+    if (p) {
+        return p;
+    }
+    struct ble_gap_conn_desc desc;
+    if (ble_gap_conn_find(conn, &desc) != 0 || desc.role != BLE_GAP_ROLE_MASTER) {
+        return NULL;   /* Host connections are handled by host.c */
+    }
+    for (int i = 0; i < PEER_MAX && !p; i++) {
+        if (!s_peers[i].used) {
+            p = &s_peers[i];
+        }
+    }
+    if (!p) {
+        return NULL;
+    }
+    memset(p, 0, sizeof(*p));
+    p->used = true;
+    p->conn = conn;
+    p->state = PS_CONNECTED;
+    p->ota = desc.peer_ota_addr;
+    val_to_str(desc.peer_ota_addr.val, p->addr_str);
+    /* A bonded device (auto-reconnect, RPA resolved) has a known identity at connect time. A new one is confirmed after encryption */
+    p->id = id_norm(&desc.peer_id_addr);
+    val_to_str(p->id.val, p->id_str);
+    p->id_valid = bonds_has(&p->id);
+    return p;
+}
+
+/* Find a connection by identity (once confirmed) or on-air address */
 static peer_t *peer_by_addr(const ble_addr_t *a)
 {
     for (int i = 0; i < PEER_MAX; i++) {
@@ -529,7 +574,7 @@ static const char *state_name(peer_state_t s)
     }
 }
 
-/* 연결 하나를 실패로 끝낸다. 사유를 알리고 끊는다. 슬롯은 DISCONNECT 이벤트에서 비운다 */
+/* End one connection as failed. Report the reason and disconnect. The slot is freed on the DISCONNECT event */
 static void fail_peer(peer_t *p, const char *stage, int status)
 {
     char buf[160];
@@ -539,11 +584,13 @@ static void fail_peer(peer_t *p, const char *stage, int status)
     ble_gap_terminate(p->conn, HCI_USER_TERM);
 }
 
-/* ---------- 보안 절차 직렬화 (ESP-IDF는 SM 절차를 전체에서 동시에 1개로 고정한다) ---------- */
+/* ---------- Security procedure serialization (input devices start one at a time) ---------- */
 
 /*
- * 다른 연결(나중의 호스트 연결 포함)의 보안 절차가 칸을 잡고 있으면 ENOMEM이다. 그 절차가 끝나는 것을
- * 이 모듈의 연결 이벤트로는 알 수 없으므로, 전역 GAP 리스너의 ENC_CHANGE와 1초 타이머로 다시 시도한다
+ * The SM procedure pool has one slot per connection (firmware/CMakeLists.txt; the ESP-IDF default is 1).
+ * Input devices still start security one at a time, so a host's LTK request always finds a free slot.
+ * ENOMEM means the pool is full anyway. This module's connection events cannot tell when another
+ * procedure ends, so retry on ENC_CHANGE from the global GAP listener and a 1-second timer
  * (host-side-design 3.6).
  */
 static struct ble_npl_callout s_sec_retry;
@@ -575,14 +622,14 @@ static void sec_pump(void)
         }
         int rc = ble_gap_security_initiate(p->conn);
         if (rc == 0 || rc == BLE_HS_EALREADY) {
-            /* EALREADY: 상대가 먼저 보낸 Security Request로 스택이 이미 시작했다 */
+            /* EALREADY: the stack already started because of a Security Request the peer sent first */
             p->sec_wait = false;
             p->state = PS_SECURING;
             s_sec_owner = p;
             return;
         }
         if (rc == BLE_HS_ENOMEM) {
-            /* 다른 연결의 절차가 돌고 있다. 그것이 끝나면(리스너) 또는 1초 뒤(타이머) 다시 시도한다 */
+            /* Another connection's procedure is running. Retry when it ends (listener) or after 1 second (timer) */
             ble_npl_callout_reset(&s_sec_retry, ble_npl_time_ms_to_ticks32(1000));
             return;
         }
@@ -591,9 +638,9 @@ static void sec_pump(void)
     }
 }
 
-/* ---------- 라디오 상태 기계 (스캔과 연결 시도는 한 번에 하나, N-12) ---------- */
+/* ---------- Radio state machine (one scan or connection attempt at a time, N-12) ---------- */
 
-/* 메타에 호스트로 적힌 본딩인가. 호스트는 입력 장치 자동 연결 대상이 아니다 (host-side-design H-59) */
+/* Is this a bond recorded as a host in the metadata? Hosts are not input device auto-connect targets (host-side-design H-59) */
 static bool is_host_bond(const ble_addr_t *id)
 {
     cfg_paired_t m;
@@ -637,10 +684,11 @@ static radio_t radio_wanted(void)
 }
 
 /*
- * 입력 연결 값. 출력까지의 지연은 입력 간격 + 출력 간격이므로 짧게(7.5~15 ms, Latency 0) 요청한다.
- * 장치가 나중에 다른 값을 요청하면 받아들인다. 감시 시간 4초.
- * 연결 시도 스캔: 사용자 연결은 쉬지 않고(빨리 찾게), 자동 재연결은 30 ms/60 ms(50%)로 라디오를 나눠 쓴다.
- * 단위: 간격 1.25 ms, 스캔 0.625 ms, 감시 10 ms.
+ * Input connection parameters. Latency to the output is input interval + output interval, so request short
+ * ones (7.5-15 ms, Latency 0). If the device later requests other values, accept them. Supervision timeout 4 seconds.
+ * Connection-attempt scan: user connections scan continuously (to find it fast); auto-reconnect shares the
+ * radio at 30 ms/60 ms (50%).
+ * Units: interval 1.25 ms, scan 0.625 ms, supervision 10 ms.
  */
 static const struct ble_gap_conn_params s_conn_user = {
     .scan_itvl = 0x0010, .scan_window = 0x0010, .itvl_min = 6, .itvl_max = 12,
@@ -658,8 +706,8 @@ static void radio_start_scan(void)
         .window = 0x0030,
         .filter_policy = BLE_HCI_SCAN_FILT_NO_WL,
         .limited = 0,
-        .passive = 0,            /* 능동 스캔: 이름과 UUID가 스캔 응답에 있는 장치도 받는다 */
-        .filter_duplicates = 0,  /* 광고와 스캔 응답을 모두 받아 합친다 (note_adv) */
+        .passive = 0,            /* Active scan: also catches devices whose name and UUIDs are in the scan response */
+        .filter_duplicates = 0,  /* Receive both advertisements and scan responses and merge them (note_adv) */
     };
     int rc = ble_gap_disc(s_own_addr_type, SCAN_MS, &params, gap_event, NULL);
     if (rc != 0) {
@@ -691,7 +739,7 @@ static void radio_start_connect(void)
     emit(buf);
 }
 
-/* 본딩된 장치를 accept list에 넣고 기다린다. 목록 중 먼저 광고하는 장치에 연결된다 (광고 종류 무관) */
+/* Put bonded devices in the accept list and wait. Connects to whichever listed device advertises first (any advertising type) */
 static void radio_start_auto(void)
 {
     ble_addr_t list[CFG_PAIRED_MAX];
@@ -717,10 +765,10 @@ static void radio_start_auto(void)
 static void radio_update(void)
 {
     if (!s_synced || s_radio == RADIO_CANCEL) {
-        return;   /* 취소가 끝나면(CONNECT 이벤트) 다시 불린다 */
+        return;   /* Called again once the cancel completes (CONNECT event) */
     }
     if (s_user_pending && s_radio != RADIO_CONNECT && peers_free() == 0) {
-        /* 기다리는 사이 자동 재연결이 마지막 칸을 썼다 */
+        /* Auto-reconnect took the last slot while waiting */
         s_user_pending = false;
         char buf[128];
         snprintf(buf, sizeof(buf), "{\"event\":\"connect_failed\",\"addr\":\"%s\",\"status\":\"no_slot\"}",
@@ -732,12 +780,12 @@ static void radio_update(void)
         return;
     }
     if (ble_gap_disc_active()) {
-        /* NimBLE은 스캔 취소 때 DISC_COMPLETE를 보내지 않는다 */
+        /* NimBLE does not send DISC_COMPLETE when a scan is cancelled */
         ble_gap_disc_cancel();
         emit("{\"event\":\"scan_stopped\",\"reason\":\"radio\"}");
     }
     if (ble_gap_conn_active()) {
-        /* 연결 시도 취소는 CONNECT 이벤트(BLE_HS_EAPP)로 끝난다. 그때 다시 정한다 */
+        /* Cancelling a connection attempt ends with a CONNECT event (BLE_HS_EAPP). Decide again then */
         if (ble_gap_conn_cancel() == 0) {
             s_radio = RADIO_CANCEL;
             return;
@@ -775,11 +823,12 @@ static const char *radio_name(void)
     }
 }
 
-/* ---------- 메타데이터 갱신 ---------- */
+/* ---------- Metadata updates ---------- */
 
 /*
- * 연결이 준비되었을 때와 이름을 알았을 때. 바뀐 것만 쓴다 (cfg_paired_put이 같은 내용은 건너뛴다).
- * 이름 우선순위: GATT Device Name(정식 이름) > 광고 이름(줄인 이름일 수 있다). 광고 이름은 비어 있을 때만 쓴다.
+ * When a connection becomes ready and when the name becomes known. Only changes are written
+ * (cfg_paired_put skips identical content).
+ * Name priority: GATT Device Name (full name) > advertised name (may be shortened). The advertised name is used only when empty.
  */
 static void meta_update(peer_t *p, const char *name, bool name_is_gatt, bool touch)
 {
@@ -792,7 +841,7 @@ static void meta_update(peer_t *p, const char *name, bool name_is_gatt, bool tou
         rec.type = p->id.type & 1;
         memcpy(rec.val, p->id.val, 6);
     }
-    rec.role = CFG_ROLE_INPUT;   /* 이 모듈은 입력 장치(보드가 Central)만 다룬다 */
+    rec.role = CFG_ROLE_INPUT;   /* This module handles only input devices (board as Central) */
     if (name && name[0] && (name_is_gatt || rec.name[0] == '\0')) {
         snprintf(rec.name, sizeof(rec.name), "%s", name);
     }
@@ -805,7 +854,7 @@ static void meta_update(peer_t *p, const char *name, bool name_is_gatt, bool tou
     cfg_paired_put(&rec);
 }
 
-/* ---------- GATT 탐색 (HOGP 1.0 표 4.1 순서) ---------- */
+/* ---------- GATT discovery (HOGP 1.0 Table 4.1 order) ---------- */
 
 static void emit_report(peer_t *p, uint16_t handle, const uint8_t *data, uint16_t len)
 {
@@ -819,11 +868,11 @@ static void emit_report(peer_t *p, uint16_t handle, const uint8_t *data, uint16_
     emit(buf);
 }
 
-/* ---------- GATT 캐시 (본딩된 장치의 리포트 표와 레이아웃) ----------
- * 본딩이 유효하면 속성 캐시는 연결 사이에도 유효하다 (Core Vol 3 Part G 2.5.2, HOGP 5.2.4).
- * 본딩된 장치는 다시 연결되면 탐색이 끝나기 전부터 입력을 보내므로(CCCD 값이 유지됨),
- * 탐색이 끝날 때까지는 지난번 표로 라우팅한다. 장치를 깨운 첫 키가 버려지지 않게 하기 위해서다.
- * 지금은 RAM에만 둔다 (재부팅 뒤 첫 연결은 탐색이 끝난 뒤부터 라우팅된다).
+/* ---------- GATT cache (report table and layout of bonded devices) ----------
+ * While the bond is valid, the attribute cache stays valid across connections (Core Vol 3 Part G 2.5.2, HOGP 5.2.4).
+ * A bonded device sends input on reconnect before discovery finishes (CCCD values persist),
+ * so route with the previous table until discovery finishes. This keeps the first key that woke the device from being dropped.
+ * Kept in RAM only for now (the first connection after a reboot is routed only after discovery finishes).
  */
 #define GATT_CACHE_MAX 4
 
@@ -833,7 +882,7 @@ typedef struct {
     uint32_t stamp;
     uint8_t rep_count;
     report_t rep[REPORT_MAX];
-    hid_layout_t *layout[SVC_MAX];   /* 힙. 레이아웃이 있는 서비스만 */
+    hid_layout_t *layout[SVC_MAX];   /* Heap. Only services that have a layout */
 } gatt_cache_t;
 
 static gatt_cache_t s_cache[GATT_CACHE_MAX];
@@ -865,7 +914,7 @@ static void cache_forget(const ble_addr_t *id)
     }
 }
 
-/* 탐색이 끝난 장치의 표를 저장한다. 칸이 없으면 가장 오래된 것을 밀어낸다 */
+/* Save the table of a device whose discovery finished. If no slot is free, evict the oldest */
 static void cache_save(const peer_t *p)
 {
     if (!p->id_valid) {
@@ -900,11 +949,11 @@ static void cache_save(const peer_t *p)
     }
 }
 
-/* ---------- 라우팅 (입력 장치 -> 활성 호스트) ---------- */
+/* ---------- Routing (input device -> active host) ---------- */
 
 /*
- * 출력 쪽(호스트로 가는 BLE)이 생기기 전까지는 활성 호스트로 보낼 상태를 이벤트로 보여 준다.
- * 키 상태가 바뀔 때만 보낸다 (마우스 이동은 보내지 않는다).
+ * The state sent to the active host is also emitted as an event, for the settings UI and debugging
+ * (host.c sends the actual reports). Sent only when the key state changes (mouse motion is not sent).
  */
 static void emit_route(const router_out_t *o)
 {
@@ -932,10 +981,10 @@ static void route_out(const router_out_t *out, int switched_from)
         snprintf(buf, sizeof(buf), "{\"event\":\"host_switch\",\"host\":%d,\"from\":%d}", router_active_host() + 1,
                  switched_from + 1);
         emit(buf);
-        /* 이전 호스트에는 "모두 뗌"을 보낸다. 출력 쪽이 생기면 여기서 이전 호스트 연결로 보낸다 */
+        /* The previous host gets "release-all". Once the output side exists, it is sent here on the previous host's connection */
     }
     if (out->pre_valid) {
-        /* 보류했던 조합 수정 키를 먼저 보낸다 (Ctrl+C면 Ctrl, 그다음 Ctrl+C) */
+        /* Send the held combo modifiers first (for Ctrl+C: Ctrl, then Ctrl+C) */
         router_out_t pre = *out;
         memcpy(pre.keys, out->pre_keys, sizeof(pre.keys));
         pre.buttons_changed = false;
@@ -946,14 +995,14 @@ static void route_out(const router_out_t *out, int switched_from)
         emit_route(out);
     }
     if (out->pk_event != ROUTER_PK_NONE) {
-        host_passkey_event(out);   /* 호스트 페어링: 키보드로 친 패스키 */
+        host_passkey_event(out);   /* Host pairing: passkey typed on the keyboard */
     }
     host_send(out, switched_from);
 }
 
 static void route_report(peer_t *p, uint16_t handle, const uint8_t *data, uint16_t len)
 {
-    /* 탐색이 끝났으면 지금 표, 아니면 지난번 표(본딩된 장치) */
+    /* The current table if discovery has finished, otherwise the previous one (bonded device) */
     const report_t *rep = p->rep;
     uint8_t rep_count = p->rep_count;
     const hid_layout_t *layouts[SVC_MAX] = {0};
@@ -989,7 +1038,7 @@ static void route_report(peer_t *p, uint16_t handle, const uint8_t *data, uint16
     }
 }
 
-/* 전환 키 조합을 적용한다. text가 비어 있으면 기본값. 형식이 틀리면 ESP_ERR_INVALID_ARG */
+/* Apply the switch combos. Empty text means the default. ESP_ERR_INVALID_ARG if malformed */
 #define DEFAULT_COMBOS "ctrl+alt+1,ctrl+alt+2,ctrl+alt+3"
 
 static esp_err_t apply_combos(const char *text)
@@ -1010,7 +1059,7 @@ static void disc_fail(peer_t *p, const char *stage, int status)
     fail_peer(p, stage, status);
 }
 
-/* 이름: GAP 서비스의 Device Name(0x2A00)은 필수 항목이다. 광고에 이름이 없는 장치도 여기서 얻는다 */
+/* Name: Device Name (0x2A00) in the GAP service is mandatory. Devices with no name in their advertising get one here */
 static void on_name_read(uint16_t conn, const char *name)
 {
     peer_t *p = peer_by_conn(conn);
@@ -1057,7 +1106,7 @@ static int on_cccd_write(uint16_t conn, const struct ble_gatt_error *error,
         return 0;
     }
     if (error->status != 0) {
-        /* 리포트 하나의 구독 실패로 장치 전체를 버리지 않는다. 알리고 다음으로 간다 */
+        /* A subscription failure on one report does not drop the whole device. Report it and move on */
         char buf[128];
         snprintf(buf, sizeof(buf), "{\"event\":\"subscribe_failed\",\"addr\":\"%s\",\"val\":%u,\"status\":%d}",
                  p->addr_str, p->rep[p->idx].val, error->status);
@@ -1076,7 +1125,7 @@ static int on_ref_read(uint16_t conn, const struct ble_gatt_error *error,
         return 0;
     }
     if (error->status == 0 && attr != NULL && attr->om != NULL) {
-        /* Report Reference: [Report ID, 종류(1 입력, 2 출력, 3 Feature)] */
+        /* Report Reference: [Report ID, type (1 input, 2 output, 3 Feature)] */
         uint8_t ref[2] = {0, 0};
         uint16_t n = OS_MBUF_PKTLEN(attr->om);
         os_mbuf_copydata(attr->om, 0, n < 2 ? n : 2, ref);
@@ -1153,11 +1202,11 @@ static int on_map_read(uint16_t conn, const struct ble_gatt_error *error,
     }
     hid_svc_t *s = &p->svc[p->idx];
     if (error->status == 0 && attr != NULL && attr->om != NULL) {
-        /* Read Long은 조각마다 불린다. 끝나면 EDONE이 한 번 더 온다 */
+        /* Read Long is called once per fragment. When done, EDONE arrives one more time */
         uint16_t n = OS_MBUF_PKTLEN(attr->om);
         if (s->map_len + n > MAP_MAX) {
             n = MAP_MAX - s->map_len;
-            s->map_truncated = true;   /* 규격 최대(512)를 넘는 장치. 해석이 틀어질 수 있음을 알린다 */
+            s->map_truncated = true;   /* Device exceeds the spec maximum (512). Flag that parsing may be off */
         }
         os_mbuf_copydata(attr->om, 0, n, &s->map[s->map_len]);
         s->map_len += n;
@@ -1174,8 +1223,8 @@ static int on_map_read(uint16_t conn, const struct ble_gatt_error *error,
 }
 
 /*
- * 디스크립터는 바로 앞의 입력 리포트 값에 속한다.
- * 사이에 다른 characteristic 정의가 끼어 있으면 그 리포트의 것이 아니다.
+ * A descriptor belongs to the input report value right before it.
+ * If another characteristic definition sits in between, it does not belong to that report.
  */
 static void assign_desc(peer_t *p, uint16_t handle, bool is_cccd)
 {
@@ -1296,9 +1345,9 @@ static int on_svc(uint16_t conn, const struct ble_gatt_error *error,
 }
 
 /*
- * 탐색 단계를 하나씩 진행한다. 각 단계의 콜백이 끝나면 다시 이 함수를 부른다.
- * 서비스 → (서비스마다) 특성 → (서비스마다) 디스크립터 → (리포트마다) Report Reference
- * → (서비스마다) HID Information → (서비스마다) Report Map → (리포트마다) 알림 켜기 → 준비
+ * Advance discovery one stage at a time. Each stage's callback calls this function again when it finishes.
+ * Services → (per service) characteristics → (per service) descriptors → (per report) Report Reference
+ * → (per service) HID Information → (per service) Report Map → (per report) enable notifications → ready
  */
 static void disc_next(peer_t *p)
 {
@@ -1318,7 +1367,7 @@ static void disc_next(peer_t *p)
             break;
         case ST_DSC:
             if (p->idx < p->svc_count) {
-                /* NimBLE은 시작 핸들을 이미 처리한 것으로 보므로 서비스 시작 +1부터 요청한다 */
+                /* NimBLE treats the start handle as already handled, so request from service start + 1 */
                 hid_svc_t *s = &p->svc[p->idx];
                 if (s->start + 1 > s->end) {
                     p->idx++;
@@ -1416,17 +1465,17 @@ static void disc_start(peer_t *p)
     }
 }
 
-/* ---------- GAP 이벤트 ---------- */
+/* ---------- GAP events ---------- */
 
 /*
- * 페어링 입력 요청.
- * NUMCMP: 숫자를 GUI에 보내고 pair_accept를 기다린다.
- * INPUT:  GUI에 패스키 입력을 요청하고 passkey를 기다린다 (상대가 숫자를 보여 줌).
- * DISP:   보드가 패스키를 만들어 GUI에 보여 주고, 사용자가 상대 장치(키보드)로 입력한다.
+ * Pairing input requests.
+ * NUMCMP: send the number to the GUI and wait for pair_accept.
+ * INPUT:  ask the GUI for passkey entry and wait for passkey (the peer displays the digits).
+ * DISP:   the board generates a passkey and shows it in the GUI; the user types it on the peer device (keyboard).
  */
 static void on_passkey_action(struct ble_gap_event *event)
 {
-    peer_t *p = peer_by_conn(event->passkey.conn_handle);
+    peer_t *p = peer_ensure(event->passkey.conn_handle);
     if (!p) {
         return;
     }
@@ -1458,8 +1507,9 @@ static void on_connect(struct ble_gap_event *event)
     s_radio = RADIO_IDLE;
     if (event->connect.status != 0) {
         /*
-         * EPREEMPTED: 새 장치의 IRK를 해석 리스트에 넣을 때 스택이 진행 중인 연결 시도를 끊는다 (N-10).
-         * 오류가 아니므로 사용자 연결이면 그대로 다시 건다.
+         * EPREEMPTED: the stack aborts an in-progress connection attempt when it adds a new device's IRK to
+         * the resolving list (N-10).
+         * It is not an error, so a user connection is simply retried.
          */
         if (was == RADIO_CONNECT && event->connect.status != BLE_HS_EPREEMPTED) {
             s_user_pending = false;
@@ -1472,36 +1522,21 @@ static void on_connect(struct ble_gap_event *event)
         return;
     }
 
+    peer_t *p = peer_ensure(event->connect.conn_handle);
     struct ble_gap_conn_desc desc;
-    peer_t *p = NULL;
-    for (int i = 0; i < PEER_MAX && !p; i++) {
-        if (!s_peers[i].used) {
-            p = &s_peers[i];
-        }
-    }
     if (!p || ble_gap_conn_find(event->connect.conn_handle, &desc) != 0) {
-        /* 빈 칸이 있을 때만 연결을 걸므로 정상 흐름에서는 오지 않는다 */
+        /* Connections are started only when a slot is free, so this does not happen in the normal flow */
         ble_gap_terminate(event->connect.conn_handle, HCI_USER_TERM);
         radio_update();
         return;
     }
-    memset(p, 0, sizeof(*p));
-    p->used = true;
-    p->conn = event->connect.conn_handle;
-    p->state = PS_CONNECTED;
     p->user = (was == RADIO_CONNECT);
-    p->ota = desc.peer_ota_addr;
-    val_to_str(desc.peer_ota_addr.val, p->addr_str);
-    /* 이미 본딩된 장치(자동 재연결, RPA 해석)는 연결 시점에 identity를 안다. 새 장치는 암호화 뒤에 확정한다 */
-    p->id = id_norm(&desc.peer_id_addr);
-    val_to_str(p->id.val, p->id_str);
-    p->id_valid = bonds_has(&p->id);
     if (p->user) {
         s_user_pending = false;
     }
 
     char buf[160];
-    /* 실제 연결 값을 남긴다 (간격 단위 1.25 ms, 감시 단위 10 ms) */
+    /* Record the actual connection parameters (interval in 1.25 ms units, supervision in 10 ms units) */
     snprintf(buf, sizeof(buf),
              "{\"event\":\"connected\",\"addr\":\"%s\",\"id_addr\":\"%s\",\"bonded\":%s,\"user\":%s,"
              "\"itvl\":%u,\"latency\":%u,\"timeout\":%u}",
@@ -1509,10 +1544,15 @@ static void on_connect(struct ble_gap_event *event)
              desc.conn_itvl, desc.conn_latency, desc.supervision_timeout);
     emit(buf);
 
-    /* HOGP 5.2.3: 연결 직후 암호화를 시작한다. 본딩이 있으면 저장된 키로 복원, 없으면 새 페어링 */
-    p->sec_wait = true;
-    sec_pump();
-    s_auto_dirty = true;   /* 이 장치는 accept list에서 빠진다 */
+    /*
+     * HOGP 5.2.3: start encryption right after connecting. With a bond, restore with the stored keys; otherwise pair anew.
+     * Skip it if the device already started security before CONNECT was delivered (see peer_ensure).
+     */
+    if (p->state == PS_CONNECTED && s_sec_owner != p) {
+        p->sec_wait = true;
+        sec_pump();
+    }
+    s_auto_dirty = true;   /* This device drops out of the accept list */
     radio_update();
 }
 
@@ -1527,7 +1567,7 @@ static void on_disconnect(struct ble_gap_event *event)
         if (s_sec_owner == p) {
             s_sec_owner = NULL;
         }
-        /* 준비 전에 끊긴 본딩 장치는 실패로 센다. 연속으로 실패하면 자동 재연결을 멈춰 무한 반복을 막는다 */
+        /* A bonded device dropped before ready counts as a failure. Repeated failures pause auto-reconnect to stop endless retries */
         if (p->state != PS_READY && p->id_valid && bonds_has(&p->id)) {
             auto_ctl_t *a = auto_ctl(&p->id, true);
             if (a && !a->paused && ++a->fails >= FAIL_LIMIT) {
@@ -1537,7 +1577,7 @@ static void on_disconnect(struct ble_gap_event *event)
                 emit(buf);
             }
         }
-        /* 그 장치가 누르던 키와 버튼은 뗀 것으로 본다 (호스트에 키가 눌린 채로 남지 않게) */
+        /* Treat the keys and buttons that device was pressing as released (so no key stays stuck on the host) */
         router_out_t out;
         router_device_gone((uint8_t)(p - s_peers), &out);
         route_out(&out, -1);
@@ -1550,20 +1590,20 @@ static void on_disconnect(struct ble_gap_event *event)
 
 static void on_enc_change(struct ble_gap_event *event)
 {
-    peer_t *p = peer_by_conn(event->enc_change.conn_handle);
+    peer_t *p = peer_ensure(event->enc_change.conn_handle);
     if (!p) {
         return;
     }
     if (s_sec_owner == p) {
         s_sec_owner = NULL;
     }
-    p->sec_wait = false;   /* 상대가 먼저 보안을 시작한 경우에도 대기 표시를 지운다 */
+    p->sec_wait = false;   /* Clear the wait flag even if the peer started security first */
     p->io_action = BLE_SM_IOACT_NONE;
 
     struct ble_gap_conn_desc desc;
     bool have_desc = ble_gap_conn_find(p->conn, &desc) == 0;
     bool ok = event->enc_change.status == 0 && have_desc;
-    /* 새 페어링이면 방금 이 상대의 키가 저장소에 쓰였다 (store_write_hook) */
+    /* On a new pairing, this peer's keys were just written to the store (store_write_hook) */
     bool new_bond = ok && s_new_bond_pending && addr_eq(&s_new_bond_addr, &desc.peer_id_addr);
     if (new_bond) {
         s_new_bond_pending = false;
@@ -1581,15 +1621,15 @@ static void on_enc_change(struct ble_gap_event *event)
     if (!ok) {
         fail_peer(p, "security", event->enc_change.status);
     } else if (!desc.sec_state.bonded) {
-        /* HOGP 6.1: 호스트는 장치와 본딩해야 한다. 본딩 없이 암호화만 된 연결은 쓰지 않는다 */
+        /* HOGP 6.1: the host must bond with the device. A connection that is encrypted but not bonded is not used */
         fail_peer(p, "not_bonded", 0);
     } else {
-        /* 키 분배가 끝난 뒤라 peer_id_addr가 identity다 (RPA 장치도 IRK로 풀린 주소) */
+        /* Key distribution is done, so peer_id_addr is the identity (for RPA devices too, the address resolved with the IRK) */
         p->id = id_norm(&desc.peer_id_addr);
         p->id_valid = true;
         val_to_str(p->id.val, p->id_str);
         if (new_bond) {
-            bonds_reconcile();   /* 새 본딩의 메타를 만든다 */
+            bonds_reconcile();   /* Create metadata for the new bond */
             s_auto_dirty = true;
         }
         found_dev_t *fd = found_get(&p->ota);
@@ -1604,7 +1644,7 @@ static void on_enc_change(struct ble_gap_event *event)
                  "{\"event\":\"paired\",\"addr\":\"%s\",\"id_addr\":\"%s\",\"name\":\"%s\",\"bond\":\"%s\"}",
                  p->addr_str, p->id_str, name, bond);
         emit(buf);
-        /* 키 갱신 등으로 암호화 이벤트가 다시 와도 탐색을 겹쳐 시작하지 않는다 */
+        /* Do not start an overlapping discovery if an encryption event comes again (e.g. on key refresh) */
         if (p->state == PS_SECURING || p->state == PS_CONNECTED) {
             disc_start(p);
         }
@@ -1620,12 +1660,12 @@ static int gap_event(struct ble_gap_event *event, void *arg)
         break;
 
     case BLE_GAP_EVENT_DISC_COMPLETE:
-        /* 시간이 다 됐거나(0), 스택이 끊었을 때(EPREEMPTED, N-10) 온다. 취소 때는 오지 않는다 */
+        /* Arrives on timeout (0) or when the stack aborted it (EPREEMPTED, N-10). Not sent on cancel */
         if (s_radio == RADIO_SCAN) {
             s_radio = RADIO_IDLE;
         }
         if (event->disc_complete.reason == BLE_HS_EPREEMPTED) {
-            emit("{\"event\":\"scan_stopped\",\"reason\":\"preempted\"}");   /* s_want_scan은 그대로, 다시 시작한다 */
+            emit("{\"event\":\"scan_stopped\",\"reason\":\"preempted\"}");   /* s_want_scan is unchanged, so it restarts */
         } else {
             s_want_scan = false;
             emit("{\"event\":\"scan_stopped\",\"reason\":\"timeout\"}");
@@ -1662,7 +1702,7 @@ static int gap_event(struct ble_gap_event *event, void *arg)
     }
 
     case BLE_GAP_EVENT_CONN_UPDATE: {
-        /* 장치가 연결 값을 바꿨다. 지연 측정을 위해 남긴다 */
+        /* The device changed the connection parameters. Recorded for latency measurement */
         peer_t *p = peer_by_conn(event->conn_update.conn_handle);
         struct ble_gap_conn_desc d;
         if (p && ble_gap_conn_find(p->conn, &d) == 0) {
@@ -1681,7 +1721,7 @@ static int gap_event(struct ble_gap_event *event, void *arg)
         break;
 
     case BLE_GAP_EVENT_REPEAT_PAIRING:
-        /* Peripheral 역할(호스트 연결)에서만 온다. 정책은 호스트 단계에서 정한다 (P12). 지금은 무시한다 */
+        /* Arrives only in the Peripheral role (host connections). The policy is decided in the host stage (P12). Ignored for now */
         return BLE_GAP_REPEAT_PAIRING_IGNORE;
 
     default:
@@ -1691,9 +1731,9 @@ static int gap_event(struct ble_gap_event *event, void *arg)
 }
 
 /*
- * 본딩 저장소가 가득 찼을 때. 기본 예제의 ble_store_util_status_rr는 가장 오래된 본딩을
- * 사용자 모르게 지우므로 쓰지 않는다. 대신 새 페어링을 거부하고 GUI에 알린다.
- * FULL은 페어링을 시작하기 전에 온다(0이 아니면 거부). OVERFLOW는 저장 단계의 실패다.
+ * When the bond store is full. The stock example's ble_store_util_status_rr deletes the oldest bond
+ * without the user knowing, so it is not used. Instead, reject the new pairing and notify the GUI.
+ * FULL arrives before pairing starts (returning nonzero rejects it). OVERFLOW is a failure at the write stage.
  */
 static int on_store_status(struct ble_store_status_event *event, void *arg)
 {
@@ -1707,7 +1747,7 @@ static int on_store_status(struct ble_store_status_event *event, void *arg)
                  event->event_code == BLE_STORE_EVENT_FULL ? "before_pairing" : "write",
                  bond_count_local(), CONFIG_BT_NIMBLE_MAX_BONDS);
     } else {
-        /* 구독(CCCD) 같은 다른 항목의 칸이 모자라다. 설정값(MAX_CCCDS) 문제라 경고로 알린다 */
+        /* Out of slots for other entries such as subscriptions (CCCD). A config (MAX_CCCDS) issue, so report it as a warning */
         snprintf(buf, sizeof(buf), "{\"event\":\"store_full\",\"obj\":%d}", obj);
     }
     emit(buf);
@@ -1716,7 +1756,7 @@ static int on_store_status(struct ble_store_status_event *event, void *arg)
 
 static void on_sync(void)
 {
-    /* 공개 주소가 없으면 임의 주소를 만든다 */
+    /* If there is no public address, generate a random one */
     int rc = ble_hs_util_ensure_addr(0);
     if (rc == 0) {
         rc = ble_hs_id_infer_auto(0, &s_own_addr_type);
@@ -1734,13 +1774,13 @@ static void on_sync(void)
              bond_count_local(), CONFIG_BT_NIMBLE_MAX_BONDS);
     emit(buf);
     ESP_LOGI(TAG, "BLE ready, bonds=%d", bond_count_local());
-    radio_update();   /* 본딩된 장치가 있으면 자동 재연결을 건다 */
-    host_on_sync();   /* 끊긴 본딩 호스트를 위한 광고 */
+    radio_update();   /* Start auto-reconnect if there are bonded devices */
+    host_on_sync();   /* Advertising for disconnected bonded hosts */
 }
 
 static void on_reset(int reason)
 {
-    /* 호스트가 리셋되면 연결과 진행 중인 절차가 모두 사라진다. sync 때 다시 시작한다 */
+    /* When the host resets, all connections and in-progress procedures are gone. Restart on sync */
     s_synced = false;
     s_radio = RADIO_IDLE;
     s_sec_owner = NULL;
@@ -1757,7 +1797,7 @@ static void host_task(void *param)
     nimble_port_freertos_deinit();
 }
 
-/* ---------- 다른 태스크의 요청을 호스트 태스크에서 실행 ---------- */
+/* ---------- Run requests from other tasks on the host task ---------- */
 
 typedef enum {
     OP_SCAN, OP_CONNECT, OP_DISCONNECT, OP_ACCEPT, OP_PASSKEY, OP_CANCEL,
@@ -1797,10 +1837,10 @@ static esp_err_t op_connect(const char *addr)
         return ESP_ERR_INVALID_ARG;
     }
     if (peer_by_val(val)) {
-        return ESP_ERR_INVALID_STATE;   /* 이미 연결되어 있다 */
+        return ESP_ERR_INVALID_STATE;   /* Already connected */
     }
     if (s_user_pending) {
-        return ESP_ERR_INVALID_STATE;   /* 다른 연결 시도가 진행 중이다 */
+        return ESP_ERR_INVALID_STATE;   /* Another connection attempt is in progress */
     }
     if (peers_free() == 0) {
         return ESP_ERR_NO_MEM;
@@ -1808,9 +1848,10 @@ static esp_err_t op_connect(const char *addr)
     ble_addr_t bond;
     if (bonds_find_val(val, &bond)) {
         /*
-         * 본딩된 장치는 직접 연결(10초 시도)을 걸지 않는다. 그동안 다른 장치의 자동 재연결이 멈추기 때문이다.
-         * 자동 재연결 목록에 다시 넣고(사용자가 끊었거나 실패로 멈췄던 것 해제), 스캔 중이면 멈춰서 바로 기다리게 한다.
-         * 장치가 광고하면(깨우면) 연결된다.
+         * Do not start a direct connection (10-second attempt) to a bonded device: it would pause auto-reconnect
+         * for other devices meanwhile. Put it back on the auto-reconnect list (clearing a user disconnect or a
+         * failure pause), and stop any scan so it waits right away.
+         * It connects when the device advertises (wakes up).
          */
         auto_resume(&bond);
         s_want_scan = false;
@@ -1823,7 +1864,7 @@ static esp_err_t op_connect(const char *addr)
         return ESP_ERR_NOT_FOUND;
     }
     if (host_window_open()) {
-        return ESP_ERR_NOT_ALLOWED;   /* 호스트 추가 창이 열린 동안에는 새 입력 장치를 페어링하지 않는다 */
+        return ESP_ERR_NOT_ALLOWED;   /* Do not pair a new input device while the host pairing window is open */
     }
     s_user_target = fd->addr;
     snprintf(s_user_target_str, sizeof(s_user_target_str), "%s", addr);
@@ -1846,7 +1887,7 @@ static esp_err_t op_disconnect(const char *addr)
     if (p->id_valid) {
         auto_ctl_t *a = auto_ctl(&p->id, true);
         if (a) {
-            a->paused = true;   /* 사용자가 끊은 장치는 다시 연결할 때까지 자동으로 붙이지 않는다 */
+            a->paused = true;   /* A device the user disconnected is not auto-connected until the user connects it again */
         }
     }
     ble_gap_terminate(p->conn, HCI_USER_TERM);
@@ -1885,7 +1926,7 @@ static void op_cancel(void)
             struct ble_sm_io io = {.action = BLE_SM_IOACT_NUMCMP, .numcmp_accept = 0};
             ble_sm_inject_io(p->conn, &io);
         } else {
-            ble_gap_terminate(p->conn, HCI_USER_TERM);   /* 패스키 입력은 거절 수단이 없어 연결을 끊는다 */
+            ble_gap_terminate(p->conn, HCI_USER_TERM);   /* Passkey entry has no way to reject, so disconnect */
         }
         p->io_action = BLE_SM_IOACT_NONE;
     }
@@ -1903,13 +1944,13 @@ static esp_err_t op_remove(const char *addr)
         return ESP_ERR_NOT_FOUND;
     }
     if (s_user_pending && memcmp(s_user_target.val, id.val, 6) == 0) {
-        s_user_pending = false;   /* 지우는 장치로의 연결 시도는 그만둔다 */
+        s_user_pending = false;   /* Abandon any connection attempt to the device being removed */
     }
-    /* ble_gap_unpair는 스캔이나 광고 중이면 EBUSY다. 라디오를 잠시 멈춘다 */
+    /* ble_gap_unpair returns EBUSY while scanning or advertising. Pause the radio briefly */
     s_radio_hold = true;
     radio_update();
-    host_adv_hold(true);            /* ble_gap_unpair는 광고 중에도 EBUSY다 (H-64) */
-    int rc = ble_gap_unpair(&id);   /* 연결 중이면 끊고, 해석 리스트와 저장소에서 지운다 */
+    host_adv_hold(true);            /* ble_gap_unpair also returns EBUSY while advertising (H-64) */
+    int rc = ble_gap_unpair(&id);   /* Disconnects if connected, and removes it from the resolving list and the store */
     host_adv_hold(false);
     s_radio_hold = false;
     if (rc != 0) {
@@ -1945,7 +1986,7 @@ static esp_err_t op_clear(void)
         }
     }
     if (result == ESP_OK) {
-        ble_store_clear();   /* CCCD 같은 나머지 항목까지 지운다 */
+        ble_store_clear();   /* Also clears the remaining entries such as CCCDs */
         cfg_paired_clear();
         memset(s_auto, 0, sizeof(s_auto));
         for (int i = 0; i < GATT_CACHE_MAX; i++) {
@@ -1968,7 +2009,7 @@ static size_t list_json(char *buf, size_t len, bool all)
     bool first = true;
     for (int i = 0; i < FOUND_MAX; i++) {
         found_dev_t *d = &s_found[i];
-        /* 지금 연결된 기기는 "찾은 기기"가 아니다 */
+        /* A currently connected device is not a "found device" */
         if (!d->used || (!all && !d->hid) || peer_by_addr(&d->addr)) {
             continue;
         }
@@ -1980,7 +2021,7 @@ static size_t list_json(char *buf, size_t len, bool all)
                          first ? "" : ",", d->addr_str, name, d->rssi, bonds_has(&d->addr) ? "true" : "false",
                          d->appearance, d->hid ? "true" : "false");
         if (m < 0 || n + (size_t)m + 2 > len) {
-            break;   /* 한 항목이 통째로 들어가지 않으면 멈춘다. JSON이 중간에 잘리면 안 된다 */
+            break;   /* Stop if an entry does not fit whole. The JSON must not be cut midway */
         }
         memcpy(buf + n, item, m + 1);
         n += m;
@@ -2014,7 +2055,7 @@ static size_t peers_json(char *buf, size_t len)
     return n < len ? n : len - 1;
 }
 
-/* 원천은 본딩 목록이고, 이름과 종류는 메타에서 붙인다 */
+/* The bond list is the source of truth; name and kind are added from the metadata */
 static size_t paired_json(char *buf, size_t len)
 {
     ble_addr_t bonds[CFG_PAIRED_MAX];
@@ -2024,7 +2065,7 @@ static size_t paired_json(char *buf, size_t len)
         cfg_paired_t meta;
         bool has_meta = meta_get(&bonds[i], &meta);
         if (has_meta && meta.role == CFG_ROLE_HOST) {
-            continue;   /* 호스트는 입력 장치 목록에 넣지 않는다 */
+            continue;   /* Hosts are not included in the input device list */
         }
         peer_t *p = peer_by_addr(&bonds[i]);
         auto_ctl_t *a = auto_ctl(&bonds[i], false);
@@ -2061,10 +2102,10 @@ static esp_err_t op_dispatch(req_t *r)
             return ESP_ERR_INVALID_STATE;
         }
         if (r->flag && host_window_open()) {
-            return ESP_ERR_NOT_ALLOWED;   /* 호스트 추가 창과 입력 장치 페어링은 섞지 않는다 (IO 능력이 다르다) */
+            return ESP_ERR_NOT_ALLOWED;   /* Do not mix the host pairing window with input device pairing (the IO capabilities differ) */
         }
         if (r->flag && s_user_pending) {
-            /* 가장 최근의 사용자 동작이 이긴다: 기다리던 연결 시도를 그만두고 스캔한다 */
+            /* The most recent user action wins: abandon the pending connection attempt and scan */
             s_user_pending = false;
             char buf[96];
             snprintf(buf, sizeof(buf), "{\"event\":\"connect_failed\",\"addr\":\"%s\",\"status\":\"cancelled\"}",
@@ -2124,7 +2165,7 @@ static esp_err_t op_dispatch(req_t *r)
     case OP_COMBOS:
         return apply_combos(r->addr);
     case OP_HOST_SELECT: {
-        /* 화면에서 직접 고른 전환. 키 조합 전환과 같은 처리: 이전 호스트에는 모두 뗌 */
+        /* A switch picked directly in the UI. Handled like a combo switch: the previous host gets release-all */
         int host = (int)r->num;
         if (host < 0 || host >= ROUTER_HOST_MAX) {
             return ESP_ERR_INVALID_ARG;
@@ -2143,7 +2184,7 @@ static esp_err_t op_dispatch(req_t *r)
         return ESP_OK;
     case OP_HOST_PAIR:
         if (r->flag) {
-            /* 입력 장치 스캔과 사용자 연결 시도를 멈추고 창을 연다 */
+            /* Stop input device scanning and user connection attempts, then open the window */
             s_want_scan = false;
             s_user_pending = false;
             radio_update();
@@ -2180,7 +2221,7 @@ static esp_err_t host_call(req_t *r)
     return r->result;
 }
 
-/* ---------- 공개 함수 ---------- */
+/* ---------- Public functions ---------- */
 
 esp_err_t ble_pair_init(ble_pair_event_fn event)
 {
@@ -2197,16 +2238,16 @@ esp_err_t ble_pair_init(ble_pair_event_fn event)
 
     ble_hs_cfg.sync_cb = on_sync;
     ble_hs_cfg.reset_cb = on_reset;
-    /* 키보드 + 디스플레이: 상대의 입출력 능력에 따라 스택이 규격대로 방식을 고른다 (Just Works, 패스키, 숫자 비교) */
+    /* Keyboard + display: the stack picks the method per spec from the peer's IO capabilities (Just Works, passkey, numeric comparison) */
     ble_hs_cfg.sm_io_cap = BLE_HS_IO_KEYBOARD_DISPLAY;
     ble_hs_cfg.sm_bonding = 1;
     ble_hs_cfg.sm_mitm = 1;
     ble_hs_cfg.sm_sc = 1;
     /*
-     * 우리 IRK는 분배하지 않는다. 우리는 RPA를 쓰지 않는데 NimBLE은 ID 키를 주면 진짜 IRK를 보낸다.
-     * Core는 RPA를 안 쓰는 기기의 IRK를 0으로 하라고 하고, Microsoft는 RPA를 쓸 때만 IRK를 교환하라고 한다.
-     * 진짜 IRK를 받은 상대가 Network Privacy 모드로 두면 우리 공개 주소 광고를 받지 않을 수 있다
-     * (host-side-design 3.5, H-15, H-16, H-44). 상대 IRK는 계속 받는다 (상대 RPA를 풀어야 한다).
+     * Do not distribute our IRK. We do not use an RPA, but NimBLE sends a real IRK if it distributes the ID key.
+     * Core says a device that does not use an RPA should use an all-zero IRK; Microsoft says to exchange IRKs only with an RPA.
+     * A peer that receives a real IRK and puts us in Network Privacy mode may ignore our public-address advertising
+     * (host-side-design 3.5, H-15, H-16, H-44). We still receive the peer's IRK (we need to resolve the peer's RPA).
      */
     ble_hs_cfg.sm_our_key_dist = BLE_SM_PAIR_KEY_DIST_ENC;
     ble_hs_cfg.sm_their_key_dist = BLE_SM_PAIR_KEY_DIST_ENC | BLE_SM_PAIR_KEY_DIST_ID;
@@ -2214,7 +2255,7 @@ esp_err_t ble_pair_init(ble_pair_event_fn event)
     ble_store_config_init();
     ESP_RETURN_ON_ERROR(host_init(event), TAG, "host gatt init failed");
 
-    /* 라우터: 호스트 태스크가 시작되기 전이라 여기서 바로 설정해도 된다 */
+    /* Router: the host task has not started yet, so configuring it directly here is safe */
     router_init();
     char combos[CFG_COMBO_MAX + 1] = "";
     cfg_combo_get(combos, sizeof(combos));

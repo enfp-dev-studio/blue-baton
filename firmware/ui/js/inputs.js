@@ -1,20 +1,21 @@
 /*
- * 입력 확인 (개발자 영역). 입력 리포트는 초당 수십 개가 오므로 화면 전체를 다시 그리지 않고 칸만 바꾼다.
- * 해석은 Report Map대로 한다 (hid/report-map.js).
+ * Input monitor (developer area). Input reports arrive dozens of times per second, so instead of redrawing
+ * the page we update individual cells. Decoding follows the Report Map (hid/report-map.js).
  */
 
 import { h } from './dom.js';
 import { PAGE, ReportDecoder, hexToBytes, pressedUsages, typeChar, usageName } from './hid/report-map.js';
+import { t, tParts } from './i18n.js';
 
 export class InputMonitor {
   constructor(root) {
     this.decoder = new ReportDecoder();
-    this.kb = new Map();       /* 리포트 키 -> 눌린 키 집합 */
+    this.kb = new Map();       /* report key -> set of pressed keys */
     this.typed = '';
     this.totals = { dx: 0, dy: 0, wh: 0 };
     this.mouseCount = 0;
     this.thisSec = 0;
-    this.rows = new Map();     /* 장치|핸들 -> 표의 행 */
+    this.rows = new Map();     /* device|handle -> table row */
     this.build(root);
     setInterval(() => {
       this.el.rate.textContent = this.thisSec;
@@ -28,10 +29,10 @@ export class InputMonitor {
       const c = h('div', { class: 'cell' }, h('small', {}, label), v);
       return [c, v];
     };
-    const [cBtn, vBtn] = cell('버튼', 'btn');
-    const [cDx, vDx] = cell('X 누적', 'dx');
-    const [cDy, vDy] = cell('Y 누적', 'dy');
-    const [cWh, vWh] = cell('휠 누적', 'wh');
+    const [cBtn, vBtn] = cell(t('inputs.buttons'), 'btn');
+    const [cDx, vDx] = cell(t('inputs.dx'), 'dx');
+    const [cDy, vDy] = cell(t('inputs.dy'), 'dy');
+    const [cWh, vWh] = cell(t('inputs.wheel'), 'wh');
     this.el = {
       cells: { btn: cBtn, dx: cDx, dy: cDy, wh: cWh },
       btn: vBtn, dx: vDx, dy: vDy, wh: vWh,
@@ -43,26 +44,26 @@ export class InputMonitor {
       text: h('div', { class: 'typed mono', 'aria-live': 'polite' }),
       table: h('tbody'),
       fields: h('div', { class: 'mono fields' }, '-'),
-      maps: h('p', { class: 'hint' }, 'Report Map 대기 중 (연결되면 보드가 읽어서 보내 줘요)'),
+      maps: h('p', { class: 'hint' }, t('inputs.mapWaiting')),
     };
     const e = this.el;
     root.replaceChildren(
-      h('div', { class: 'sec-head' }, h('h2', {}, '입력 확인'), h('span', { class: 'hint' }, '보드에 들어온 입력을 Report Map대로 풀어 보여 줘요')),
-      h('h3', {}, '마우스'),
+      h('div', { class: 'sec-head' }, h('h2', {}, t('inputs.title')), h('span', { class: 'hint' }, t('inputs.hint'))),
+      h('h3', {}, t('inputs.mouse')),
       h('div', { class: 'grid4' }, cBtn, cDx, cDy, cWh),
-      h('p', { class: 'hint' }, '리포트 ', e.count, '개 · 초당 ', e.rate, '개 ',
-        h('button', { class: 'ghost small', onclick: () => this.resetMouse() }, '누적 지우기')),
-      h('h3', {}, '키보드'),
-      h('p', { class: 'hint' }, '수정 키 ', e.mods, ' · 누른 키 ', e.keys, ' · 미디어 키 ', e.media),
+      h('p', { class: 'hint' }, tParts('inputs.mouseStats', { count: e.count, rate: e.rate }), ' ',
+        h('button', { class: 'ghost small', onclick: () => this.resetMouse() }, t('inputs.resetMouse'))),
+      h('h3', {}, t('inputs.keyboard')),
+      h('p', { class: 'hint' }, tParts('inputs.keyStats', { mods: e.mods, keys: e.keys, media: e.media })),
       e.text,
-      h('button', { class: 'ghost small', onclick: () => this.resetKeys() }, '입력 지우기'),
+      h('button', { class: 'ghost small', onclick: () => this.resetKeys() }, t('inputs.resetKeys')),
       h('details', { class: 'sub' },
-        h('summary', {}, '리포트 해석 상세'),
+        h('summary', {}, t('inputs.details')),
         e.maps,
         h('table', { class: 'rtab' },
-          h('thead', {}, h('tr', {}, ['장치', '핸들', '길이', '개수', '마지막 값'].map((t) => h('th', {}, t)))),
+          h('thead', {}, h('tr', {}, ['inputs.colDevice', 'inputs.colHandle', 'inputs.colLength', 'inputs.colCount', 'inputs.colLast'].map((k) => h('th', {}, t(k))))),
           e.table),
-        h('p', { class: 'hint' }, '마지막 리포트에서 0이 아닌 필드'),
+        h('p', { class: 'hint' }, t('inputs.fieldsHint')),
         e.fields),
     );
   }
@@ -84,7 +85,7 @@ export class InputMonitor {
     this.el.text.textContent = '';
   }
 
-  /* 보드 이벤트를 받는다. 관심 있는 것만 처리한다 */
+  /* Board events. Only the ones we care about are handled */
   onEvent(ev) {
     if (ev.event === 'report_ref') this.decoder.addRef(ev);
     else if (ev.event === 'report_map') this.onMap(ev);
@@ -94,15 +95,21 @@ export class InputMonitor {
 
   onMap(ev) {
     const layouts = this.decoder.addMap(ev);
-    const parts = [...layouts].map(([id, l]) => `ID ${id}: ${l.bits}비트 ${l.fields.length}필드`);
-    this.el.maps.textContent = `${ev.addr} 서비스 ${ev.svc || 0}: Report Map ${ev.len}바이트${ev.truncated ? ' (잘림!)' : ''} · ${parts.join(' / ') || '입력 리포트 없음'}`;
+    const parts = [...layouts].map(([id, l]) => t('inputs.layout', { id, bits: l.bits, fields: l.fields.length }));
+    this.el.maps.textContent = t('inputs.mapInfo', {
+      addr: ev.addr,
+      svc: ev.svc || 0,
+      len: ev.len,
+      truncated: ev.truncated ? t('inputs.truncated') : '',
+      layouts: parts.join(' / ') || t('inputs.noInputReports'),
+    });
   }
 
   track(ev) {
     const key = `${ev.addr}|${ev.handle}`;
     let row = this.rows.get(key);
     if (!row) {
-      const cells = [ev.addr, ev.handle, `${ev.data.length / 2}바이트`, '0', ''].map((t) => h('td', {}, t));
+      const cells = [ev.addr, ev.handle, t('inputs.bytes', { n: ev.data.length / 2 }), '0', ''].map((x) => h('td', {}, x));
       row = { tr: h('tr', {}, cells), count: 0, cells };
       this.rows.set(key, row);
       this.el.table.append(row.tr);
@@ -116,7 +123,7 @@ export class InputMonitor {
     this.track(ev);
     const dec = this.decoder.decode(ev.addr, ev.handle, hexToBytes(ev.data));
     if (!dec) {
-      this.el.fields.textContent = `Report Map이 아직 없어 원본만: ${ev.data}`;
+      this.el.fields.textContent = t('inputs.rawOnly', { data: ev.data });
       return;
     }
     const hasKb = dec.fields.some((f) => f.page === PAGE.KEYBOARD);
@@ -126,8 +133,8 @@ export class InputMonitor {
     if (hasKb) this.onKeyboard(dec);
     if (hasMedia) this.onMedia(dec);
     const lines = dec.fields.filter((f) => f.value)
-      .map((f) => usageName(f.page, f.usage) + (f.arr ? ` (배열 값 ${f.value})` : ` = ${f.value}`));
-    this.el.fields.textContent = (dec.id ? `리포트 ID ${dec.id}\n` : '') + (lines.join('\n') || '(모두 0, 뗀 상태)');
+      .map((f) => usageName(f.page, f.usage) + (f.arr ? t('inputs.arrayValue', { value: f.value }) : ` = ${f.value}`));
+    this.el.fields.textContent = (dec.id ? t('inputs.reportId', { id: dec.id }) + '\n' : '') + (lines.join('\n') || t('inputs.allZero'));
   }
 
   onMouse(dec) {
@@ -139,7 +146,7 @@ export class InputMonitor {
         else if (f.usage === 0x31) dy += f.value;
         else if (f.usage === 0x38) wh += f.value;
       } else if (f.page === PAGE.BUTTON && f.value) {
-        buttons.push({ 1: '왼쪽', 2: '오른쪽', 3: '가운데' }[f.usage] || `버튼${f.usage}`);
+        buttons.push({ 1: t('inputs.left'), 2: t('inputs.right'), 3: t('inputs.middle') }[f.usage] || t('usage.button', { n: f.usage }));
       }
     }
     this.mouseCount++;

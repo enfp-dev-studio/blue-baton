@@ -1,10 +1,10 @@
 /*
- * 보드와 주고받는 한 줄 JSON 프로토콜 (firmware/PROTOCOL.md).
- * 통신 방식(USB, 모의 보드, 나중에 Wi-Fi)은 transport가 맡고, 이 파일은 그 위에서만 동작한다.
+ * Line-JSON protocol with the board (firmware/PROTOCOL.md).
+ * The transport (USB, mock board, later Wi-Fi) handles the link; this file only works on top of it.
  *
- * transport가 갖춰야 할 것:
+ * A transport must provide:
  *   open(), close(), isOpen(), send(line) -> Promise, label
- *   onLine(line), onClose(reason) 콜백을 이쪽에서 채운다
+ *   This side fills in the onLine(line) and onClose(reason) callbacks
  */
 
 export class BoardError extends Error {
@@ -33,7 +33,7 @@ export class BoardClient {
     };
   }
 
-  /* 보드가 보낸 이벤트와 내부 알림(_closed, _log, _sent)을 받는다. 해제 함수를 돌려준다 */
+  /* Receives board events and internal notifications (_closed, _log, _sent). Returns an unsubscribe function */
   on(fn) {
     this.listeners.add(fn);
     return () => this.listeners.delete(fn);
@@ -50,7 +50,7 @@ export class BoardClient {
   }
 
   #onLine(line) {
-    /* 보드 로그도 같은 포트로 온다. KM< 뒤만 프로토콜이다 */
+    /* Board log lines arrive on the same port. Only what follows KM< is protocol */
     const at = line.indexOf('KM< ');
     if (at < 0) {
       if (line.trim()) this.#emit({ event: '_log', line });

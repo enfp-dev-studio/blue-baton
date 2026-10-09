@@ -22,7 +22,7 @@ esp_err_t cfg_init(void)
         ESP_LOGE(TAG, "nvs_open failed: %s", esp_err_to_name(err));
         return err;
     }
-    /* v1 기록(본딩과 따로 관리되던 것)이 남아 있으면 지운다. 키가 없는 기록이라 쓸 수 없다 */
+    /* Erase leftover v1 records (managed separately from bonds). They have no keys and are unusable */
     if (nvs_erase_key(s_nvs, "paired") == ESP_OK) {
         nvs_commit(s_nvs);
         ESP_LOGW(TAG, "removed v1 paired records (no bond keys behind them)");
@@ -30,7 +30,7 @@ esp_err_t cfg_init(void)
     return ESP_OK;
 }
 
-/* 문자열을 읽는다. 없거나 버퍼보다 길면 false */
+/* Read a string. false if missing or longer than the buffer */
 static bool get_str(const char *key, char *out, size_t len)
 {
     size_t need = 0;
@@ -114,10 +114,11 @@ esp_err_t cfg_combo_set(const char *combo)
 }
 
 /*
- * 메타데이터 블롭. 형식이 바뀌면 version을 올린다.
- * 버전이 다르면 버리고 빈 목록으로 시작한다. 메타는 본딩에서 다시 만들 수 있으므로
- * (부팅 때 정리 단계가 본딩마다 빈 메타를 만들고, 이름은 다음 연결 때 다시 읽는다) 잃는 것은 이름뿐이다.
- * v1(키 "paired")은 본딩과 따로 놀던 옛 기록이라 옮기지 않고 지운다.
+ * Metadata blob. Bump version when the format changes.
+ * On a version mismatch, discard it and start with an empty list. Metadata can be rebuilt from bonds
+ * (the boot cleanup step creates empty metadata for each bond, and names are re-read on the next connection),
+ * so only names are lost.
+ * v1 (key "paired") is an old record kept apart from bonds, so it is erased rather than migrated.
  */
 #define KEY_PAIRED_V1 "paired"
 #define KEY_PAIRED "paired_meta"
@@ -129,7 +130,7 @@ typedef struct {
     cfg_paired_t items[CFG_PAIRED_MAX];
 } paired_blob_t;
 
-/* v2 형식 (역할 칸이 없음). v2에는 입력 장치만 있었으므로 역할을 입력으로 옮긴다 */
+/* v2 format (no role field). v2 held only input devices, so the role migrates as input */
 typedef struct {
     uint8_t type;
     uint8_t val[6];
@@ -177,7 +178,7 @@ static void paired_load(paired_blob_t *b)
         return;
     }
     if (paired_load_v2(b)) {
-        paired_save(b);   /* 옮긴 형식으로 바로 저장한다 */
+        paired_save(b);   /* Save the migrated format right away */
         ESP_LOGI(TAG, "paired meta v2 -> v3 (%u records)", b->count);
         return;
     }
@@ -215,7 +216,7 @@ esp_err_t cfg_paired_put(const cfg_paired_t *rec)
     for (int i = 0; i < b.count; i++) {
         if (same_addr(&b.items[i], rec->type, rec->val)) {
             if (memcmp(&b.items[i], rec, sizeof(*rec)) == 0) {
-                return ESP_OK;   /* 같은 내용은 다시 쓰지 않는다 (플래시 수명) */
+                return ESP_OK;   /* Do not rewrite identical content (flash wear) */
             }
             b.items[i] = *rec;
             return paired_save(&b);

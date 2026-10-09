@@ -89,7 +89,7 @@ static void ip_event_handler(void *arg, esp_event_base_t base, int32_t id, void 
 
 esp_err_t net_mgr_start(void)
 {
-    /* AP 이름은 MAC 끝 두 바이트로 만든다. 같은 방에 보드가 여러 개여도 구분된다 */
+    /* The AP name uses the last two MAC bytes, so several boards in one room stay distinguishable */
     uint8_t mac[6];
     ESP_ERROR_CHECK(esp_read_mac(mac, ESP_MAC_WIFI_SOFTAP));
     snprintf(s_ap_ssid, sizeof(s_ap_ssid), "KM-Router-%02X%02X", mac[4], mac[5]);
@@ -134,7 +134,7 @@ esp_err_t net_mgr_wifi_apply(const char *ssid, const char *pass)
         esp_timer_stop(s_retry_timer);
     }
     sta_config_apply(ssid, pass);
-    esp_wifi_disconnect();   /* 연결돼 있지 않으면 에러가 나도 괜찮다 */
+    esp_wifi_disconnect();   /* An error here is fine if not connected */
     return esp_wifi_connect();
 }
 

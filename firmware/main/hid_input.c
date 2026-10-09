@@ -2,7 +2,7 @@
 
 #include "hid_input.h"
 
-/* 항목 종류와 태그 (HID 1.11 6.2.2.4~6.2.2.8) */
+/* Item types and tags (HID 1.11 6.2.2.4-6.2.2.8) */
 #define TYPE_MAIN 0
 #define TYPE_GLOBAL 1
 #define TYPE_LOCAL 2
@@ -22,7 +22,7 @@
 #define LONG_ITEM 0xFE
 #define STACK_MAX 4
 
-/* Keyboard 페이지 0x01~0x03은 오류 표시(ErrorRollOver 등)이고 키가 아니다 (HID Usage Tables 10장) */
+/* Keyboard page 0x01-0x03 are error indicators (ErrorRollOver etc.), not keys (HID Usage Tables chapter 10) */
 #define KEY_FIRST_REAL 0x04
 #define USAGE_X 0x30
 #define USAGE_Y 0x31
@@ -60,7 +60,7 @@ void hid_layout_parse(const uint8_t *map, size_t len, hid_layout_t *out)
     globals_t g = {0};
     globals_t stack[STACK_MAX];
     int sp = 0;
-    /* Local: Main 항목마다 초기화 */
+    /* Local: reset at every Main item */
     uint16_t usages[6];
     uint16_t usage_pages[6];
     uint8_t usage_count = 0;
@@ -130,7 +130,7 @@ void hid_layout_parse(const uint8_t *map, size_t len, hid_layout_t *out)
                 break;
             }
         } else if (type == TYPE_LOCAL) {
-            /* 4바이트 Usage는 위 16비트가 Usage Page다 (확장 Usage) */
+            /* For a 4-byte Usage, the upper 16 bits are the Usage Page (extended Usage) */
             uint16_t page = size == 4 ? (uint16_t)(data >> 16) : g.page;
             if (tag == TAG_USAGE && usage_count < 6) {
                 usages[usage_count] = (uint16_t)data;
@@ -175,7 +175,7 @@ void hid_layout_parse(const uint8_t *map, size_t len, hid_layout_t *out)
                     r->bits = (uint16_t)(r->bits + total);
                 }
             }
-            /* Local 항목은 Main 항목마다 초기화된다 (HID 1.11 6.2.2.8) */
+            /* Local items are reset at every Main item (HID 1.11 6.2.2.8) */
             usage_count = 0;
             have_min = false;
         }
@@ -192,7 +192,7 @@ uint16_t hid_layout_report_bits(const hid_layout_t *layout, uint8_t report_id)
     return 0;
 }
 
-/* 리틀엔디언 비트 순서로 size비트를 읽는다. 데이터를 넘으면 false */
+/* Read size bits in little-endian bit order. false if past the end of the data */
 static bool get_bits(const uint8_t *d, size_t len, uint32_t off, uint8_t size, bool is_signed, int32_t *out)
 {
     if (((off + size + 7) >> 3) > len) {
@@ -232,7 +232,7 @@ static void add_consumer(hid_input_t *o, uint32_t usage)
     o->consumer[o->consumer_count++] = (uint16_t)usage;
 }
 
-/* Variable 필드 n의 Usage: 나열된 Usage(모자라면 마지막이 반복) 또는 범위 */
+/* Usage of Variable field n: the listed Usages (the last repeats if too few) or the range */
 static uint32_t variable_usage(const hid_field_t *f, uint16_t n)
 {
     if (f->usage_count > 0) {
@@ -267,7 +267,7 @@ bool hid_decode(const hid_layout_t *layout, uint8_t report_id, const uint8_t *da
             uint32_t usage;
             if (f->array) {
                 if (v == 0 || v < f->logical_min) {
-                    continue;   /* 배열의 0은 "눌린 것 없음" */
+                    continue;   /* 0 in an array means "nothing pressed" */
                 }
                 usage = (uint32_t)f->usage_min + (uint32_t)(v - f->logical_min);
             } else {

@@ -2,8 +2,8 @@
 
 #include "esp_err.h"
 
-/* USB 명령 읽기 작업을 시작한다. 명령은 한 줄의 JSON이다 (PROTOCOL.md 참고) */
+/* Start the USB command reader task. Each command is one line of JSON (see PROTOCOL.md) */
 esp_err_t usb_ctl_start(void);
 
-/* 보드에서 밖으로 보내는 한 줄. "KM< " 접두사를 붙여 출력한다 */
+/* One outgoing line from the board. Printed with the "KM< " prefix */
 void usb_ctl_emit(const char *json);

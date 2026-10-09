@@ -1,6 +1,6 @@
 /*
- * 프로토콜 클라이언트 + 모의 보드 통합 시험 (브라우저 없이). 실행: node --test firmware/ui/test/
- * 화면이 쓰는 것과 같은 BoardClient로 명령을 보내고, 펌웨어 0.5 형식의 응답과 이벤트를 확인한다.
+ * Protocol client + mock board integration tests (no browser). Run: node --test firmware/ui/test/
+ * Sends commands through the same BoardClient the UI uses and checks replies and events in the firmware 0.5 format.
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -34,8 +34,8 @@ test('locked board refuses commands until auth', async () => {
   await t.open();
   const hello = await c.request('hello');
   assert.equal(hello.unlocked, false);
-  await assert.rejects(c.request('paired_list'), (e) => e.code === 'error');
-  await assert.rejects(c.request('auth', { pin: '0000' }));
+  await assert.rejects(c.request('paired_list'), (e) => e.code === 'locked');
+  await assert.rejects(c.request('auth', { pin: '0000' }), (e) => e.code === 'wrong_pin');
   await c.request('auth', { pin: '2468' });
   const pl = await c.request('paired_list');
   assert.equal(pl.paired.length, 2);
@@ -68,7 +68,7 @@ test('slots full -> no_slot, then numeric comparison pairing after freeing one',
   assert.equal(paired.bond, 'new');
   const pl = await c.request('paired_list');
   assert.equal(pl.paired.length, 3);
-  /* 사용자가 끊은 마우스는 자동 재연결 대상에서 빠진다 */
+  /* A mouse the user disconnected is dropped from auto-reconnect */
   assert.equal(pl.paired.find((p) => p.addr === '00:00:5E:00:53:17').auto, false);
   await t.close();
 });
@@ -86,7 +86,7 @@ test('wrong passkey fails with a security failure, then unknown command and bad 
   const failed = await waitFor((e) => e.event === 'failed');
   assert.equal(failed.stage, 'security');
   await assert.rejects(c.request('pair_accept', { accept: true }), (e) => e.code === 'no_request');
-  await assert.rejects(c.request('nope'), (e) => e.code === 'error');
+  await assert.rejects(c.request('nope'), (e) => e.code === 'unknown_cmd');
   await t.close();
 });
 
@@ -132,7 +132,7 @@ test('host pairing: window, passkey typed in the GUI, then the host shows up as 
   await waitFor((e) => e.event === 'host_window' && e.open === true);
   await assert.rejects(c.request('pair_scan', { on: true }), (e) => e.code === 'host_window');
   const req = await waitFor((e) => e.event === 'host_passkey_request');
-  const code = lines.map((l) => /모의 PC 화면에 보이는 숫자: (\d{6})/.exec(l)).find(Boolean)[1];
+  const code = lines.map((l) => /code shown on the mock PC: (\d{6})/.exec(l)).find(Boolean)[1];
   await assert.rejects(c.request('host_passkey', { code: '12' }), (e) => e.code === 'bad_code');
   await c.request('host_passkey', { code });
   const paired = await waitFor((e) => e.event === 'host_paired');

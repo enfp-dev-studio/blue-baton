@@ -7,7 +7,7 @@
 #define PAGE_GENERIC_DESKTOP 0x01
 #define PAGE_CONSUMER 0x0C
 
-/* 항목 종류 (HID 1.11 6.2.2.2 Short Items) */
+/* Item types (HID 1.11 6.2.2.2 Short Items) */
 #define TYPE_MAIN 0
 #define TYPE_GLOBAL 1
 #define TYPE_LOCAL 2
@@ -53,7 +53,7 @@ uint8_t hid_map_kinds(const uint8_t *map, size_t len)
     uint16_t page_stack[PAGE_STACK];
     int sp = 0;
     bool have_usage = false;
-    uint32_t usage = 0;     /* 4바이트 Usage면 위 16비트가 Usage Page다 */
+    uint32_t usage = 0;     /* For a 4-byte Usage, the upper 16 bits are the Usage Page */
     uint8_t usage_size = 0;
     int depth = 0;
     size_t i = 0;
@@ -64,7 +64,7 @@ uint8_t hid_map_kinds(const uint8_t *map, size_t len)
             if (i + 2 >= len) {
                 break;
             }
-            i += 3 + map[i + 1];   /* Long Item: 크기 바이트 + 태그 바이트 + 데이터 */
+            i += 3 + map[i + 1];   /* Long Item: size byte + tag byte + data */
             continue;
         }
         uint8_t size = prefix & 0x03;
@@ -106,7 +106,7 @@ uint8_t hid_map_kinds(const uint8_t *map, size_t len)
             } else if (tag == TAG_MAIN_END_COLLECTION && depth > 0) {
                 depth--;
             }
-            /* Local 항목은 Main 항목마다 초기화된다 (HID 1.11 6.2.2.8) */
+            /* Local items are reset at every Main item (HID 1.11 6.2.2.8) */
             have_usage = false;
         }
     }

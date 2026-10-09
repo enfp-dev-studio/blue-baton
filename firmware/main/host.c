@@ -26,14 +26,14 @@
 
 static const char *TAG = "host";
 
-#define HOST_LINK_MAX 4          /* 호스트 3 + 페어링 중인 후보 1 */
-#define WINDOW_MS 180000         /* 호스트 추가 창: HOGP의 Limited Discoverable 상한 (H-9) */
-#define FAST_ADV_MS 30000        /* 빠른 광고를 유지하는 시간 */
-#define CANDIDATE_MS 60000       /* 후보 연결이 페어링을 마쳐야 하는 시간 */
-#define PARAM_RETRY_MS 2000      /* 연결 값 요청이 상대의 절차와 겹쳤을 때 다시 요청하기까지 */
+#define HOST_LINK_MAX 4          /* 3 hosts + 1 candidate being paired */
+#define WINDOW_MS 180000         /* Host pairing window: HOGP's Limited Discoverable limit (H-9) */
+#define FAST_ADV_MS 30000        /* How long fast advertising is kept */
+#define CANDIDATE_MS 60000       /* Time within which a candidate connection must finish pairing */
+#define PARAM_RETRY_MS 2000      /* Delay before re-requesting connection parameters after a collision with the peer's procedure */
 #define PARAM_RETRY_MAX 2
-#define SEC_REQ_MS 1000          /* 본딩된 호스트가 이 시간 안에 암호화를 시작하지 않으면 Security Request */
-/* 광고 간격 (단위 0.625 ms): Apple 권장 20 ms 다음 152.5 ms (H-40), 창은 30 ms (Swift Pair, H-45) */
+#define SEC_REQ_MS 1000          /* Send a Security Request if a bonded host has not started encryption within this time */
+/* Advertising interval (units of 0.625 ms): Apple recommends 20 ms, then 152.5 ms (H-40); the window uses 30 ms (Swift Pair, H-45) */
 #define ADV_ITVL_RECONNECT_FAST 32
 #define ADV_ITVL_WINDOW_FAST 48
 #define ADV_ITVL_SLOW 244
@@ -41,7 +41,7 @@ static const char *TAG = "host";
 #define APPEARANCE_KEYBOARD 0x03C1
 #define HCI_USER_TERM 0x13
 
-/* ---------- GATT 표 (핸들 고정. 순서를 바꾸지 않는다, H-17) ---------- */
+/* ---------- GATT table (fixed handles. Do not reorder, H-17) ---------- */
 
 enum {
     A_MANUF = 1, A_MODEL, A_FWREV, A_PNP, A_BATTERY,
@@ -50,15 +50,15 @@ enum {
     A_BOOT_KB_IN, A_BOOT_KB_OUT, A_BOOT_MOUSE_IN,
 };
 
-/* 알림을 보내는 특성 (연결별 구독 비트 번호) */
+/* Characteristics that send notifications (per-connection subscription bit numbers) */
 enum { N_KB, N_MOUSE, N_CONSUMER, N_SYSTEM, N_BOOT_KB, N_BOOT_MOUSE, N_COUNT };
 static uint16_t s_notify_handle[N_COUNT];
 
 static int chr_access(uint16_t conn, uint16_t attr, struct ble_gatt_access_ctxt *ctxt, void *arg);
 static int ref_access(uint16_t conn, uint16_t attr, struct ble_gatt_access_ctxt *ctxt, void *arg);
 
-/* 보호: HID, 배터리, 장치 정보의 값은 인증된(MITM) 본딩이 있어야 읽고 쓴다 (HOGP 6.1 Level 3).
- * 서비스와 특성 선언(탐색)은 보호하지 않는다 (Apple H-41) */
+/* Protection: HID, battery and device information values need an authenticated (MITM) bond to read or write (HOGP 6.1 Level 3).
+ * Service and characteristic declarations (discovery) are not protected (Apple H-41) */
 #define R_AUTH (BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_READ_AUTHEN)
 #define W_AUTH (BLE_GATT_CHR_F_WRITE | BLE_GATT_CHR_F_WRITE_AUTHEN)
 #define WNR_AUTH (BLE_GATT_CHR_F_WRITE_NO_RSP | BLE_GATT_CHR_F_WRITE_AUTHEN)
@@ -74,7 +74,7 @@ static int ref_access(uint16_t conn, uint16_t attr, struct ble_gatt_access_ctxt 
 
 static const struct ble_gatt_svc_def s_svcs[] = {
     {
-        /* 장치 정보 (DIS, 정확히 하나, H-1). PnP ID는 HOGP가 필수로 만든다 */
+        /* Device information (DIS, exactly one, H-1). HOGP makes PnP ID mandatory */
         .type = BLE_GATT_SVC_TYPE_PRIMARY,
         .uuid = BLE_UUID16_DECLARE(0x180A),
         .characteristics = (struct ble_gatt_chr_def[]){
@@ -86,7 +86,7 @@ static const struct ble_gatt_svc_def s_svcs[] = {
         },
     },
     {
-        /* 배터리 (USB 전원이라 늘 100). Notify는 선택이라 두지 않는다 */
+        /* Battery (always 100 on USB power). Notify is optional, so it is omitted */
         .type = BLE_GATT_SVC_TYPE_PRIMARY,
         .uuid = BLE_UUID16_DECLARE(0x180F),
         .characteristics = (struct ble_gatt_chr_def[]){
@@ -95,7 +95,7 @@ static const struct ble_gatt_svc_def s_svcs[] = {
         },
     },
     {
-        /* HID 서비스 (HIDS 1.0 표 2.1) */
+        /* HID service (HIDS 1.0 Table 2.1) */
         .type = BLE_GATT_SVC_TYPE_PRIMARY,
         .uuid = BLE_UUID16_DECLARE(0x1812),
         .characteristics = (struct ble_gatt_chr_def[]){
@@ -129,7 +129,7 @@ static const struct ble_gatt_svc_def s_svcs[] = {
     {0},
 };
 
-/* ---------- 호스트 연결 상태 ---------- */
+/* ---------- Host connection state ---------- */
 
 typedef enum { HL_CANDIDATE, HL_CONNECTED, HL_SECURED, HL_READY } hl_state_t;
 
@@ -139,9 +139,9 @@ typedef struct {
     hl_state_t state;
     ble_addr_t id;
     char id_str[18];
-    int index;                   /* 호스트 번호 (0부터). 후보면 -1 */
-    uint8_t sub;                 /* 구독 비트 (N_*) */
-    uint8_t protocol_mode;       /* 1 Report, 0 Boot. 연결마다 Report로 시작한다 (H-3) */
+    int index;                   /* Host number (from 0). -1 for a candidate */
+    uint8_t sub;                 /* Subscription bits (N_*) */
+    uint8_t protocol_mode;       /* 1 Report, 0 Boot. Every connection starts in Report (H-3) */
     bool suspended;
     uint8_t led;
     host_sent_t sent;
@@ -151,18 +151,18 @@ typedef struct {
     uint8_t buttons;
     bool mouse_pending;
     int64_t next_mouse_us;
-    uint16_t itvl;               /* 연결 간격 (1.25 ms 단위) */
-    bool pk_wait;                /* 패스키 입력을 기다린다 */
-    int64_t deadline_us;         /* 후보: 이 시각까지 페어링을 마쳐야 한다 */
-    int64_t param_retry_us;      /* 0이 아니면 이 시각에 연결 값을 다시 요청한다 */
-    int64_t sec_req_us;          /* 0이 아니면 이 시각에 Security Request를 보낸다 */
+    uint16_t itvl;               /* Connection interval (units of 1.25 ms) */
+    bool pk_wait;                /* Waiting for passkey entry */
+    int64_t deadline_us;         /* Candidate: must finish pairing by this time */
+    int64_t param_retry_us;      /* If nonzero, re-request connection parameters at this time */
+    int64_t sec_req_us;          /* If nonzero, send a Security Request at this time */
     uint8_t param_retries;
 } host_link_t;
 
 static host_link_t s_links[HOST_LINK_MAX];
 /*
- * 마우스 송신 타이머는 칸마다 한 번만 만든다. 이 포트의 callout 초기화는 부를 때마다 타이머 자원을
- * 새로 만들므로, 연결마다 초기화하면 자원이 샌다. 연결 상태(s_links)를 지워도 타이머는 남긴다.
+ * Mouse send timers are created only once per slot. In this port, callout init allocates a new timer resource
+ * on every call, so initializing per connection leaks resources. The timers stay even when the link state (s_links) is cleared.
  */
 static struct ble_npl_callout s_mouse_timer[HOST_LINK_MAX];
 
@@ -173,13 +173,14 @@ static bool s_window;
 static int64_t s_window_until_us;
 static int64_t s_fast_until_us;
 static int s_adv_hold;
-static int s_adv_mode;           /* 0 끔, 1 재연결, 2 창 */
+static int s_adv_mode;           /* 0 off, 1 reconnect, 2 window */
 static int s_adv_itvl;
 static struct ble_npl_callout s_tick;
 
 static int host_gap_event(struct ble_gap_event *event, void *arg);
 static void adv_update(void);
 static void request_conn_params(host_link_t *l);
+static host_link_t *link_ensure(uint16_t conn);
 static void security_request(host_link_t *l);
 
 static void emit(const char *json)
@@ -234,7 +235,7 @@ bool host_online(int index)
     return l && l->state == HL_READY;
 }
 
-/* ---------- 메타 (호스트 본딩) ---------- */
+/* ---------- Metadata (host bonds) ---------- */
 
 static bool meta_find(const ble_addr_t *id, cfg_paired_t *out)
 {
@@ -264,7 +265,7 @@ static bool bond_exists(const ble_addr_t *id)
     return false;
 }
 
-/* 본딩된 호스트의 번호. 아니면 -1 */
+/* Host number of a bonded host, otherwise -1 */
 static int host_index_of(const ble_addr_t *id)
 {
     cfg_paired_t m;
@@ -303,7 +304,7 @@ static int free_host_index(void)
     return -1;
 }
 
-/* 끊겨 있는 본딩 호스트가 있는가 (재연결 광고가 필요한가) */
+/* Is any bonded host disconnected (is reconnect advertising needed) */
 static bool any_host_offline(void)
 {
     cfg_paired_t recs[CFG_PAIRED_MAX];
@@ -316,7 +317,7 @@ static bool any_host_offline(void)
     return false;
 }
 
-/* ---------- GATT 접근 ---------- */
+/* ---------- GATT access ---------- */
 
 static int append(struct ble_gatt_access_ctxt *ctxt, const void *data, size_t len)
 {
@@ -345,7 +346,7 @@ static void set_led(host_link_t *l, uint8_t led)
 static int chr_access(uint16_t conn, uint16_t attr, struct ble_gatt_access_ctxt *ctxt, void *arg)
 {
     int which = (int)(uintptr_t)arg;
-    host_link_t *l = link_by_conn(conn);
+    host_link_t *l = link_ensure(conn);   /* A host may access attributes before CONNECT is delivered */
     bool write = ctxt->op == BLE_GATT_ACCESS_OP_WRITE_CHR;
     static const uint8_t zeros[HOST_MOUSE_LEN] = {0};
 
@@ -357,7 +358,7 @@ static int chr_access(uint16_t conn, uint16_t attr, struct ble_gatt_access_ctxt 
     case A_FWREV:
         return append(ctxt, KM_FW_VERSION, strlen(KM_FW_VERSION));
     case A_PNP: {
-        /* Vendor ID Source 2(USB-IF), VID 0x303A, PID 0xA001, 버전 0x0100. 개인용 임시값 (설계 6장 Q1) */
+        /* Vendor ID Source 2 (USB-IF), VID 0x303A, PID 0xA001, version 0x0100. Temporary values for personal use (design section 6 Q1) */
         static const uint8_t pnp[7] = {0x02, 0x3A, 0x30, 0x01, 0xA0, 0x00, 0x01};
         return append(ctxt, pnp, sizeof(pnp));
     }
@@ -366,7 +367,7 @@ static int chr_access(uint16_t conn, uint16_t attr, struct ble_gatt_access_ctxt 
         return append(ctxt, &full, 1);
     }
     case A_HID_INFO: {
-        /* bcdHID 1.11, 나라 0, Flags: RemoteWake | NormallyConnectable */
+        /* bcdHID 1.11, country 0, Flags: RemoteWake | NormallyConnectable */
         static const uint8_t info[4] = {0x11, 0x01, 0x00, 0x03};
         return append(ctxt, info, sizeof(info));
     }
@@ -376,7 +377,7 @@ static int chr_access(uint16_t conn, uint16_t attr, struct ble_gatt_access_ctxt 
         uint8_t v;
         int rc = read_byte(ctxt, &v);
         if (rc == 0 && l) {
-            l->suspended = v == 0;   /* 0 Suspend, 1 Exit Suspend. 장치 쪽 동작은 규격이 정하지 않는다 */
+            l->suspended = v == 0;   /* 0 Suspend, 1 Exit Suspend. The spec does not define device-side behavior */
         }
         return rc;
     }
@@ -429,7 +430,7 @@ static int ref_access(uint16_t conn, uint16_t attr, struct ble_gatt_access_ctxt 
     return append(ctxt, ref, sizeof(ref));
 }
 
-/* ---------- 보내기 ---------- */
+/* ---------- Sending ---------- */
 
 static void notify(host_link_t *l, int n, const uint8_t *data, uint16_t len)
 {
@@ -467,7 +468,7 @@ static void send_keyboard(host_link_t *l, const uint8_t keys[32])
 static void send_consumer(host_link_t *l, const uint16_t *usages, uint8_t count)
 {
     if (boot_mode(l)) {
-        return;   /* Boot 호스트는 Report 리포트를 무시한다 */
+        return;   /* A Boot host ignores Report Protocol reports */
     }
     uint8_t c[HOST_CONSUMER_LEN];
     host_consumer_report(usages, count, c);
@@ -476,7 +477,7 @@ static void send_consumer(host_link_t *l, const uint16_t *usages, uint8_t count)
     }
 }
 
-/* 모인 마우스 이동과 버튼을 한 번 보낸다 */
+/* Send the accumulated mouse motion and buttons once */
 static void flush_mouse(host_link_t *l)
 {
     if (!l->mouse_pending) {
@@ -493,7 +494,7 @@ static void flush_mouse(host_link_t *l)
         l->sent.buttons = l->buttons;
         notify(l, N_MOUSE, m, sizeof(m));
     }
-    l->mouse_pending = !host_motion_empty(&l->motion);   /* 다 못 담았으면 다음 간격에 */
+    l->mouse_pending = !host_motion_empty(&l->motion);   /* If it did not all fit, the rest goes in the next interval */
     int64_t itvl_us = (int64_t)(l->itvl ? l->itvl : 12) * 1250;
     l->next_mouse_us = now_us() + itvl_us;
     if (l->mouse_pending) {
@@ -515,8 +516,8 @@ static void mouse_timer_cb(struct ble_npl_event *ev)
 }
 
 /*
- * 마우스: 이동은 연결 간격마다 최대 한 번 보낸다. 컨트롤러에 쌓여 지연이 늘지 않게 하기 위해서다 (H-32).
- * 버튼이 바뀌면 그때까지 모인 이동과 함께 바로 보낸다.
+ * Mouse: motion is sent at most once per connection interval, so it does not pile up in the controller and add latency (H-32).
+ * When buttons change, send right away together with the motion accumulated so far.
  */
 static void send_mouse(host_link_t *l, const router_out_t *o)
 {
@@ -538,7 +539,7 @@ static void send_mouse(host_link_t *l, const router_out_t *o)
     }
 }
 
-/* 이 연결에 0이 아닌 값으로 남은 리포트를 0으로 맞춘다 (전환 때 이전 호스트로) */
+/* Zero any report left nonzero on this connection (to the previous host on switch) */
 static void release_all(host_link_t *l)
 {
     if (!l || l->state != HL_READY) {
@@ -581,7 +582,7 @@ static void release_all(host_link_t *l)
 void host_send(const router_out_t *out, int switched_from)
 {
     if (switched_from >= 0) {
-        /* 뗌은 이전 호스트 연결로 직접 보낸다 (활성 값과 무관하게, H-49의 ZMK 버그를 피한다) */
+        /* Send the release directly on the previous host's connection (regardless of the active value, avoiding the ZMK bug in H-49) */
         release_all(link_by_index(switched_from));
         char buf[96];
         snprintf(buf, sizeof(buf), "{\"event\":\"host_online\",\"host\":%d,\"online\":%s}",
@@ -590,10 +591,10 @@ void host_send(const router_out_t *out, int switched_from)
     }
     host_link_t *l = link_by_index(router_active_host());
     if (!l || l->state != HL_READY) {
-        return;   /* 끊긴 호스트로 가는 입력은 버린다 (나중에 재생되는 키 입력은 위험하다) */
+        return;   /* Drop input for a disconnected host (key input replayed later is dangerous) */
     }
     if (switched_from >= 0) {
-        release_all(l);   /* 새 호스트에 남아 있던 값이 있으면 0으로 맞춘다 (H-55) */
+        release_all(l);   /* Zero anything left over on the new host (H-55) */
     }
     if (out->pre_valid) {
         send_keyboard(l, out->pre_keys);
@@ -609,7 +610,7 @@ void host_send(const router_out_t *out, int switched_from)
     }
 }
 
-/* ---------- 광고 ---------- */
+/* ---------- Advertising ---------- */
 
 static void adv_stop(void)
 {
@@ -623,7 +624,7 @@ static void adv_start(int mode, int itvl)
 {
     struct ble_hs_adv_fields f;
     memset(&f, 0, sizeof(f));
-    /* 창: Limited Discoverable. 재연결: 발견 불가 (본딩된 호스트는 플래그와 상관없이 붙는다, H-44) */
+    /* Window: Limited Discoverable. Reconnect: non-discoverable (bonded hosts connect regardless of the flags, H-44) */
     f.flags = BLE_HS_ADV_F_BREDR_UNSUP | (mode == 2 ? BLE_HS_ADV_F_DISC_LTD : 0);
     static const ble_uuid16_t hid_uuid = BLE_UUID16_INIT(0x1812);
     f.uuids16 = &hid_uuid;
@@ -633,7 +634,7 @@ static void adv_start(int mode, int itvl)
     f.appearance_is_present = 1;
     f.name = (const uint8_t *)DEVICE_NAME;
     f.name_len = strlen(DEVICE_NAME);
-    f.name_is_complete = 1;   /* Windows는 능동 스캔을 하지 않으므로 이름을 광고 패킷에 넣는다 (H-45) */
+    f.name_is_complete = 1;   /* Windows does not active-scan, so the name goes in the advertising packet (H-45) */
     int rc = ble_gap_adv_set_fields(&f);
     if (rc != 0) {
         ESP_LOGE(TAG, "adv fields rc=%d", rc);
@@ -647,20 +648,20 @@ static void adv_start(int mode, int itvl)
 
     struct ble_gap_adv_params p;
     memset(&p, 0, sizeof(p));
-    p.conn_mode = BLE_GAP_CONN_MODE_UND;   /* Directed 광고는 쓰지 않는다 (Apple H-40) */
+    p.conn_mode = BLE_GAP_CONN_MODE_UND;   /* Directed advertising is not used (Apple H-40) */
     p.disc_mode = mode == 2 ? BLE_GAP_DISC_MODE_LTD : BLE_GAP_DISC_MODE_NON;
     p.itvl_min = itvl;
     p.itvl_max = itvl;
     rc = ble_gap_adv_start(BLE_OWN_ADDR_PUBLIC, NULL, BLE_HS_FOREVER, &p, host_gap_event, NULL);
     if (rc != 0) {
-        ESP_LOGW(TAG, "adv start rc=%d", rc);   /* 빈 연결 칸이 없으면 ENOMEM (H-21). 칸이 생기면 다시 정한다 */
+        ESP_LOGW(TAG, "adv start rc=%d", rc);   /* ENOMEM if no connection slot is free (H-21). Re-decided once a slot frees up */
         return;
     }
     s_adv_mode = mode;
     s_adv_itvl = itvl;
 }
 
-/* 광고 상태를 정한다: 창 > 끊긴 본딩 호스트 재연결 > 끔 */
+/* Decide the advertising state: window > reconnect for disconnected bonded hosts > off */
 static void adv_update(void)
 {
     if (!s_synced || s_adv_hold > 0) {
@@ -690,7 +691,7 @@ static void adv_update(void)
     }
 }
 
-/* 1초마다: 창 시간, 빠른 광고 시간, 후보 연결 시간을 본다 */
+/* Every second: check the window time, fast advertising time and candidate connection time */
 static void tick_cb(struct ble_npl_event *ev)
 {
     int64_t now = now_us();
@@ -725,7 +726,7 @@ void host_adv_hold(bool hold)
     adv_update();
 }
 
-/* ---------- 호스트 연결 이벤트 ---------- */
+/* ---------- Host connection events ---------- */
 
 static void emit_link(const char *event, const host_link_t *l, const char *extra)
 {
@@ -737,21 +738,31 @@ static void emit_link(const char *event, const host_link_t *l, const char *extra
 
 static void request_conn_params(host_link_t *l)
 {
-    /* 15 ms (Apple 15의 배수, Microsoft 키보드 15 ms 이상), Latency 4, 감시 6초 (H-39, H-43, 설계 4.8) */
+    /* 15 ms (Apple: a multiple of 15; Microsoft keyboards: 15 ms or more), Latency 4, supervision 6 s (H-39, H-43, design 4.8) */
     struct ble_gap_upd_params p = {
         .itvl_min = 12, .itvl_max = 12, .latency = 4, .supervision_timeout = 600, .min_ce_len = 0, .max_ce_len = 0,
     };
     int rc = ble_gap_update_params(l->conn, &p);
     if (rc != 0) {
         ESP_LOGW(TAG, "conn param request rc=%d", rc);
+        /*
+         * ENOMEM/EALREADY/EBUSY: another connection's update (or this one's) is still in progress.
+         * Real hardware: two hosts became ready at the same moment and the second request got ENOMEM.
+         */
+        if ((rc == BLE_HS_ENOMEM || rc == BLE_HS_EALREADY || rc == BLE_HS_EBUSY) && l->param_retries < PARAM_RETRY_MAX) {
+            l->param_retries++;
+            l->param_retry_us = now_us() + (int64_t)PARAM_RETRY_MS * 1000;
+        }
     }
 }
 
 /*
- * 본딩된 호스트가 다시 붙고도 암호화를 시작하지 않으면 우리가 Security Request를 보낸다
- * (Core v5.4 Vol 3 Part H 2.4.6: Peripheral이 보안을 요청하면 Central은 저장된 키로 암호화한다).
- * 실기: Mac이 재연결 뒤 90초 넘게 암호화하지 않은 적이 있다. 보안 절차 칸은 전체에서 1개라
- * 다른 연결이 쓰고 있으면(ENOMEM) 1초 뒤 다시 시도한다.
+ * If a bonded host reconnects but does not start encryption, we send a Security Request
+ * (Core v5.4 Vol 3 Part H 2.4.6: when the Peripheral requests security, the Central encrypts with the stored keys).
+ * Real hardware: links looked unencrypted for 90+ seconds after a reconnect. The causes turned out to be events
+ * arriving before CONNECT (link_ensure) and LTK requests with no free SM slot (firmware/CMakeLists.txt); this
+ * stays as the standard fallback for a host that waits for the peripheral. If the SM pool is full (ENOMEM),
+ * retry after 1 second.
  */
 static void security_request(host_link_t *l)
 {
@@ -796,39 +807,47 @@ static void link_ready(host_link_t *l)
     l->state = HL_READY;
     emit_link("host_ready", l, NULL);
     request_conn_params(l);
-    /* 호스트의 GAP 이름을 읽어 목록에 보인다 (Mac은 컴퓨터 이름) */
+    /* Read the host's GAP name to show in the list (on a Mac, the computer name) */
     gap_name_read(l->conn, on_host_name);
 }
 
-static void on_connect(struct ble_gap_event *event)
+/*
+ * Create the link state for a host connection, or return the existing one.
+ *
+ * NimBLE (ESP-IDF 6.1) delivers BLE_GAP_EVENT_CONNECT for a Peripheral connection only after the remote
+ * version and feature exchange (ble_gap.c: ble_gap_rx_rd_rem_sup_feat_complete). A bonded host that starts
+ * encryption right away can finish it first, and NimBLE then delivers ENC_CHANGE and the restored
+ * SUBSCRIBE events before CONNECT. Real hardware: two Macs reconnecting at once; a Mac encrypted 0.3 s
+ * after connecting while CONNECT arrived later, and the link stayed "connected" with no reports.
+ * So every event handler calls this, and the first event of a connection creates the link.
+ */
+static host_link_t *link_ensure(uint16_t conn)
 {
-    s_adv_mode = 0;   /* Peripheral 연결이 생기면 광고는 끝난다 (H-21) */
-    if (event->connect.status != 0) {
-        adv_update();
-        return;
+    host_link_t *l = link_by_conn(conn);
+    if (l) {
+        return l;
     }
     struct ble_gap_conn_desc d;
-    if (ble_gap_conn_find(event->connect.conn_handle, &d) != 0) {
-        adv_update();
-        return;
+    if (ble_gap_conn_find(conn, &d) != 0 || d.role != BLE_GAP_ROLE_SLAVE) {
+        return NULL;   /* Not a host connection (input devices are on the Central side, ble_pair.c) */
     }
+    s_adv_mode = 0;   /* Advertising ends once a Peripheral connection forms (H-21) */
     int index = host_index_of(&d.peer_id_addr);
-    host_link_t *l = NULL;
     for (int i = 0; i < HOST_LINK_MAX && !l; i++) {
         if (!s_links[i].used) {
             l = &s_links[i];
         }
     }
-    /* 본딩된 호스트이거나, 창이 열려 있고 자리가 남았을 때만 받는다. 광고 필터를 못 쓰므로 여기서 거른다 (설계 4.1) */
+    /* Accept only a bonded host, or a new one while the window is open with a slot left. No advertising filter, so filter here (design 4.1) */
     bool accept = l && (index >= 0 ? !link_by_index(index) : (s_window && host_count() < ROUTER_HOST_MAX));
     if (!accept) {
-        ble_gap_terminate(event->connect.conn_handle, HCI_USER_TERM);
+        ble_gap_terminate(conn, HCI_USER_TERM);
         adv_update();
-        return;
+        return NULL;
     }
     memset(l, 0, sizeof(*l));
     l->used = true;
-    l->conn = event->connect.conn_handle;
+    l->conn = conn;
     l->id = d.peer_id_addr;
     l->id.type &= 1;
     val_to_str(l->id.val, l->id_str);
@@ -845,6 +864,19 @@ static void on_connect(struct ble_gap_event *event)
     snprintf(extra, sizeof(extra), ",\"bonded\":%s,\"itvl\":%u", index >= 0 ? "true" : "false", d.conn_itvl);
     emit_link("host_connected", l, extra);
     adv_update();
+    return l;
+}
+
+static void on_connect(struct ble_gap_event *event)
+{
+    if (event->connect.status != 0) {
+        s_adv_mode = 0;
+        adv_update();
+        return;
+    }
+    if (!link_ensure(event->connect.conn_handle)) {
+        adv_update();
+    }
 }
 
 static void on_disconnect(struct ble_gap_event *event)
@@ -862,13 +894,13 @@ static void on_disconnect(struct ble_gap_event *event)
     snprintf(extra, sizeof(extra), ",\"reason\":%d", event->disconnect.reason);
     emit_link("host_disconnected", l, extra);
     l->used = false;
-    fast_adv();   /* 끊긴 직후는 빠르게 광고해 다시 붙게 한다 (HOGP 표 5.2) */
+    fast_adv();   /* Advertise fast right after a disconnect so the host reconnects (HOGP Table 5.2) */
     adv_update();
 }
 
 static void on_enc_change(struct ble_gap_event *event)
 {
-    host_link_t *l = link_by_conn(event->enc_change.conn_handle);
+    host_link_t *l = link_ensure(event->enc_change.conn_handle);
     if (!l) {
         return;
     }
@@ -885,9 +917,9 @@ static void on_enc_change(struct ble_gap_event *event)
         snprintf(extra, sizeof(extra), ",\"status\":%d,\"authenticated\":%s", event->enc_change.status,
                  ok && d.sec_state.authenticated ? "true" : "false");
         emit_link("host_pair_failed", l, extra);
-        /* 끊는다. 보안 시간 초과(30초) 뒤에는 그 링크로 SMP를 다시 보낼 수 없어 새로 붙어야 한다 (Vol 3 Part H 3.4) */
+        /* Disconnect. After the security timeout (30 seconds) no more SMP can be sent on that link; it must reconnect (Vol 3 Part H 3.4) */
         if (ok && l->index < 0) {
-            /* 인증되지 않은 새 본딩은 받지 않는다 (HID 특성은 인증된 링크가 필요하다) */
+            /* Do not accept an unauthenticated new bond (HID characteristics need an authenticated link) */
             ble_addr_t id = l->id;
             ble_gap_terminate(l->conn, HCI_USER_TERM);
             ble_store_util_delete_peer(&id);
@@ -897,14 +929,15 @@ static void on_enc_change(struct ble_gap_event *event)
         return;
     }
     /*
-     * 키 분배가 끝났으니 peer_id_addr가 identity다. 연결 때 값은 RPA일 수 있다 (Mac은 RPA로 붙는다).
-     * 본딩 저장소의 키가 identity이므로 메타도 identity로 적어야 둘이 맞는다.
+     * Key distribution is done, so peer_id_addr is the identity. The value at connect time may be an RPA
+     * (Macs connect with an RPA).
+     * The bond store is keyed by identity, so the metadata must be written by identity too for the two to match.
      */
     l->id = d.peer_id_addr;
     l->id.type &= 1;
     val_to_str(l->id.val, l->id_str);
     if (l->index < 0) {
-        /* 새 호스트: 비어 있는 가장 작은 번호를 준다 */
+        /* New host: assign the lowest free number */
         int index = free_host_index();
         if (index < 0) {
             ble_gap_unpair(&l->id);
@@ -919,10 +952,10 @@ static void on_enc_change(struct ble_gap_event *event)
         cfg_paired_put(&m);
         l->index = index;
         emit_link("host_paired", l, NULL);
-        host_pair_window(false);   /* 한 대 붙였으면 창을 닫는다 */
+        host_pair_window(false);   /* One host paired, so close the window */
     }
     l->state = HL_SECURED;
-    /* 본딩된 호스트는 구독(CCCD)을 저장소에서 되살린다. 이미 켜져 있으면 바로 준비 */
+    /* A bonded host has its subscriptions (CCCD) restored from the store. If already on, it is ready right away */
     if (l->sub) {
         link_ready(l);
     }
@@ -930,7 +963,7 @@ static void on_enc_change(struct ble_gap_event *event)
 
 static void on_subscribe(struct ble_gap_event *event)
 {
-    host_link_t *l = link_by_conn(event->subscribe.conn_handle);
+    host_link_t *l = link_ensure(event->subscribe.conn_handle);
     if (!l) {
         return;
     }
@@ -950,14 +983,14 @@ static void on_subscribe(struct ble_gap_event *event)
 
 static void on_passkey_action(struct ble_gap_event *event)
 {
-    host_link_t *l = link_by_conn(event->passkey.conn_handle);
+    host_link_t *l = link_ensure(event->passkey.conn_handle);
     if (!l) {
         return;
     }
     if (event->passkey.params.action == BLE_SM_IOACT_INPUT) {
-        /* 호스트 화면의 6자리를 입력받는다. 라우터 키보드 입력은 이동안 어느 호스트에도 가지 않는다 */
+        /* Take the 6 digits shown on the host screen. Router keyboard input goes to no host during this */
         l->pk_wait = true;
-        release_all(link_by_index(router_active_host()));   /* 활성 호스트에 눌린 채 남지 않게 */
+        release_all(link_by_index(router_active_host()));   /* So nothing stays pressed on the active host */
         router_passkey_begin();
         emit_link("host_passkey_request", l, NULL);
     } else {
@@ -1017,11 +1050,13 @@ esp_err_t host_passkey(uint32_t code)
 
 static int on_repeat_pairing(struct ble_gap_event *event)
 {
-    host_link_t *l = link_by_conn(event->repeat_pairing.conn_handle);
+    host_link_t *l = link_ensure(event->repeat_pairing.conn_handle);
     /*
-     * 본딩된 호스트가 다시 페어링하려 한다 (호스트에서 우리를 지웠다).
-     * 창 안에서, 새 페어링이 인증될 때만 옛 키를 지우고 다시 받는다. 메타(번호, 이름)는 유지한다.
-     * 창 밖은 거부하고 끊는다 (인증 전에 본딩을 지우게 하는 주소 위조를 막는다, 입력 쪽 P12).
+     * A bonded host is trying to pair again (it removed us on the host side).
+     * Only inside the window, and only if the new pairing is authenticated, delete the old keys and accept again.
+     * Metadata (number, name) is kept.
+     * Outside the window, reject and disconnect (prevents address spoofing that gets a bond deleted before
+     * authentication, input side P12).
      */
     if (s_window && event->repeat_pairing.new_authenticated) {
         struct ble_gap_conn_desc d;
@@ -1063,9 +1098,11 @@ static int host_gap_event(struct ble_gap_event *event, void *arg)
         if (l && ble_gap_conn_find(l->conn, &d) == 0) {
             l->itvl = d.conn_itvl;
             /*
-             * 우리 요청이 상대(호스트)의 연결 값 절차와 겹치면 거절된다 (HCI 0x2A Different Transaction
-             * Collision, 0x23 LL Procedure Collision). 실기: Mac 재연결 직후 0x2A. 잠시 뒤 다시 요청한다.
-             * 요청일 뿐이라 호스트가 거절하거나 다른 값을 정하면 그 값으로 간다. 겹침이 아닌 거절은 다시 요청하지 않는다.
+             * Our request is rejected if it collides with the peer's (host's) connection parameter procedure
+             * (HCI 0x2A Different Transaction Collision, 0x23 LL Procedure Collision). Real hardware: 0x2A right
+             * after a Mac reconnect. Request again after a short delay.
+             * It is only a request: if the host rejects it or picks other values, those values stand. Rejections
+             * other than collisions are not retried.
              */
             int st = event->conn_update.status;
             if ((st == BLE_HS_HCI_ERR(BLE_ERR_DIFF_TRANS_COLL) || st == BLE_HS_HCI_ERR(BLE_ERR_LMP_COLLISION)) &&
@@ -1090,7 +1127,7 @@ static int host_gap_event(struct ble_gap_event *event, void *arg)
     return 0;
 }
 
-/* ---------- 명령 ---------- */
+/* ---------- Commands ---------- */
 
 bool host_window_open(void)
 {
@@ -1100,19 +1137,19 @@ bool host_window_open(void)
 esp_err_t host_pair_window(bool open)
 {
     if (open && host_count() >= ROUTER_HOST_MAX) {
-        return ESP_ERR_NO_MEM;   /* 호스트 3대가 찼다. GUI에서 지울 호스트를 고른다 */
+        return ESP_ERR_NO_MEM;   /* All 3 host slots are in use. The GUI picks a host to remove */
     }
     if (open == s_window) {
         return ESP_OK;
     }
     s_window = open;
-    /* 창이 열린 동안만 키보드로 알린다 (호스트 화면의 숫자를 우리가 입력하는 Passkey Entry, H-8, H-26) */
+    /* Present as a keyboard only while the window is open (Passkey Entry: we type the digits shown on the host screen, H-8, H-26) */
     ble_hs_cfg.sm_io_cap = open ? BLE_HS_IO_KEYBOARD_ONLY : BLE_HS_IO_KEYBOARD_DISPLAY;
     if (open) {
         s_window_until_us = now_us() + (int64_t)WINDOW_MS * 1000;
         fast_adv();
     } else {
-        /* 페어링을 마치지 못한 후보 연결은 끊는다 */
+        /* Disconnect candidate connections that did not finish pairing */
         for (int i = 0; i < HOST_LINK_MAX; i++) {
             if (s_links[i].used && s_links[i].index < 0) {
                 ble_gap_terminate(s_links[i].conn, HCI_USER_TERM);
@@ -1137,7 +1174,7 @@ esp_err_t host_remove(int index)
         }
         ble_addr_t id = {.type = recs[i].type};
         memcpy(id.val, recs[i].val, 6);
-        host_adv_hold(true);   /* ble_gap_unpair는 광고 중이면 EBUSY (H-64) */
+        host_adv_hold(true);   /* ble_gap_unpair returns EBUSY while advertising (H-64) */
         int rc = ble_gap_unpair(&id);
         host_adv_hold(false);
         if (rc != 0 && rc != BLE_HS_ENOENT) {
@@ -1188,7 +1225,7 @@ size_t host_list_json(char *buf, size_t len)
     return w < len ? w : len - 1;
 }
 
-/* ---------- 초기화 ---------- */
+/* ---------- Initialization ---------- */
 
 esp_err_t host_init(host_event_fn emit_fn)
 {
@@ -1215,7 +1252,7 @@ esp_err_t host_init(host_event_fn emit_fn)
 void host_on_sync(void)
 {
     s_synced = true;
-    fast_adv();   /* 부팅 직후 끊긴 본딩 호스트가 빨리 붙게 한다 */
+    fast_adv();   /* Right after boot, let disconnected bonded hosts reconnect quickly */
     adv_update();
     ble_npl_callout_reset(&s_tick, ble_npl_time_ms_to_ticks32(1000));
 }

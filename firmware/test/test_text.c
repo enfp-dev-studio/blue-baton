@@ -1,5 +1,5 @@
 /*
- * json_mini.c 단위 시험: UTF-8 끝자리 정리 (GAP 이름을 23바이트로 자를 때), JSON 이스케이프.
+ * Unit tests for json_mini.c: UTF-8 tail trimming (when cutting a GAP name to 23 bytes), JSON escaping.
  *   firmware/test/run.sh
  */
 #include <stdio.h>
@@ -23,7 +23,7 @@ static void check_len(const char *name, const char *s, int len, int want)
 
 int main(void)
 {
-    /* "Example’s Mac mini": ’ 는 E2 80 99 (3바이트) */
+    /* "Example’s Mac mini": ’ is E2 80 99 (3 bytes) */
     const char *mac = "Example\xE2\x80\x99s Mac mini";
     check_len("ascii whole", "abc", 3, 3);
     check_len("empty", "", 0, 0);
@@ -31,11 +31,11 @@ int main(void)
     check_len("3-byte char cut after 1", mac, 8, 7);
     check_len("3-byte char cut after 2", mac, 9, 7);
     check_len("whole mac name", mac, (int)strlen(mac), (int)strlen(mac));
-    /* 한글 "키보드": 각 3바이트 */
+    /* Hangul for "keyboard" (U+D0A4 U+BCF4 U+B4DC): 3 bytes each */
     const char *ko = "\xED\x82\xA4\xEB\xB3\xB4\xEB\x93\x9C";
     check_len("hangul cut in 2nd char", ko, 5, 3);
     check_len("hangul whole", ko, 9, 9);
-    /* 4바이트 (이모지) */
+    /* 4 bytes (emoji) */
     const char *emoji = "a\xF0\x9F\x98\x80";
     check_len("4-byte cut", emoji, 4, 1);
     check_len("4-byte whole", emoji, 5, 5);
@@ -43,7 +43,7 @@ int main(void)
     check_len("bad lead byte dropped", "a\xFF", 2, 1);
 
     char out[64];
-    /* 제어 문자는 공백으로 바꾼다 (줄 단위 프로토콜이 깨지지 않게) */
+    /* Control characters become spaces (so the line-based protocol is not broken) */
     json_escape("a\"b\\c\n", out, sizeof(out));
     if (strcmp(out, "a\\\"b\\\\c ") == 0) {
         s_pass++;
@@ -51,7 +51,7 @@ int main(void)
         printf("FAIL  json_escape got [%s]\n", out);
         s_fail++;
     }
-    /* 칸이 모자라면 글자 중간에서 끊지 않는다: "가나" (6바이트)를 5칸(문자 4바이트 + NUL)에 */
+    /* When space runs out, never cut in the middle of a character: two Hangul syllables (U+AC00 U+B098, 6 bytes) into 5 bytes (4 for text + NUL) */
     char small[5];
     json_escape("\xEA\xB0\x80\xEB\x82\x98", small, sizeof(small));
     if (strcmp(small, "\xEA\xB0\x80") == 0) {

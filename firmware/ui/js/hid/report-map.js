@@ -1,7 +1,9 @@
 /*
- * HID Report Map(Report Descriptor) 해석과 입력 리포트 풀이. HID 1.11 6.2.2의 짧은 항목을 읽는다.
- * 기기별 가정 없이 Report Map이 말하는 대로 필드를 꺼낸다 (entries/006).
+ * HID Report Map (Report Descriptor) parsing and input report decoding. Reads the short items of HID 1.11 6.2.2.
+ * Fields are extracted exactly as the Report Map describes them, with no per-device assumptions (entries/006).
  */
+
+import { t } from '../i18n.js';
 
 export const PAGE = { DESKTOP: 0x01, KEYBOARD: 0x07, BUTTON: 0x09, CONSUMER: 0x0c };
 
@@ -22,7 +24,7 @@ export function hexToBytes(hex) {
   return out;
 }
 
-/* Report Map -> Map(리포트 ID -> {bits, fields}). 입력(Input) 항목만 모은다 */
+/* Report Map -> Map(report ID -> {bits, fields}). Collects Input items only */
 export function parseReportMap(d) {
   const out = new Map();
   let page = 0, lmin = 0, rsize = 0, rcount = 0, rid = 0;
@@ -32,12 +34,12 @@ export function parseReportMap(d) {
     if (!out.has(id)) out.set(id, { bits: 0, fields: [] });
     return out.get(id);
   };
-  /* 4바이트 Usage는 위 16비트가 Usage Page다 */
+  /* In a 4-byte Usage, the upper 16 bits are the Usage Page */
   const usageOf = (v, size) => (size === 4 ? { page: v >>> 16, usage: v & 0xffff } : { page, usage: v });
   let i = 0;
   while (i < d.length) {
     const pre = d[i++];
-    if (pre === 0xfe) {          /* Long Item: 크기, 태그, 데이터 */
+    if (pre === 0xfe) {          /* Long Item: size, tag, data */
       i += 2 + (d[i] || 0);
       continue;
     }
@@ -60,7 +62,7 @@ export function parseReportMap(d) {
           if (isConst) continue;
           let u;
           if (usages.length > n) u = usages[n];
-          else if (usages.length && !umin) u = usages[usages.length - 1];   /* 마지막 Usage가 나머지에 적용 */
+          else if (usages.length && !umin) u = usages[usages.length - 1];   /* the last Usage applies to the rest */
           else if (umin) u = { page: umin.page, usage: umin.usage + n };
           else u = { page, usage: 0 };
           L.fields.push({
@@ -71,7 +73,7 @@ export function parseReportMap(d) {
         }
         L.bits += rsize * rcount;
       }
-      usages = [];                          /* Local 항목은 Main 항목마다 초기화 */
+      usages = [];                          /* Local items reset after every Main item */
       umin = null;
     } else if (type === 1) {                /* Global */
       if (tag === 0) page = v;
@@ -107,15 +109,18 @@ export function usageName(page, u) {
     if (u >= 0x1e && u <= 0x27) return DIGITS[u - 0x1e];
     if (u >= 0x3a && u <= 0x45) return 'F' + (u - 0x39);
     if (u >= 0xe0 && u <= 0xe7) return MODS[u - 0xe0];
-    return KEY_NAMES[u] || '키 0x' + u.toString(16);
+    return KEY_NAMES[u] || t('usage.key', { hex: u.toString(16) });
   }
-  if (page === PAGE.BUTTON) return '버튼' + u;
-  if (page === PAGE.DESKTOP) return { 0x30: 'X', 0x31: 'Y', 0x38: '휠' }[u] || '데스크톱 0x' + u.toString(16);
-  if (page === PAGE.CONSUMER) return { 0xe9: '볼륨+', 0xea: '볼륨-', 0xe2: '음소거', 0xcd: '재생/정지', 0x238: '가로 휠' }[u] || '소비자 0x' + u.toString(16);
+  if (page === PAGE.BUTTON) return t('usage.button', { n: u });
+  if (page === PAGE.DESKTOP) return { 0x30: 'X', 0x31: 'Y', 0x38: t('usage.wheel') }[u] || t('usage.desktop', { hex: u.toString(16) });
+  if (page === PAGE.CONSUMER) {
+    return { 0xe9: t('usage.volumeUp'), 0xea: t('usage.volumeDown'), 0xe2: t('usage.mute'), 0xcd: t('usage.playPause'), 0x238: t('usage.hWheel') }[u]
+      || t('usage.consumer', { hex: u.toString(16) });
+  }
   return `page 0x${page.toString(16)} usage 0x${u.toString(16)}`;
 }
 
-/* 키 사용 코드를 글자로 (미국 배열 기준, 확인용) */
+/* Keyboard usage code to a character (US layout, for display only) */
 export function typeChar(u, shift) {
   if (u === 0x28) return '\n';
   if (u === 0x2b) return '\t';
@@ -129,7 +134,7 @@ export function typeChar(u, shift) {
   return '';
 }
 
-/* 눌린 것: 1비트 필드는 값 1, 배열 필드는 값이 가리키는 사용 코드 */
+/* Pressed usages: 1-bit fields with value 1, and for array fields the usage the value points to */
 export function pressedUsages(fields, page) {
   const set = new Set();
   for (const f of fields) {
@@ -144,8 +149,8 @@ export function pressedUsages(fields, page) {
 }
 
 /*
- * 장치별 해석 상태. report_ref(핸들 -> 리포트 ID, 서비스)와 report_map(서비스별)을 모아 두고
- * 입력 리포트를 필드 값으로 푼다.
+ * Per-device decoding state. Collects report_ref (handle -> report ID, service) and report_map (per service)
+ * events and decodes input reports into field values.
  */
 export class ReportDecoder {
   constructor() {
@@ -175,7 +180,7 @@ export class ReportDecoder {
     const lay = layouts.get(ref.id);
     if (!lay) return null;
     const need = Math.ceil(lay.bits / 8);
-    /* 리포트 ID는 Report Reference에만 있고 알림 데이터에는 보통 없다. 있으면 앞 1바이트를 뗀다 */
+    /* The report ID lives in the Report Reference and is usually absent from notification data. Strip the first byte if it is there */
     const p = ref.id !== 0 && data.length === need + 1 && data[0] === ref.id ? data.slice(1) : data;
     const fields = [];
     for (const f of lay.fields) {

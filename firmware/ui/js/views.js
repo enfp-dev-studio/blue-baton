@@ -1,15 +1,15 @@
-/* 화면 부품. 상태(store.state)를 받아 DOM을 만든다. 동작은 actions로만 요청한다 */
+/* UI pieces. Each takes the state (store.state) and builds DOM. Actions are requested only through `actions` */
 
 import { h, icon } from './dom.js';
-import { FAIL_STAGE, RADIO, hostStateText, hostStateTone, kindIcon, kindText, reasonText, stateText, stateTone } from './i18n.js';
+import { FAIL_STAGE, RADIO, hostStateText, hostStateTone, kindIcon, kindText, reasonText, stateText, stateTone, t, tParts } from './i18n.js';
 
 function badge(text, tone) {
   return h('span', { class: `badge ${tone}` }, text);
 }
 
 /*
- * 남은 초. 영역을 매초 다시 그리면 입력칸이 새로 만들어져 포커스, 화면 낭독기 위치가 끊기므로
- * 숫자만 따로 고친다 (app.js의 1초 타이머가 data-until을 보고 고친다).
+ * Seconds left. Redrawing a whole region every second would recreate its inputs and lose focus and the
+ * screen reader position, so only the number is updated (the 1 s timer in app.js reads data-until).
  */
 export function secondsLeft(until) {
   return Math.max(0, Math.ceil((until - Date.now()) / 1000));
@@ -19,21 +19,21 @@ function countdown(until) {
   return h('span', { 'data-until': String(until) }, String(secondsLeft(until)));
 }
 
-/* ---- 상단: 보드 연결과 잠금 ---- */
+/* ---- Top bar: board link and lock ---- */
 
 export function renderLink(s, a) {
   if (s.link !== 'connected') {
     return h('div', { class: 'link' },
-      h('span', { class: 'link-state' }, s.link === 'connecting' ? '보드에 연결하는 중…' : '보드가 연결되지 않았어요'),
-      h('button', { class: 'primary', onclick: a.connect, disabled: s.link === 'connecting' }, icon('usb', 16), ' 보드 연결'),
+      h('span', { class: 'link-state' }, s.link === 'connecting' ? t('link.connecting') : t('link.disconnected')),
+      h('button', { class: 'primary', onclick: a.connect, disabled: s.link === 'connecting' }, icon('usb', 16), ' ' + t('link.connect')),
     );
   }
   return h('div', { class: 'link' },
-    h('span', { class: 'dot ok', title: '연결됨' }),
-    h('span', { class: 'link-state' }, `${s.transport} · 펌웨어 ${s.fw || '?'}`),
+    h('span', { class: 'dot ok', title: t('link.connected') }),
+    h('span', { class: 'link-state' }, t('link.info', { transport: s.transport, fw: s.fw || '?' })),
     s.unlocked ? badge(RADIO[s.radio] || s.radio, s.radio === 'idle' ? 'idle' : 'busy') : null,
-    s.unlocked ? h('button', { class: 'ghost', onclick: a.lock, title: '설정 잠그기' }, icon('lock', 16), ' 잠그기') : null,
-    h('button', { class: 'ghost', onclick: a.disconnectLink, title: 'USB 포트를 놓습니다. 다른 프로그램이 보드를 쓸 수 있어요' }, '연결 끊기'),
+    s.unlocked ? h('button', { class: 'ghost', onclick: a.lock, title: t('link.lockTitle') }, icon('lock', 16), ' ' + t('link.lock')) : null,
+    h('button', { class: 'ghost', onclick: a.disconnectLink, title: t('link.releaseTitle') }, t('link.release')),
   );
 }
 
@@ -46,13 +46,11 @@ export function renderLock(s, a) {
     setting ? a.setPin(pin) : a.unlock(pin);
   };
   return h('form', { class: 'card lock', onsubmit: submit },
-    h('h2', {}, setting ? '설정 PIN 정하기' : '설정이 잠겨 있어요'),
-    h('p', { class: 'hint' }, setting
-      ? '보드 설정을 보호할 PIN(숫자 4~8자리)을 정하세요. 보드에 저장돼요.'
-      : '보드에 저장된 PIN을 입력하면 설정을 열 수 있어요.'),
+    h('h2', {}, setting ? t('lock.setTitle') : t('lock.lockedTitle')),
+    h('p', { class: 'hint' }, setting ? t('lock.setHint') : t('lock.unlockHint')),
     h('div', { class: 'row' },
-      h('input', { type: 'password', inputmode: 'numeric', autocomplete: 'off', placeholder: 'PIN', 'data-keep': 'pin', 'aria-label': 'PIN', maxlength: 8 }),
-      h('button', { class: 'primary', type: 'submit' }, setting ? '정하기' : '열기'),
+      h('input', { type: 'password', inputmode: 'numeric', autocomplete: 'off', placeholder: t('lock.pin'), 'data-keep': 'pin', 'aria-label': t('lock.pin'), maxlength: 8 }),
+      h('button', { class: 'primary', type: 'submit' }, setting ? t('lock.set') : t('lock.unlock')),
     ),
   );
 }
@@ -61,11 +59,11 @@ export function renderNotice(s, a) {
   if (!s.notice) return h('div');
   return h('div', { class: `notice ${s.notice.kind}`, role: s.notice.kind === 'error' ? 'alert' : 'status' },
     h('span', {}, s.notice.text),
-    h('button', { class: 'ghost small', onclick: a.dismiss, 'aria-label': '닫기' }, '닫기'),
+    h('button', { class: 'ghost small', onclick: a.dismiss, 'aria-label': t('common.close') }, t('common.close')),
   );
 }
 
-/* ---- 출력 호스트 (전환, 추가, 삭제) ---- */
+/* ---- Output hosts (switch, add, remove) ---- */
 
 function hostSlot(s, n, a) {
   const hostDev = s.hosts.get(n);
@@ -76,18 +74,18 @@ function hostSlot(s, n, a) {
       role: 'radio',
       'aria-checked': on ? 'true' : 'false',
       onclick: () => a.selectHost(n),
-      title: '이 호스트로 입력을 보내요',
+      title: t('hosts.pickTitle'),
     },
     h('span', { class: 'host-title' },
       h('span', { class: 'host-num' }, String(n)),
-      h('span', { class: 'host-name' }, hostDev ? hostDev.name || '이름 없는 호스트' : '비어 있음'),
+      h('span', { class: 'host-name' }, hostDev ? hostDev.name || t('hosts.unnamed') : t('hosts.empty')),
     ),
     hostDev ? badge(hostStateText(hostDev.state), hostStateTone(hostDev.state)) : null,
-    h('span', { class: 'host-combo mono' }, s.combos[n - 1] || '조합 없음')),
+    h('span', { class: 'host-combo mono' }, s.combos[n - 1] || t('hosts.noCombo'))),
     h('div', { class: 'host-actions' },
       hostDev
-        ? h('button', { class: 'ghost danger small', onclick: () => a.removeHost(n, hostDev) }, '삭제')
-        : h('button', { class: 'small', onclick: a.openHostWindow, disabled: s.hostWindow.open }, '추가')),
+        ? h('button', { class: 'ghost danger small', onclick: () => a.removeHost(n, hostDev) }, t('common.remove'))
+        : h('button', { class: 'small', onclick: a.openHostWindow, disabled: s.hostWindow.open }, t('hosts.add'))),
   );
 }
 
@@ -100,12 +98,12 @@ function hostPasskeyBox(s, a) {
   };
   const dots = Array.from({ length: 6 }, (_, i) => h('span', { class: `pk-dot${i < p.len ? ' on' : ''}` }));
   return h('form', { class: 'prompt', onsubmit: submit },
-    h('p', {}, '컴퓨터 화면에 6자리 숫자가 보이면, 보드에 연결된 키보드로 그 숫자를 치고 Enter를 누르세요.'),
-    h('div', { class: 'pk-dots', 'aria-label': `${p.len}자리 입력됨` }, dots),
-    h('p', { class: 'hint' }, '보드에 키보드가 없으면 여기에 입력하세요 (Esc는 취소)'),
+    h('p', {}, t('hosts.passkeyHelp')),
+    h('div', { class: 'pk-dots', 'aria-label': t('hosts.passkeyDigits', { n: p.len }) }, dots),
+    h('p', { class: 'hint' }, t('hosts.passkeyFallback')),
     h('div', { class: 'row' },
-      h('input', { inputmode: 'numeric', maxlength: 6, pattern: '\\d{6}', placeholder: '123456', 'data-keep': 'host-passkey', 'aria-label': '호스트 패스키', required: true }),
-      h('button', { class: 'primary', type: 'submit' }, '보내기'),
+      h('input', { inputmode: 'numeric', maxlength: 6, pattern: '\\d{6}', placeholder: '123456', 'data-keep': 'host-passkey', 'aria-label': t('hosts.passkeyLabel'), required: true }),
+      h('button', { class: 'primary', type: 'submit' }, t('common.send')),
     ),
   );
 }
@@ -115,15 +113,15 @@ function hostWindowBox(s, a) {
   const c = s.hostCandidate;
   return h('div', { class: 'add' },
     h('div', { class: 'sec-head' },
-      h('h3', {}, '호스트 추가 · ', countdown(s.hostWindow.until), '초'),
-      h('button', { class: 'ghost small', onclick: a.closeHostWindow }, '닫기'),
+      h('h3', {}, tParts('hosts.windowTitle', { seconds: countdown(s.hostWindow.until) })),
+      h('button', { class: 'ghost small', onclick: a.closeHostWindow }, t('common.close')),
     ),
     h('ol', { class: 'steps' },
-      h('li', {}, 'Mac: 시스템 설정 → Bluetooth에서 근처 기기의 "KM Router" 옆 연결'),
-      h('li', {}, 'Windows: 설정 → Bluetooth 및 장치 → 장치 추가 → Bluetooth → "KM Router"'),
-      h('li', {}, '숫자 6자리가 나오면 아래 안내대로 입력하세요'),
+      h('li', {}, t('hosts.stepMac')),
+      h('li', {}, t('hosts.stepWindows')),
+      h('li', {}, t('hosts.stepCode')),
     ),
-    c ? h('p', { class: 'hint' }, c.state === 'securing' ? '확인하는 중…' : `컴퓨터(${c.addr})가 연결했어요. 페어링을 기다리는 중…`) : null,
+    c ? h('p', { class: 'hint' }, c.state === 'securing' ? t('hosts.verifying') : t('hosts.candidate', { addr: c.addr })) : null,
     hostPasskeyBox(s, a),
   );
 }
@@ -131,34 +129,34 @@ function hostWindowBox(s, a) {
 export function renderHosts(s, a) {
   return h('div', {},
     h('div', { class: 'sec-head' },
-      h('h2', {}, '호스트'),
-      h('span', { class: 'hint' }, '키 조합을 누르거나 여기서 골라 입력을 보낼 컴퓨터를 바꿔요'),
+      h('h2', {}, t('hosts.title')),
+      h('span', { class: 'hint' }, t('hosts.hint')),
     ),
-    h('ul', { class: 'hosts', role: 'radiogroup', 'aria-label': '활성 호스트' }, [1, 2, 3].map((n) => hostSlot(s, n, a))),
+    h('ul', { class: 'hosts', role: 'radiogroup', 'aria-label': t('hosts.groupLabel') }, [1, 2, 3].map((n) => hostSlot(s, n, a))),
     hostWindowBox(s, a),
   );
 }
 
-/* ---- 입력 기기 (한 목록) ---- */
+/* ---- Input devices (a single list) ---- */
 
 function deviceSubline(d) {
-  if (d.state === 'failed') return FAIL_STAGE[d.error] || '연결에 실패했어요';
-  if (d.state === 'ready') return d.bond === 'restored' ? '저장된 키로 다시 연결됨' : d.bond === 'new' ? '새로 페어링됨' : '';
+  if (d.state === 'failed') return FAIL_STAGE[d.error] || t('devices.failed');
+  if (d.state === 'ready') return d.bond === 'restored' ? t('devices.restored') : d.bond === 'new' ? t('devices.newBond') : '';
   if (d.state === 'offline') {
-    if (!d.auto) return '자동 연결 꺼짐 · 연결을 누르면 다시 켜져요';
-    return reasonText(d.lastReason) || '기기를 움직이거나 키를 누르면 자동으로 연결돼요';
+    if (!d.auto) return t('devices.autoOff');
+    return reasonText(d.lastReason) || t('devices.autoHint');
   }
   return '';
 }
 
 /*
- * 페어링된 기기는 보드가 자동으로 다시 연결한다. 그래서 대기 중이면 누를 버튼이 없고,
- * 자동 연결이 꺼졌을 때(사용자가 끊었거나 연속 실패)만 다시 켜는 버튼을 준다.
+ * The board reconnects paired devices by itself, so a waiting device has no button to press.
+ * Only when auto-connect is off (the user disconnected it, or it failed repeatedly) do we offer a button to turn it back on.
  */
 function deviceAction(d, connected, a) {
-  if (connected) return h('button', { onclick: () => a.disconnectDevice(d.addr) }, '끊기');
-  if (d.state === 'failed') return h('button', { onclick: () => a.connectDevice(d.id) }, '다시 시도');
-  if (d.paired && !d.auto) return h('button', { onclick: () => a.connectDevice(d.id) }, '자동 연결 켜기');
+  if (connected) return h('button', { onclick: () => a.disconnectDevice(d.addr) }, t('devices.disconnect'));
+  if (d.state === 'failed') return h('button', { onclick: () => a.connectDevice(d.id) }, t('devices.retry'));
+  if (d.paired && !d.auto) return h('button', { onclick: () => a.connectDevice(d.id) }, t('devices.autoOn'));
   return null;
 }
 
@@ -168,7 +166,7 @@ function deviceRow(d, a) {
     h('span', { class: `device-icon ${stateTone(d.state)}` }, icon(kindIcon(d.kinds, d.appearance), 22)),
     h('div', { class: 'device-main' },
       h('div', { class: 'device-title' },
-        h('span', { class: 'device-name' }, d.name || '이름 없는 기기'),
+        h('span', { class: 'device-name' }, d.name || t('common.unnamedDevice')),
         badge(stateText(d.state), stateTone(d.state)),
       ),
       h('div', { class: 'device-meta' },
@@ -178,7 +176,7 @@ function deviceRow(d, a) {
       deviceSubline(d) ? h('div', { class: 'device-sub' }, deviceSubline(d)) : null,
     ),
     h('div', { class: 'device-actions' }, deviceAction(d, connected, a),
-      d.paired ? h('button', { class: 'ghost danger', onclick: () => a.removeDevice(d) }, '삭제') : null,
+      d.paired ? h('button', { class: 'ghost danger', onclick: () => a.removeDevice(d) }, t('common.remove')) : null,
     ),
   );
 }
@@ -187,37 +185,37 @@ export function renderDevices(s, a) {
   const list = [...s.devices.values()].sort((x, y) => (y.lastSeq || 0) - (x.lastSeq || 0));
   return h('div', {},
     h('div', { class: 'sec-head' },
-      h('h2', {}, '입력 기기'),
-      h('span', { class: 'hint' }, `페어링 ${s.bonds}/${s.bondsMax || '?'} · 동시 연결 최대 2대`),
+      h('h2', {}, t('devices.title')),
+      h('span', { class: 'hint' }, t('devices.summary', { bonds: s.bonds, max: s.bondsMax || '?' })),
     ),
     list.length
       ? h('ul', { class: 'devices' }, list.map((d) => deviceRow(d, a)))
       : h('div', { class: 'empty' },
-          h('p', {}, '아직 페어링된 기기가 없어요'),
-          h('p', { class: 'hint' }, '키보드나 마우스를 추가하면 보드에 저장되고, 다음부터는 자동으로 연결돼요.')),
+          h('p', {}, t('devices.empty')),
+          h('p', { class: 'hint' }, t('devices.emptyHint'))),
     s.addOpen
       ? null
       : h('button', {
         class: 'add-btn',
         onclick: a.openAdd,
         disabled: s.hostWindow.open,
-        title: s.hostWindow.open ? '호스트 추가 창을 닫은 뒤에 추가할 수 있어요' : '',
-      }, icon('plus', 16), ' 기기 추가'),
+        title: s.hostWindow.open ? t('devices.addBlocked') : '',
+      }, icon('plus', 16), ' ' + t('devices.add')),
   );
 }
 
-/* ---- 기기 추가 (스캔 결과는 여기서만 보인다) ---- */
+/* ---- Add device (scan results show up only here) ---- */
 
 function promptBox(s, a) {
   const p = s.prompt;
   if (!p) return null;
   if (p.type === 'numcmp') {
     return h('div', { class: 'prompt' },
-      h('p', {}, '기기 화면에 보이는 숫자와 같은지 확인하세요'),
+      h('p', {}, t('prompt.numcmp')),
       h('div', { class: 'code' }, p.code),
       h('div', { class: 'row' },
-        h('button', { class: 'primary', onclick: () => a.accept(true) }, '같아요, 연결'),
-        h('button', { onclick: () => a.accept(false) }, '달라요'),
+        h('button', { class: 'primary', onclick: () => a.accept(true) }, t('prompt.match')),
+        h('button', { onclick: () => a.accept(false) }, t('prompt.noMatch')),
       ),
     );
   }
@@ -227,15 +225,15 @@ function promptBox(s, a) {
       a.passkey(e.target.querySelector('input').value);
     };
     return h('form', { class: 'prompt', onsubmit: submit },
-      h('p', {}, '기기에 보이는 6자리 숫자를 입력하세요'),
+      h('p', {}, t('prompt.passkeyRequest')),
       h('div', { class: 'row' },
-        h('input', { inputmode: 'numeric', maxlength: 6, pattern: '\\d{6}', placeholder: '123456', 'data-keep': 'passkey', 'aria-label': '패스키', required: true }),
-        h('button', { class: 'primary', type: 'submit' }, '보내기'),
+        h('input', { inputmode: 'numeric', maxlength: 6, pattern: '\\d{6}', placeholder: '123456', 'data-keep': 'passkey', 'aria-label': t('prompt.passkeyLabel'), required: true }),
+        h('button', { class: 'primary', type: 'submit' }, t('common.send')),
       ),
     );
   }
   return h('div', { class: 'prompt' },
-    h('p', {}, '이 번호를 그 키보드로 입력한 뒤 Enter를 누르세요'),
+    h('p', {}, t('prompt.passkeyDisplay')),
     h('div', { class: 'code' }, p.code),
   );
 }
@@ -246,19 +244,19 @@ function foundRow(f, a) {
     h('span', { class: 'device-icon idle' }, icon(kindIcon([], f.appearance), 20)),
     h('div', { class: 'device-main' },
       h('div', { class: 'device-title' },
-        h('span', { class: 'device-name' }, f.name || '이름 없는 기기'),
-        f.paired ? badge('페어링됨', 'idle') : null,
+        h('span', { class: 'device-name' }, f.name || t('common.unnamedDevice')),
+        f.paired ? badge(t('add.paired'), 'idle') : null,
       ),
       h('div', { class: 'device-meta' },
         h('span', {}, kindText([], f.appearance)),
-        h('span', {}, `신호 ${f.rssi} dBm`),
+        h('span', {}, t('add.signal', { rssi: f.rssi })),
         h('span', { class: 'mono' }, f.addr),
       ),
     ),
     h('div', { class: 'device-actions' },
       f.hid === false
-        ? h('span', { class: 'hint' }, '입력 기기 아님')
-        : h('button', { class: 'primary', disabled: busy, onclick: () => a.connectDevice(f.addr) }, busy ? '연결하는 중…' : '연결'),
+        ? h('span', { class: 'hint' }, t('add.notInput'))
+        : h('button', { class: 'primary', disabled: busy, onclick: () => a.connectDevice(f.addr) }, busy ? t('add.connecting') : t('add.connect')),
     ),
   );
 }
@@ -268,31 +266,31 @@ export function renderAdd(s, a) {
   const found = [...s.found.values()].filter((f) => s.showAll || f.hid !== false).sort((x, y) => y.rssi - x.rssi);
   return h('div', { class: 'add' },
     h('div', { class: 'sec-head' },
-      h('h3', {}, '새 기기 추가'),
-      h('button', { class: 'ghost small', onclick: a.closeAdd }, '닫기'),
+      h('h3', {}, t('add.title')),
+      h('button', { class: 'ghost small', onclick: a.closeAdd }, t('common.close')),
     ),
     h('ol', { class: 'steps' },
-      h('li', {}, '추가할 키보드나 마우스를 페어링 모드로 켜세요 (기기마다 버튼이 달라요)'),
-      h('li', {}, '아래 목록에 나타나면 연결을 누르세요. 보드는 고른 기기에만 연결해요'),
+      h('li', {}, t('add.step1')),
+      h('li', {}, t('add.step2')),
     ),
     promptBox(s, a),
     h('div', { class: 'row scan-row' },
       s.scanning
-        ? h('button', { onclick: () => a.scan(false) }, '찾는 중 · ', countdown(s.scanUntil), '초 · 멈추기')
+        ? h('button', { onclick: () => a.scan(false) }, tParts('add.scanning', { seconds: countdown(s.scanUntil) }))
         : s.scanPending
-          ? h('button', { class: 'primary', disabled: true }, '시작하는 중…')
-          : h('button', { class: 'primary', onclick: () => a.scan(true) }, '찾기 시작'),
+          ? h('button', { class: 'primary', disabled: true }, t('add.starting'))
+          : h('button', { class: 'primary', onclick: () => a.scan(true) }, t('add.start')),
       h('label', { class: 'check' },
         h('input', { type: 'checkbox', checked: s.showAll, onchange: (e) => a.showAll(e.target.checked) }),
-        ' 입력 기기가 아닌 것도 보기'),
+        ' ' + t('add.showAll')),
     ),
     found.length
       ? h('ul', { class: 'devices' }, found.map((f) => foundRow(f, a)))
-      : h('p', { class: 'hint empty-found' }, s.scanning ? '기기를 찾고 있어요…' : '찾기 시작을 누르세요. 60초 동안 찾아요.'),
+      : h('p', { class: 'hint empty-found' }, s.scanning ? t('add.searching') : t('add.idleHint')),
   );
 }
 
-/* ---- 로그 (개발자) ---- */
+/* ---- Log (developer) ---- */
 
 export function renderLog(s, opts) {
   const rows = s.log.filter((r) => opts.boardLines || r.dir !== '·').slice(-200);

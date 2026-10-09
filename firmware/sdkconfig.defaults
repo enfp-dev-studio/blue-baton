@@ -1,38 +1,38 @@
-# NimBLE 사용 (Bluedroid 끔)
+# Use NimBLE (Bluedroid off)
 CONFIG_BT_ENABLED=y
 CONFIG_BT_BLUEDROID_ENABLED=n
 CONFIG_BT_NIMBLE_ENABLED=y
 
-# 입력 기기 스캔/연결(Central)과 호스트 연결(Peripheral)을 같이 쓸 예정
+# Input device scan/connect (Central) and host connections (Peripheral) are used together
 CONFIG_BT_NIMBLE_ROLE_CENTRAL=y
 CONFIG_BT_NIMBLE_ROLE_PERIPHERAL=y
 
-# 로그를 보드의 USB 포트로 출력 (기본 UART0 대신)
+# Log output goes to the board's USB port (instead of the default UART0)
 CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
 
-# 입력 2 + 호스트 3 = 5, 광고로 들어오는 연결 1(모르는 기기가 잠깐 차지하는 경우), 입력 연결 시도 1
-# (광고와 연결 시도는 시작할 때 빈 칸이 있어야 한다, host-side-design 4.1)
+# 2 input + 3 host = 5, plus 1 incoming connection via advertising (when an unknown device briefly takes it), plus 1 input connection attempt
+# (advertising and connection attempts need a free slot when they start, host-side-design 4.1)
 CONFIG_BT_NIMBLE_MAX_CONNECTIONS=7
-# 컨트롤러 활동: 연결 7 + 광고 1 + 스캔 또는 연결 시도 1
+# Controller activities: 7 connections + 1 advertising + 1 scan or connection attempt
 CONFIG_BT_CTRL_BLE_MAX_ACT=9
-# 구독 저장: 호스트 1대에 CCCD 7개 x 3 + 재페어링 중 1대분 + 여유
+# Subscription storage: 7 CCCDs per host x 3 + one host being re-paired + headroom
 CONFIG_BT_NIMBLE_MAX_CCCDS=32
-# GATT 절차 풀: 연결 수 이상
+# GATT procedure pool: at least the number of connections
 CONFIG_BT_NIMBLE_GATT_MAX_PROCS=8
-# 호스트 태스크가 GATT 서버 응답과 리포트 생성까지 맡는다
+# The host task also handles GATT server responses and report generation
 CONFIG_BT_NIMBLE_HOST_TASK_STACK_SIZE=6144
-# 본딩 키를 NVS에 영구 저장한다 (기본값은 RAM이라 재부팅하면 사라진다)
+# Persist bond keys in NVS (the default is RAM, which is lost on reboot)
 CONFIG_BT_NIMBLE_NVS_PERSIST=y
-# 본딩 수: 입력 4 + 호스트 3 + 진행 중 1.
-# NimBLE는 "저장 수 + 진행 중 보안 절차 수 < MAX_BONDS"일 때만 새 페어링을 받는다 (host/src/ble_sm.c)
+# Bond count: 4 input + 3 host + 1 in progress.
+# NimBLE accepts a new pairing only when "stored count + in-progress security procedures < MAX_BONDS" (host/src/ble_sm.c)
 CONFIG_BT_NIMBLE_MAX_BONDS=8
 
-# 플래시 4MB (esptool flash-id로 확인함)
+# 4MB flash (confirmed with esptool flash-id)
 CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
 
-# 파티션 표: NVS 64KB, 앱 3MB (Wi-Fi와 설정 화면이 들어감)
+# Partition table: NVS 64KB, app 3MB (holds Wi-Fi and the settings UI)
 CONFIG_PARTITION_TABLE_CUSTOM=y
 CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
 
-# Wi-Fi 설정은 기본으로 끈다 (지금은 USB로 먼저 쓴다. 서버형으로 바꿀 때 켠다)
+# Wi-Fi setup is off by default (USB comes first for now; turn it on when switching to the server mode)
 CONFIG_KM_WIFI_ENABLE=n

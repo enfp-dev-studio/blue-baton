@@ -1,16 +1,17 @@
 <!doctype html>
-<html lang="ko">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>KM 라우터 설정</title>
+<!-- Text marked data-i18n is replaced at startup with the active language (js/i18n.js); the English here is the fallback -->
+<title data-i18n="app.title">KM Router Settings</title>
 <link rel="stylesheet" href="css/app.css?v=3">
 </head>
 <body>
 <header class="top">
   <div class="brand">
-    <span class="brand-name">KM 라우터</span>
-    <span class="brand-sub">설정</span>
+    <span class="brand-name" data-i18n="app.name">KM Router</span>
+    <span class="brand-sub" data-i18n="app.subtitle">Settings</span>
   </div>
   <div id="link"></div>
 </header>
@@ -31,8 +32,8 @@
   </div>
 
   <details class="card" id="log-sec">
-    <summary>개발자: 통신 로그</summary>
-    <label class="check"><input type="checkbox" id="log-board"> 보드 로그 줄도 보기</label>
+    <summary data-i18n="log.title">Developer: communication log</summary>
+    <label class="check"><input type="checkbox" id="log-board"> <span data-i18n="log.boardLines">Show board log lines too</span></label>
     <div id="log"></div>
   </details>
 </main>

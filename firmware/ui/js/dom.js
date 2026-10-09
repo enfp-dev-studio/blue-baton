@@ -1,4 +1,4 @@
-/* 작은 DOM 도우미. 텍스트는 항상 textContent로 넣는다 (기기 이름에 HTML이 섞여 와도 안전하게) */
+/* Small DOM helpers. Text always goes in through textContent (safe even if a device name contains HTML) */
 
 export function h(tag, props = {}, ...children) {
   const el = document.createElement(tag);
@@ -18,7 +18,7 @@ export function h(tag, props = {}, ...children) {
   return el;
 }
 
-/* 입력 중인 칸의 포커스와 값을 지키며 영역을 다시 그린다 */
+/* Redraw a region while keeping the focus and value of the field being typed in */
 export function mount(container, node) {
   const active = document.activeElement;
   const keep = active && container.contains(active) && active.dataset.keep ? active.dataset.keep : null;
@@ -43,7 +43,7 @@ const ICONS = {
   lock: 'M6 11h12v9H6z M8 11V8a4 4 0 0 1 8 0v3',
 };
 
-/* 선으로 그린 작은 아이콘 (색은 글자색을 따른다) */
+/* Small line icons (they take the text color) */
 export function icon(name, size = 18) {
   const ns = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(ns, 'svg');

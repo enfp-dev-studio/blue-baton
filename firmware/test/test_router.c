@@ -1,6 +1,6 @@
 /*
- * hid_input.c(입력 정규화)와 router.c(합치기, 전환 키 조합) 단위 시험. 보드 없이 Mac에서 돈다.
- * 실기에서 받은 Report Map을 쓴다 (entries/007).
+ * Unit tests for hid_input.c (input normalization) and router.c (merging, switch combos). Runs on a Mac without a board.
+ * Uses Report Maps captured from real hardware (entries/007).
  */
 #include <stdio.h>
 #include <string.h>
@@ -65,7 +65,7 @@ static bool decode_hex(const hid_layout_t *l, uint8_t id, const char *data, hid_
     return hid_decode(l, id, buf, n, out);
 }
 
-/* ---------- 입력 정규화 ---------- */
+/* ---------- input normalization ---------- */
 
 static void test_input(void)
 {
@@ -76,19 +76,19 @@ static void test_input(void)
     CHECK(hid_layout_report_bits(&s_kb, 4) == 120, "kb NKRO report is 120 bits");
     CHECK(hid_layout_report_bits(&s_kb, 3) == 64, "kb 6KRO report is 64 bits");
 
-    /* 실기 마우스: 왼쪽 버튼, X +5, Y -5, 휠 +1 */
+    /* Real-hardware mouse: left button, X +5, Y -5, wheel +1 */
     CHECK(decode_hex(&s_mouse, 1, "010500FBFF01", &in), "mouse decodes");
     CHECK(in.buttons == 0x01 && in.dx == 5 && in.dy == -5 && in.wheel == 1, "mouse fields b=%u dx=%d dy=%d w=%d",
           in.buttons, (int)in.dx, (int)in.dy, (int)in.wheel);
 
-    /* 리포트 ID 바이트가 앞에 붙어 온 경우 */
+    /* When the report arrives with the Report ID byte prepended */
     CHECK(decode_hex(&s_mouse, 1, "01010500FBFF01", &in) && in.dx == 5, "report id prefix stripped");
 
-    /* 키보드 안의 마우스 리포트 (ID 1): 버튼, X/Y/휠 8비트, 가로 휠(AC Pan) */
+    /* Mouse report inside the keyboard (ID 1): buttons, 8-bit X/Y/wheel, horizontal wheel (AC Pan) */
     CHECK(decode_hex(&s_kb, 1, "0105FB01FF", &in), "kb mouse decodes");
     CHECK(in.buttons == 1 && in.dx == 5 && in.dy == -5 && in.wheel == 1 && in.pan == -1, "kb mouse pan=%d", (int)in.pan);
 
-    /* NKRO 비트맵 (ID 4): 비트 번호 = Usage. 'h'(0x0B)와 Space(0x2C) */
+    /* NKRO bitmap (ID 4): bit number = Usage. 'h' (0x0B) and Space (0x2C) */
     uint8_t nkro[15] = {0};
     nkro[0x0B >> 3] |= 1 << (0x0B & 7);
     nkro[0x2C >> 3] |= 1 << (0x2C & 7);
@@ -96,40 +96,40 @@ static void test_input(void)
     CHECK(in.has_keys && hid_key_down(in.keys, 0x0B) && hid_key_down(in.keys, 0x2C) && !hid_key_down(in.keys, 0x04),
           "nkro keys");
 
-    /* 6키 배열 (ID 3): LShift + 'a' */
+    /* 6-key array (ID 3): LShift + 'a' */
     CHECK(decode_hex(&s_kb, 3, "0200040000000000", &in), "6kro decodes");
     CHECK(hid_key_down(in.keys, 0xE1) && hid_key_down(in.keys, 0x04), "6kro shift+a");
 
-    /* ErrorRollOver(0x01)는 키가 아니다 */
+    /* ErrorRollOver (0x01) is not a key */
     CHECK(decode_hex(&s_kb, 3, "0000010101010101", &in) && !hid_key_down(in.keys, 0x01), "rollover ignored");
 
-    /* 미디어 키 배열 (ID 2): 볼륨 업 0xE9 */
+    /* Media key array (ID 2): Volume Up 0xE9 */
     CHECK(decode_hex(&s_kb, 2, "E900", &in), "consumer decodes");
     CHECK(in.has_consumer && in.consumer_count == 1 && in.consumer[0] == 0xE9, "volume up");
 
-    /* 모르는 리포트 ID, 짧은 데이터 */
+    /* Unknown Report ID, short data */
     CHECK(!decode_hex(&s_kb, 9, "00", &in), "unknown report id");
     CHECK(decode_hex(&s_mouse, 1, "01", &in) && in.buttons == 1 && in.dx == 0, "short data reads what exists");
 
-    /* Usage가 Report Count보다 적으면 마지막 Usage가 반복된다 (HID 1.11 6.2.2.8): X 하나에 필드 3개 */
+    /* With fewer Usages than Report Count, the last Usage repeats (HID 1.11 6.2.2.8): one X, three fields */
     hid_layout_t l;
     uint8_t m[64];
     size_t n = hex("05010902A10109301581257F750895038106C0", m, sizeof(m));
     hid_layout_parse(m, n, &l);
     CHECK(decode_hex(&l, 0, "010203", &in) && in.dx == 6, "last usage repeats (dx=%d)", (int)in.dx);
 
-    /* Push/Pop: Report Size 8을 저장했다가 되돌린다 */
+    /* Push/Pop: Report Size 8 is saved and then restored */
     n = hex("05010902A10175089501A47501B409308106C0", m, sizeof(m));
     hid_layout_parse(m, n, &l);
     CHECK(l.field_count == 1 && l.fields[0].bit_size == 8, "push/pop restores report size");
 
-    /* 깨진 Report Map에서 멈춘다 */
+    /* Stops on a malformed Report Map */
     n = hex("050109", m, sizeof(m));
     hid_layout_parse(m, n, &l);
     CHECK(l.field_count == 0, "broken map");
 }
 
-/* ---------- 조합 해석 ---------- */
+/* ---------- combo parsing ---------- */
 
 static void test_combo_parse(void)
 {
@@ -152,9 +152,9 @@ static void test_combo_parse(void)
     CHECK(!combo_parse_list("ctrl+1,nope", list), "bad entry fails the list");
 }
 
-/* ---------- 라우터 ---------- */
+/* ---------- router ---------- */
 
-/* 키보드 6KRO 리포트(ID 3) 하나를 만들어 slot에 넣는다. mods는 수정 키 비트, keys는 일반 키 Usage들 */
+/* Builds one keyboard 6KRO report (ID 3) and feeds it to slot. mods are the modifier bits, keys the non-modifier key Usages */
 static void press(uint8_t slot, uint8_t mods, const uint8_t *keys, int nkeys, router_out_t *out, int *from)
 {
     char data[17];
@@ -204,7 +204,7 @@ static void test_router(void)
     int from;
     uint8_t k[2];
 
-    /* 정상 전환: Ctrl, Alt를 누르고 2. 조합 수정 키는 보류되어 이전 호스트에 아무것도 가지 않는다 */
+    /* Normal switch: press Ctrl, Alt, then 2. Combo modifiers are held, so nothing reaches the previous host */
     setup_router();
     press(0, LCTRL, NULL, 0, &o, &from);
     CHECK(from == -1 && out_empty(&o) && !o.keys_changed && !o.pre_valid, "ctrl is held back, nothing sent");
@@ -223,7 +223,7 @@ static void test_router(void)
     CHECK(hid_key_down(o.keys, KA) && hid_key_down(o.keys, 0xE0), "after release, ctrl+a goes to host 2 normally");
     press(0, 0, NULL, 0, &o, &from);
 
-    /* 다른 일반 키를 잡고 있으면 전환하지 않는다 */
+    /* No switch while another non-modifier key is held */
     setup_router();
     k[0] = KX;
     k[1] = K2;
@@ -231,33 +231,33 @@ static void test_router(void)
     press(0, LCTRL | LALT, k, 2, &o, &from);
     CHECK(from == -1 && router_active_host() == 0 && hid_key_down(o.keys, K2), "extra key held: no switch, keys pass");
 
-    /* 수정 키가 하나 더 있으면 다른 조합이다 */
+    /* One extra modifier makes it a different combo */
     setup_router();
     k[0] = K2;
     press(0, LCTRL | LALT | LSHIFT, k, 1, &o, &from);
     CHECK(from == -1 && router_active_host() == 0, "ctrl+alt+shift+2 is not ctrl+alt+2");
 
-    /* 오른쪽 수정 키도 같은 묶음이다 */
+    /* Right-hand modifiers count as the same set */
     setup_router();
     k[0] = K2;
     press(0, RCTRL | RALT, NULL, 0, &o, &from);
     press(0, RCTRL | RALT, k, 1, &o, &from);
     CHECK(from == 0 && router_active_host() == 1, "right ctrl+alt+2 switches");
 
-    /* 지금 쓰는 호스트의 조합: 전환은 없지만 조합은 새지 않는다 */
+    /* Combo for the current host: no switch, but the combo does not leak */
     setup_router();
     k[0] = K1;
     press(0, LCTRL | LALT, k, 1, &o, &from);
     CHECK(from == -1 && router_active_host() == 0 && out_empty(&o), "combo for active host is swallowed");
 
-    /* 조합 키가 두 장치에 나뉘어 있어도 합친 상태로 본다 (키보드 둘) */
+    /* Combo keys split across two devices are judged on the merged state (two keyboards) */
     setup_router();
     press(0, LCTRL | LALT, NULL, 0, &o, &from);
     k[0] = 0x20; /* '3' */
     press(1, 0, k, 1, &o, &from);
     CHECK(from == 0 && router_active_host() == 2, "combo across two keyboards");
 
-    /* 장치가 끊기면 그 장치의 키는 뗀 것으로 본다 */
+    /* When a device disconnects, its keys are treated as released */
     setup_router();
     k[0] = KA;
     press(0, 0, k, 1, &o, &from);
@@ -265,7 +265,7 @@ static void test_router(void)
     router_device_gone(0, &o);
     CHECK(out_empty(&o) && o.keys_changed, "device gone releases its keys");
 
-    /* 마우스: 이동은 그대로, 버튼은 합친다 */
+    /* Mouse: motion passes through, buttons are merged */
     setup_router();
     hid_input_t in;
     decode_hex(&s_mouse, 1, "010500FBFF00", &in);
@@ -275,7 +275,7 @@ static void test_router(void)
     router_input(1, 1, &in, &o, &from);
     CHECK(!o.motion && !o.buttons_changed, "no motion, button unchanged");
 
-    /* Ctrl+C: 보류한 Ctrl을 먼저 보내고 C */
+    /* Ctrl+C: send the held Ctrl first, then C */
     setup_router();
     press(0, LCTRL, NULL, 0, &o, &from);
     k[0] = 0x06; /* 'c' */
@@ -285,13 +285,13 @@ static void test_router(void)
     press(0, 0, NULL, 0, &o, &from);
     CHECK(out_empty(&o) && o.keys_changed && !o.pre_valid, "all released");
 
-    /* Ctrl 탭: 누름과 뗌을 연달아 */
+    /* Ctrl tap: press and release back to back */
     setup_router();
     press(0, LCTRL, NULL, 0, &o, &from);
     press(0, 0, NULL, 0, &o, &from);
     CHECK(o.pre_valid && hid_key_down(o.pre_keys, 0xE0) && out_empty(&o) && o.keys_changed, "ctrl tap = down then up");
 
-    /* Ctrl을 누른 채 마우스를 움직이면 Ctrl을 먼저 보낸다 (Ctrl+스크롤 확대) */
+    /* Moving the mouse with Ctrl held sends Ctrl first (Ctrl+scroll zoom) */
     setup_router();
     press(0, LCTRL, NULL, 0, &o, &from);
     decode_hex(&s_mouse, 1, "000000000001", &in);
@@ -299,22 +299,22 @@ static void test_router(void)
     CHECK(o.pre_valid && hid_key_down(o.pre_keys, 0xE0) && hid_key_down(o.keys, 0xE0) && o.motion && o.wheel == 1,
           "mouse wheel releases held ctrl first");
 
-    /* 조합에 없는 수정 키(Shift)는 보류하지 않는다 */
+    /* A modifier not in any combo (Shift) is not held */
     setup_router();
     press(0, LSHIFT, NULL, 0, &o, &from);
     CHECK(hid_key_down(o.keys, 0xE1) && o.keys_changed && !o.pre_valid, "shift is sent at once");
 
-    /* 일반 키를 누른 상태에서 누른 Ctrl은 바로 보낸다 (조합이 될 수 없다) */
+    /* Ctrl pressed while a non-modifier key is down is sent at once (it cannot become a combo) */
     setup_router();
     k[0] = KX;
     press(0, 0, k, 1, &o, &from);
     press(0, LCTRL, k, 1, &o, &from);
     CHECK(hid_key_down(o.keys, 0xE0) && !o.pre_valid, "ctrl after a normal key is not held");
 
-    /* 패스키 받기: 숫자 6개 + Backspace + Enter. 그동안 아무것도 보내지 않는다 */
+    /* Passkey entry: 6 digits + Backspace + Enter. Nothing is sent meanwhile */
     setup_router();
     router_passkey_begin();
-    const uint8_t digits[] = {0x1E, 0x1F, 0x20, 0x21, 0x22, 0x59 /* 키패드 1 */, 0x2A /* BS */, 0x23 /* 6 */};
+    const uint8_t digits[] = {0x1E, 0x1F, 0x20, 0x21, 0x22, 0x59 /* keypad 1 */, 0x2A /* BS */, 0x23 /* 6 */};
     bool leaked = false;
     for (size_t i = 0; i < sizeof(digits); i++) {
         k[0] = digits[i];
@@ -342,20 +342,20 @@ static void test_router(void)
     CHECK(o.pk_event == ROUTER_PK_CANCEL, "esc cancels passkey");
     router_passkey_end();
 
-    /* LED: 전환하면 새 호스트가 마지막으로 쓴 LED 값이 나온다 */
+    /* LED: after a switch, the LED value last written by the new host comes out */
     setup_router();
-    router_set_host_led(1, 0x02); /* 호스트 2의 Caps Lock */
+    router_set_host_led(1, 0x02); /* Caps Lock on host 2 */
     press(0, LCTRL | LALT, NULL, 0, &o, &from);
     k[0] = K2;
     press(0, LCTRL | LALT, k, 1, &o, &from);
     CHECK(from == 0 && o.led_changed && o.led == 0x02, "led follows the active host");
 
-    /* 전환 때 이전 호스트로 보낼 "모두 뗌" */
+    /* The "release-all" sent to the previous host on a switch */
     router_release_report(&o);
     CHECK(out_empty(&o) && o.buttons == 0 && o.keys_changed && o.buttons_changed, "release report");
 }
 
-/* ---------- 출력 리포트 (호스트 쪽) ---------- */
+/* ---------- output reports (host side) ---------- */
 
 static void test_host_report(void)
 {
@@ -367,7 +367,7 @@ static void test_host_report(void)
     CHECK(hid_layout_report_bits(&l, HOST_RID_CONSUMER) == HOST_CONSUMER_LEN * 8, "consumer report 4 bytes");
     CHECK(hid_layout_report_bits(&l, HOST_RID_SYSTEM) == HOST_SYSTEM_LEN * 8, "system report 1 byte");
 
-    /* 키보드: Shift + a + LANG1(0x90). 왕복: 만든 리포트를 우리 Report Map으로 다시 풀면 같은 키 */
+    /* Keyboard: Shift + a + LANG1 (0x90). Round trip: decoding the built report with our Report Map gives the same keys */
     uint8_t keys[32] = {0};
     keys[0xE1 >> 3] |= 1 << (0xE1 & 7);
     keys[0x04 >> 3] |= 1 << (0x04 & 7);
@@ -378,7 +378,7 @@ static void test_host_report(void)
     hid_input_t in;
     CHECK(hid_decode(&l, HOST_RID_KEYBOARD, kb, sizeof(kb), &in) && memcmp(in.keys, keys, 32) == 0, "kb round trip");
 
-    /* 7개 이상: 6칸 모두 ErrorRollOver, 수정 키는 그대로 */
+    /* 7 or more keys: all 6 slots are ErrorRollOver, modifiers unchanged */
     uint8_t many[32] = {0};
     for (int u = 0x04; u < 0x04 + 7; u++) {
         many[u >> 3] |= 1 << (u & 7);
@@ -386,14 +386,14 @@ static void test_host_report(void)
     many[0xE0 >> 3] |= 1;
     host_kb_report(many, kb);
     CHECK(kb[0] == 0x01 && kb[2] == 0x01 && kb[7] == 0x01, "rollover");
-    /* 0x00~0x03, 0xE8 이상은 키로 보내지 않는다 */
+    /* 0x00-0x03 and 0xE8 and above are never sent as keys */
     uint8_t odd[32] = {0};
     odd[0] = 0x0E;           /* 0x01~0x03 */
     odd[0xE8 >> 3] |= 1;     /* 0xE8 */
     host_kb_report(odd, kb);
     CHECK(kb[2] == 0, "status usages are not keys");
 
-    /* 마우스: X 40000은 32767 다음 7233으로 나뉜다. 휠 200은 127 다음 73 */
+    /* Mouse: X 40000 splits into 32767 then 7233. Wheel 200 into 127 then 73 */
     host_motion_t m = {0};
     host_motion_add(&m, 40000, -5, 200, -1);
     uint8_t ms[HOST_MOUSE_LEN];
@@ -405,20 +405,20 @@ static void test_host_report(void)
     CHECK(hid_decode(&l, HOST_RID_MOUSE, ms, sizeof(ms), &in) && in.dx == 7233 && in.wheel == 73 && host_motion_empty(&m),
           "mouse second chunk dx=%d", (int)in.dx);
 
-    /* Boot 마우스: ±127, 휠은 버린다 */
+    /* Boot mouse: ±127, wheel is dropped */
     host_motion_add(&m, -300, 10, 5, 0);
     uint8_t bm[HOST_BOOT_MOUSE_LEN];
     host_boot_mouse_report(&m, 0x0F, bm);
     CHECK(bm[0] == 0x07 && (int8_t)bm[1] == -127 && (int8_t)bm[2] == 10 && m.dx == -173 && m.wheel == 0, "boot mouse");
 
-    /* 소비자: 볼륨 업 */
+    /* Consumer: Volume Up */
     uint16_t cu[2] = {0xE9, 0};
     uint8_t cs[HOST_CONSUMER_LEN];
     host_consumer_report(cu, 1, cs);
     CHECK(hid_decode(&l, HOST_RID_CONSUMER, cs, sizeof(cs), &in) && in.consumer_count == 1 && in.consumer[0] == 0xE9,
           "consumer round trip");
 
-    /* 같은 값은 다시 보내지 않는다. 뗌은 0이 아닌 리포트에만 */
+    /* The same value is not resent. Release only for reports that are non-zero */
     host_kb_report(keys, kb);   /* Shift + a + LANG1 */
     host_sent_t sent = {0};
     CHECK(host_sent_update(sent.kb, kb, HOST_KB_LEN), "first send");

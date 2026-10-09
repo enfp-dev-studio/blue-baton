@@ -1,30 +1,33 @@
 # KM Router
 
-블루투스 키보드·마우스 하나로 컴퓨터 3대(Mac 2 + Windows 1)를 오가는 라우터. ESP32-S3 SuperMini 한 개로 만든다.
-입력 기기와 호스트 모두와 연결을 계속 유지하고, 입력을 보낼 호스트만 바꾼다 (전환 때 재연결 없음).
+English | [한국어](README.ko.md)
+
+One Bluetooth keyboard and mouse for three computers (for example two Macs and a Windows PC), built on a single ESP32-S3 SuperMini.
+The router stays connected to the input devices and to every host at the same time, and only changes which host receives the input. Switching does not reconnect anything.
 
 ```text
-BLE 키보드 ─┐                    ┌─ BLE HID → 호스트 1
-BLE 마우스 ─┴─→ ESP32-S3 (NimBLE) ─┼─ BLE HID → 호스트 2
-                  │                └─ BLE HID → 호스트 3
-                  └─ USB: 설정 화면과 로그
+BLE keyboard ─┐                       ┌─ BLE HID → host 1
+BLE mouse ────┴─→ ESP32-S3 (NimBLE) ─┼─ BLE HID → host 2
+                    │                 └─ BLE HID → host 3
+                    └─ USB: settings UI and logs
 ```
 
-지금 상태: [devlog/journal/00-overview.md](devlog/journal/00-overview.md) (펌웨어 0.5, Mac 2대 실기 확인)
+Status: firmware 0.5. Two Macs verified on real hardware (input from a BLE mouse reaches the active Mac; hosts switch from the settings UI). Keyboard combo switching and Windows hosts are implemented but not yet verified on hardware. Progress log (Korean): [devlog/journal/00-overview.md](devlog/journal/00-overview.md).
 
-## 폴더
+License: not decided yet. Until a license is added, no rights are granted to reuse the code.
 
-| 경로 | 내용 |
+## Repository layout
+
+| Path | Contents |
 |---|---|
-| [firmware/main/](firmware/main/) | 펌웨어 (ESP-IDF v6.1, NimBLE). 입력 쪽 `ble_pair.c`, 해석 `hid_input.c`, 전환 `router.c`, 출력 쪽 `host.c` |
-| [firmware/PROTOCOL.md](firmware/PROTOCOL.md) | USB 제어 프로토콜 (한 줄 JSON) |
-| [firmware/ui/](firmware/ui/) | 설정 화면 (빌드 없는 ES 모듈, 로컬 브리지·Web Serial·모의 보드) |
-| [firmware/tools/](firmware/tools/) | 로컬 브리지 `bridge.py`, 플래시 `flash.sh` |
-| [firmware/test/](firmware/test/) | 보드 없이 도는 시험 (C + JS) |
-| [devlog/](devlog/) | 제작 기록: 설계 결정, 작업 일지, 제안서, 원본 로그 |
-| [km_router_handoff.md](km_router_handoff.md) | 최초 설계 문서 |
+| [firmware/main/](firmware/main/) | Firmware (ESP-IDF v6.1, NimBLE). Input side `ble_pair.c`, report decoding `hid_input.c`, switching `router.c`, host side `host.c` |
+| [firmware/PROTOCOL.md](firmware/PROTOCOL.md) | USB control protocol (one JSON object per line) |
+| [firmware/ui/](firmware/ui/) | Settings UI (plain ES modules, no build step; local bridge, Web Serial, or mock board) |
+| [firmware/tools/](firmware/tools/) | Local bridge `bridge.py`, flash helper `flash.sh` |
+| [firmware/test/](firmware/test/) | Tests that run without the board (C and JS) |
+| [devlog/](devlog/) | Build log in Korean: design decisions, work entries, proposals, raw logs |
 
-## 빌드, 플래시, 시험
+## Build, flash, test
 
 ```bash
 . ~/esp/esp-idf/export.sh && cd firmware && idf.py build
@@ -38,4 +41,4 @@ firmware/tools/flash.sh
 firmware/test/run.sh
 ```
 
-설정 화면 여는 법은 [firmware/ui/README.md](firmware/ui/README.md), 처음부터 따라 하기는 [devlog/journal/10-reproduce.md](devlog/journal/10-reproduce.md).
+How to open the settings UI: [firmware/ui/README.md](firmware/ui/README.md).

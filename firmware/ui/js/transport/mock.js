@@ -1,17 +1,19 @@
 /*
- * 모의 보드. 하드웨어 없이 화면을 만들고 검증한다 (GUI 제안서 5.2).
- * 펌웨어 0.5의 명령, 응답, 이벤트 형식(firmware/PROTOCOL.md)을 흉내 낸다.
+ * Mock board. Lets us build and check the UI without hardware (GUI proposal 5.2).
+ * Imitates the firmware 0.5 commands, replies, and event formats (firmware/PROTOCOL.md).
  *
- * 장치 구성
- * - 실기에서 받은 마우스와 키보드: Report Map, 핸들, 리포트 ID를 그대로 쓴다 (entries/007).
- * - 실기로 시험하지 못한 페어링 방식은 가상 장치로 둔다: 숫자 비교, 패스키 입력, 패스키 표시,
- *   이름이 스캔 응답에만 있는 장치, HID가 아닌 장치.
+ * Devices
+ * - The mouse and keyboard captured from real hardware: their Report Maps, handles, and report IDs as-is (entries/007).
+ * - Pairing methods we could not test on real hardware are virtual devices: numeric comparison, passkey entry,
+ *   passkey display, a device whose name is only in the scan response, and a non-HID device.
  *
- * 호스트: 1번은 본딩된 모의 Mac(부팅 뒤 붙는다). 호스트 추가 창을 열면 2초 뒤 모의 PC가 붙어
- * 패스키를 요청한다. 그 PC 화면의 숫자는 보드 로그 줄에 찍힌다.
+ * Hosts: host 1 is a bonded mock Mac (connects after boot). Opening the host pairing window makes a mock PC
+ * connect 2 s later and request a passkey. The code shown on that PC is printed as a board log line.
  *
- * 주소창 옵션: ?mock (기본), &unlocked (PIN 없이 열림), &fast (스캔 10초)
+ * URL options: ?mock (default), &unlocked (opens without a PIN), &fast (10 s scan)
  */
+
+import { t } from '../i18n.js';
 
 const MOUSE_MAP =
   '05010902A10185010901A1000509190129051500250195057501810295017503810105010930093116018026FF7F75109502' +
@@ -22,7 +24,7 @@ const KB_MAP =
   '038160C005010906A1018503050719E029E71500250175019508810295017508810195057501050819012905910295017503' +
   '910195067508150025E70507190029E78100C005010906A101850475019578050715002501190029788102C0050C0901A101' +
   '85051500250175019503810175019501050C09B8810206FF0009038102750195038101C0';
-/* 가상 키보드: 리포트 ID 1, 수정 키 8비트 + 예약 1바이트 + 키 배열 6개 */
+/* Virtual keyboard: report ID 1, 8 modifier bits + 1 reserved byte + 6-key array */
 const SIMPLE_KB_MAP =
   '05010906A1018501050719E029E715002501750195088102950175088101950675081500256505071900296581' + '00C0';
 
@@ -40,20 +42,20 @@ function catalog() {
       role: 'nkro', wakeAfter: 3500, lastSeq: 2,
     },
     {
-      addr: 'C0:FF:EE:00:00:01', name: '모의 키보드 (숫자 비교)', appearance: 961, io: 'numcmp',
+      addr: 'C0:FF:EE:00:00:01', name: 'Mock keyboard (numeric comparison)', appearance: 961, io: 'numcmp',
       map: SIMPLE_KB_MAP, kinds: ['keyboard'], reports: [{ val: 20, id: 1 }], role: 'simple', foundAfter: 1200,
     },
     {
-      addr: 'C0:FF:EE:00:00:02', name: '모의 키보드 (패스키 입력)', appearance: 961, io: 'passkey_request',
+      addr: 'C0:FF:EE:00:00:02', name: 'Mock keyboard (passkey entry)', appearance: 961, io: 'passkey_request',
       map: SIMPLE_KB_MAP, kinds: ['keyboard'], reports: [{ val: 20, id: 1 }], role: 'simple', foundAfter: 2000,
       shownCode: '123456',
     },
     {
-      addr: 'C0:FF:EE:00:00:03', name: '모의 키보드 (패스키 표시)', appearance: 961, io: 'passkey_display',
+      addr: 'C0:FF:EE:00:00:03', name: 'Mock keyboard (passkey display)', appearance: 961, io: 'passkey_display',
       map: SIMPLE_KB_MAP, kinds: ['keyboard'], reports: [{ val: 20, id: 1 }], role: 'simple', foundAfter: 2800,
     },
     {
-      addr: 'C0:FF:EE:00:00:04', name: '모의 마우스 (이름은 스캔 응답에만)', appearance: 962, io: 'none',
+      addr: 'C0:FF:EE:00:00:04', name: 'Mock mouse (name only in scan response)', appearance: 962, io: 'none',
       map: MOUSE_MAP, kinds: ['mouse'], reports: [{ val: 25, id: 1 }], role: 'mouse', foundAfter: 3500,
       nameLate: true,
     },
@@ -70,7 +72,7 @@ class MockBoard {
     this.opts = opts;
     this.devices = catalog();
     this.pinSet = true;
-    this.pin = '2468';   /* 모의 보드 전용 값 */
+    this.pin = '2468';   /* mock board only */
     this.unlocked = opts.unlocked;
     this.combo = '';
     this.activeHost = 1;
@@ -79,10 +81,10 @@ class MockBoard {
     this.peers = new Map();   /* addr -> {dev, state, user} */
     this.timers = new Set();
     this.seq = 3;
-    /* 호스트: 번호 -> {addr, name, connected, state}. 1번은 본딩된 모의 Mac */
-    this.hosts = new Map([[1, { addr: '3C:22:FB:00:00:01', name: '모의 MacBook Pro', connected: false, state: 'offline' }]]);
-    this.hostWindow = null;   /* 창이 닫히는 타이머 */
-    this.candidate = null;    /* {addr, code} 창에서 붙은 모의 PC */
+    /* Hosts: number -> {addr, name, connected, state}. Host 1 is a bonded mock Mac */
+    this.hosts = new Map([[1, { addr: '3C:22:FB:00:00:01', name: 'Mock MacBook Pro', connected: false, state: 'offline' }]]);
+    this.hostWindow = null;   /* timer that closes the window */
+    this.candidate = null;    /* {addr, code} mock PC that connected through the window */
     this.boot();
   }
 
@@ -158,7 +160,7 @@ class MockBoard {
     }
   }
 
-  /* 본딩된 장치가 깨어나 광고: 자동 재연결 대기 중이면 연결된다 */
+  /* A bonded device wakes up and advertises: it connects if the board is waiting to auto-reconnect */
   wake(d) {
     if (this.radio !== 'auto' || this.peers.has(d.addr) || d.auto === false || !d.bonded) return;
     this.connect(d, false);
@@ -180,14 +182,14 @@ class MockBoard {
     } else if (d.io === 'numcmp') {
       p.code = String(100000 + Math.floor(Math.random() * 900000));
       this.later(400, () => this.ev({ event: 'numcmp', addr: d.addr, code: p.code }));
-      this.emit(`I (mock) 모의 장치 화면에 보이는 숫자: ${p.code}`);
+      this.emit(`I (mock) code shown on the mock device: ${p.code}`);
     } else if (d.io === 'passkey_request') {
       this.later(400, () => this.ev({ event: 'passkey_request', addr: d.addr }));
-      this.emit(`I (mock) 모의 장치 화면에 보이는 패스키: ${d.shownCode}`);
+      this.emit(`I (mock) passkey shown on the mock device: ${d.shownCode}`);
     } else if (d.io === 'passkey_display') {
       const code = String(Math.floor(Math.random() * 1e6)).padStart(6, '0');
       this.later(400, () => this.ev({ event: 'passkey_display', addr: d.addr, code, ok: true }));
-      /* 사용자가 키보드로 번호를 치는 데 걸리는 시간 */
+      /* time the user takes to type the code on the keyboard */
       this.later(5000, () => this.peers.has(d.addr) && this.secured(d, 'new'));
     }
   }
@@ -231,7 +233,7 @@ class MockBoard {
     this.radioUpdate();
   }
 
-  /* 준비된 장치가 입력을 보낸다: 마우스는 원을 그리고, 키보드는 글자를 친다 */
+  /* Ready devices send input: the mouse moves in circles, the keyboard types text */
   tickInputs() {
     const now = performance.now();
     for (const p of this.peers.values()) {
@@ -247,7 +249,7 @@ class MockBoard {
         }
       } else if (d.role === 'nkro' || d.role === 'simple') {
         const text = 'hello km ';
-        const step = Math.floor((t % 9) / 0.15);   /* 0.15초마다 한 단계: 누름, 뗌 */
+        const step = Math.floor((t % 9) / 0.15);   /* one step every 0.15 s: press, release */
         if (step === p.lastStep || step >= text.length * 2) continue;
         p.lastStep = step;
         const ch = text[step >> 1];
@@ -276,7 +278,7 @@ class MockBoard {
         const paired = !!d.bonded;
         this.ev({ event: 'device_found', addr: d.addr, name: d.nameLate ? '' : d.name, rssi: -40 - Math.floor(Math.random() * 40), paired, appearance: d.appearance });
         if (d.nameLate) {
-          /* 이름이 스캔 응답에만 있는 장치: 같은 주소로 이름이 채워져 다시 온다 */
+          /* Name only in the scan response: the same address comes again with the name filled in */
           this.later(900, () => this.scanning && this.ev({ event: 'device_found', addr: d.addr, name: d.name, rssi: -45, paired, appearance: d.appearance }));
         }
       });
@@ -300,7 +302,7 @@ class MockBoard {
     return this.devices.find((d) => d.addr === addr);
   }
 
-  /* ---- 호스트 ---- */
+  /* ---- Hosts ---- */
 
   hostConnect(n) {
     const h = this.hosts.get(n);
@@ -325,14 +327,14 @@ class MockBoard {
     if (open) {
       this.stopScan('radio');
       this.hostWindow = this.later(180000, () => this.openHostWindow(false));
-      /* 사용자가 컴퓨터에서 "KM Router"를 고르는 데 걸리는 시간 */
+      /* time the user takes to pick "KM Router" on the computer */
       this.later(2000, () => {
         if (!this.hostWindow || this.candidate) return;
         this.candidate = { addr: '00:1A:7D:00:00:0' + this.freeHost(), code: String(100000 + Math.floor(Math.random() * 900000)) };
         this.ev({ event: 'host_connected', host: 0, addr: this.candidate.addr, bonded: false, itvl: 24 });
         this.later(500, () => {
           if (!this.candidate) return;
-          this.emit(`I (mock) 모의 PC 화면에 보이는 숫자: ${this.candidate.code}`);
+          this.emit(`I (mock) code shown on the mock PC: ${this.candidate.code}`);
           this.ev({ event: 'host_passkey_request', host: 0, addr: this.candidate.addr });
         });
       });
@@ -371,7 +373,7 @@ class MockBoard {
         if (!h) return;
         h.state = 'ready';
         this.ev({ event: 'host_ready', host: n, addr: c.addr });
-        h.name = '모의 Windows PC';
+        h.name = 'Mock Windows PC';
         this.ev({ event: 'host_name', host: n, addr: c.addr, name: h.name });
       });
     });
@@ -381,27 +383,27 @@ class MockBoard {
     const { id, cmd } = req;
     const open = ['hello', 'status', 'auth', 'lock', 'pin_set'];
     if (!open.includes(cmd) && !this.unlocked) {
-      return this.fail(id, 'error', '잠금 상태입니다. auth 명령으로 PIN을 먼저 입력하세요');
+      return this.fail(id, 'locked', 'Locked. Send auth with the PIN first');
     }
     switch (cmd) {
       case 'hello':
         return this.reply(id, { fw: 'km-router', version: '0.5-mock', pin_set: this.pinSet, unlocked: this.unlocked, combo_set: !!this.combo, wifi_feature: false });
       case 'auth':
-        if (req.pin !== this.pin) return this.fail(id, 'error', 'PIN이 맞지 않습니다');
+        if (req.pin !== this.pin) return this.fail(id, 'wrong_pin', 'Wrong PIN');
         this.unlocked = true;
         return this.reply(id);
       case 'lock':
         this.unlocked = false;
         return this.reply(id);
       case 'pin_set':
-        if (!/^\d{4,8}$/.test(req.pin || '')) return this.fail(id, 'error', 'PIN은 숫자 4~8자리여야 합니다');
+        if (!/^\d{4,8}$/.test(req.pin || '')) return this.fail(id, 'bad_pin', 'PIN must be 4 to 8 digits');
         this.pin = req.pin;
         this.unlocked = true;
         return this.reply(id);
       case 'combo_get':
         return this.reply(id, { combo: this.combo || 'ctrl+alt+1,ctrl+alt+2,ctrl+alt+3', default: !this.combo, stored_invalid: false });
       case 'host_select': {
-        if (!(req.host >= 1 && req.host <= 3)) return this.fail(id, 'bad_host', 'host는 1~3입니다');
+        if (!(req.host >= 1 && req.host <= 3)) return this.fail(id, 'bad_host', 'host must be 1 to 3');
         const from = this.activeHost;
         this.reply(id);
         if (req.host !== from) {
@@ -413,8 +415,8 @@ class MockBoard {
         return;
       }
       case 'host_pair':
-        if (typeof req.on !== 'boolean') return this.fail(id, 'error', 'on(true 또는 false)이 없습니다');
-        if (!this.openHostWindow(req.on)) return this.fail(id, 'hosts_full', '호스트 3대가 모두 찼습니다. 하나를 지운 뒤 다시 여세요');
+        if (typeof req.on !== 'boolean') return this.fail(id, 'bad_request', 'on (true or false) is missing');
+        if (!this.openHostWindow(req.on)) return this.fail(id, 'hosts_full', 'All 3 host slots are in use. Remove one, then open the window again');
         return this.reply(id);
       case 'host_list': {
         const hosts = [...this.hosts.entries()].sort((x, y) => x[0] - y[0]).map(([n, h]) => ({
@@ -423,17 +425,17 @@ class MockBoard {
         return this.reply(id, { hosts });
       }
       case 'host_remove': {
-        if (!(req.host >= 1 && req.host <= 3)) return this.fail(id, 'bad_host', 'host는 1~3입니다');
+        if (!(req.host >= 1 && req.host <= 3)) return this.fail(id, 'bad_host', 'host must be 1 to 3');
         const h = this.hosts.get(req.host);
-        if (!h) return this.fail(id, 'not_found', '그 번호에 페어링된 호스트가 없습니다');
+        if (!h) return this.fail(id, 'not_found', 'No host is paired at that number');
         this.reply(id);
         if (h.connected) this.ev({ event: 'host_disconnected', host: req.host, addr: h.addr, reason: 534 });
         this.hosts.delete(req.host);
         return this.ev({ event: 'host_removed', host: req.host });
       }
       case 'host_passkey':
-        if (!/^\d{6}$/.test(req.code || '')) return this.fail(id, 'bad_code', '패스키는 숫자 6자리입니다');
-        if (!this.candidate) return this.fail(id, 'no_request', '지금은 패스키를 받을 호스트가 없습니다');
+        if (!/^\d{6}$/.test(req.code || '')) return this.fail(id, 'bad_code', 'Passkey must be 6 digits');
+        if (!this.candidate) return this.fail(id, 'no_request', 'No host is waiting for a passkey');
         this.reply(id);
         return this.hostPasskey(req.code);
       case 'combo_set':
@@ -448,7 +450,7 @@ class MockBoard {
         });
       }
       case 'pair_scan':
-        if (req.on && this.hostWindow) return this.fail(id, 'host_window', '호스트 추가 창이 열려 있습니다. 창을 닫은 뒤 입력 장치를 추가하세요');
+        if (req.on && this.hostWindow) return this.fail(id, 'host_window', 'The host pairing window is open. Close it before adding an input device');
         if (req.on) this.startScan();
         else this.stopScan('radio');
         return this.reply(id);
@@ -460,11 +462,11 @@ class MockBoard {
       }
       case 'pair_connect': {
         const d = this.find(req.addr);
-        if (!d || d.hid === false) return this.fail(id, 'not_found', '그 주소의 장치가 없습니다');
-        if (this.peers.has(d.addr)) return this.fail(id, 'busy', '지금은 할 수 없습니다 (이미 연결됨)');
-        if (this.freeSlots() <= 0) return this.fail(id, 'no_slot', '입력 장치 자리가 모두 찼습니다');
+        if (!d || d.hid === false) return this.fail(id, 'not_found', 'No device with that address');
+        if (this.peers.has(d.addr)) return this.fail(id, 'busy', 'Not possible right now (BLE not ready, already connected, or another request in progress)');
+        if (this.freeSlots() <= 0) return this.fail(id, 'no_slot', 'All input device slots are in use');
         if (d.bonded) {
-          /* 펌웨어와 같다: 본딩된 기기는 직접 연결하지 않고 자동 연결 목록에 다시 넣는다. 기기가 깨면 붙는다 */
+          /* Same as the firmware: a bonded device is not connected directly but put back on the auto-connect list. It connects when it wakes */
           d.auto = true;
           this.stopScan('radio');
           this.reply(id);
@@ -485,14 +487,14 @@ class MockBoard {
       }
       case 'disconnect': {
         const p = this.peers.get(req.addr);
-        if (!p) return this.fail(id, 'not_found', '그 주소의 장치가 없습니다');
+        if (!p) return this.fail(id, 'not_found', 'No device with that address');
         p.dev.auto = false;
         this.reply(id);
         return this.drop(p.dev, 534);
       }
       case 'pair_accept': {
         const p = [...this.peers.values()].find((x) => x.code);
-        if (!p) return this.fail(id, 'no_request', '지금은 수락할 요청이 없습니다');
+        if (!p) return this.fail(id, 'no_request', 'No request to accept right now');
         p.code = null;
         this.reply(id);
         if (req.accept) return this.later(300, () => this.secured(p.dev, 'new'));
@@ -500,7 +502,7 @@ class MockBoard {
       }
       case 'passkey': {
         const p = [...this.peers.values()].find((x) => x.dev.io === 'passkey_request' && x.state === 'securing');
-        if (!p) return this.fail(id, 'no_request', '지금은 패스키를 받을 요청이 없습니다');
+        if (!p) return this.fail(id, 'no_request', 'No request is waiting for a passkey');
         this.reply(id);
         if (req.code === p.dev.shownCode) return this.later(300, () => this.secured(p.dev, 'new'));
         return this.failSecurity(p.dev, 1284);
@@ -518,7 +520,7 @@ class MockBoard {
       }
       case 'paired_remove': {
         const d = this.find(req.addr);
-        if (!d || !d.bonded) return this.fail(id, 'not_found', '그 주소의 장치가 없습니다');
+        if (!d || !d.bonded) return this.fail(id, 'not_found', 'No device with that address');
         this.reply(id);
         this.drop(d, 534);
         d.bonded = false;
@@ -534,14 +536,14 @@ class MockBoard {
         this.ev({ event: 'unpaired_all' });
         return this.radioUpdate();
       default:
-        return this.fail(id, 'error', '알 수 없는 명령입니다');
+        return this.fail(id, 'unknown_cmd', 'Unknown command');
     }
   }
 }
 
 export class MockTransport {
   constructor(params = new URLSearchParams()) {
-    this.label = '모의 보드';
+    this.label = t('transport.mock');
     this.opts = { unlocked: params.has('unlocked'), fast: params.has('fast') };
     this.board = null;
     this.onLine = () => {};
@@ -558,7 +560,7 @@ export class MockTransport {
 
   async send(line) {
     const req = JSON.parse(line);
-    /* 실제 보드처럼 응답은 조금 뒤에 온다 */
+    /* Like a real board, the reply arrives a little later */
     setTimeout(() => this.board?.handle(req), 20);
   }
 

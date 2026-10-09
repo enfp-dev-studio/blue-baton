@@ -19,7 +19,7 @@ static void skip_space(const char **p)
     }
 }
 
-/* "key" 다음의 값 시작 위치를 찾는다. 없으면 NULL */
+/* Find where the value after "key" starts. NULL if absent */
 static const char *find_value(const char *json, const char *key)
 {
     char pattern[32];
@@ -149,18 +149,18 @@ void json_escape(const char *in, char *out, size_t out_len)
         }
         out[n++] = (char)c;
     }
-    out[utf8_complete_len(out, (int)n)] = '\0';   /* 칸이 모자라 끊겼으면 덜 들어간 글자를 뺀다 */
+    out[utf8_complete_len(out, (int)n)] = '\0';   /* If cut short for lack of room, drop the incomplete character */
 }
 
 int utf8_complete_len(const char *s, int len)
 {
-    /* 마지막 글자의 시작 바이트를 찾아, 그 글자가 다 들어 있는지 본다 */
+    /* Find the lead byte of the last character and check that the whole character is present */
     int start = len;
     while (start > 0 && ((unsigned char)s[start - 1] & 0xC0) == 0x80) {
         start--;
     }
     if (start == 0) {
-        return 0;   /* 이어지는 바이트만 있다: 글자가 아니다 */
+        return 0;   /* Only continuation bytes: not a character */
     }
     start--;
     unsigned char lead = (unsigned char)s[start];

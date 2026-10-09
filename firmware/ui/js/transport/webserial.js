@@ -1,6 +1,6 @@
 /*
- * USB 연결 (Web Serial). Chrome/Edge에서만 되고, localhost나 HTTPS에서만 열린다.
- * 한 번 허용한 포트는 getPorts()로 다시 찾으므로, 다음부터는 선택 창 없이 바로 연결된다.
+ * USB link (Web Serial). Works only in Chrome/Edge, and only on localhost or HTTPS.
+ * A port allowed once is found again with getPorts(), so later connections skip the picker.
  */
 
 const ESPRESSIF_VID = 0x303a;
@@ -28,13 +28,13 @@ export class WebSerialTransport {
     return !!this.writer;
   }
 
-  /* 이미 허용한 보드 포트. 없으면 null */
+  /* The board port allowed earlier, or null */
   async knownPort() {
     const ports = await navigator.serial.getPorts();
     return ports.find((p) => p.getInfo().usbVendorId === ESPRESSIF_VID) || null;
   }
 
-  /* prompt가 false면 이미 허용한 포트만 쓴다 (페이지를 열 때 자동 연결용, 사용자 동작이 필요 없다) */
+  /* With prompt false, only an already allowed port is used (auto-connect on page load, no user gesture needed) */
   async open({ prompt = true } = {}) {
     let port = await this.knownPort();
     if (!port) {
@@ -44,7 +44,7 @@ export class WebSerialTransport {
     try {
       await port.open({ baudRate: 115200 });
     } catch (e) {
-      /* 다른 프로그램(다른 탭, 시리얼 모니터, 플래시 도구)이 포트를 잡고 있으면 여기서 실패한다 */
+      /* Fails here if another program (another tab, a serial monitor, a flash tool) holds the port */
       throw new Error(e.name === 'InvalidStateError' ? 'already_open' : 'port_busy');
     }
     this.port = port;
@@ -70,7 +70,7 @@ export class WebSerialTransport {
         }
       }
     } catch {
-      /* 포트가 닫히면 읽기가 끝난다 */
+      /* Reading ends when the port closes */
     }
     await done;
     this.#closed(this.closing ? 'closed' : 'lost');
@@ -88,11 +88,11 @@ export class WebSerialTransport {
     await this.writer.write(this.enc.encode(line + '\n'));
   }
 
-  /* 포트를 놓는다. 다른 프로그램(플래시, 모니터)이 쓸 수 있게 된다 */
+  /* Release the port so other programs (flasher, monitor) can use it */
   async close() {
     if (!this.port) return;
     this.closing = true;
-    /* 읽기 루프가 먼저 끝나 참조를 비울 수 있으므로 먼저 붙잡아 둔다 */
+    /* The read loop may finish first and clear these references, so grab them up front */
     const { port, reader, writer } = this;
     try {
       await reader?.cancel();

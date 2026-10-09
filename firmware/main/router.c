@@ -4,7 +4,7 @@
 
 #include "router.h"
 
-/* Keyboard 페이지 수정 키: 0xE0 LCtrl, E1 LShift, E2 LAlt, E3 LGUI, E4 RCtrl, E5 RShift, E6 RAlt, E7 RGUI */
+/* Keyboard page modifiers: 0xE0 LCtrl, E1 LShift, E2 LAlt, E3 LGUI, E4 RCtrl, E5 RShift, E6 RAlt, E7 RGUI */
 #define USAGE_MOD_FIRST 0xE0
 #define USAGE_MOD_LAST 0xE7
 
@@ -24,26 +24,26 @@ typedef struct {
 static device_state_t s_dev[ROUTER_INPUT_MAX];
 static combo_t s_combos[ROUTER_HOST_MAX];
 static int s_active;
-static uint8_t s_suppressed[32];     /* 전환 순간 눌려 있던 키. 뗄 때까지 보내지 않는다 */
-static uint8_t s_held[32];           /* 보류 중인 조합 수정 키. 아직 보내지 않았다 */
-static uint8_t s_combo_groups;       /* 설정된 조합에 쓰이는 수정 키 묶음 (COMBO_*) */
+static uint8_t s_suppressed[32];     /* Keys held at the moment of a switch. Not sent until released */
+static uint8_t s_held[32];           /* Combo modifiers on hold. Not sent yet */
+static uint8_t s_combo_groups;       /* Modifier set used by the configured combos (COMBO_*) */
 static bool s_pk_active;
 static uint8_t s_pk_digits[6];
 static uint8_t s_pk_len;
 static uint8_t s_led[ROUTER_HOST_MAX];
-static uint8_t s_last_keys[32];      /* 마지막으로 보낸 키 (변화 감지용) */
+static uint8_t s_last_keys[32];      /* Last sent keys (for change detection) */
 static uint8_t s_last_buttons;
 static uint16_t s_last_consumer[HID_CONSUMER_MAX];
 static uint8_t s_last_consumer_count;
 
-/* ---------- 조합 해석 ---------- */
+/* ---------- Combo parsing ---------- */
 
 typedef struct {
     const char *name;
     uint8_t usage;
 } key_name_t;
 
-/* HID Usage Tables 10장 (Keyboard/Keypad Page) */
+/* HID Usage Tables chapter 10 (Keyboard/Keypad Page) */
 static const key_name_t KEYS[] = {
     {"enter", 0x28}, {"return", 0x28}, {"esc", 0x29}, {"escape", 0x29}, {"backspace", 0x2A}, {"tab", 0x2B},
     {"space", 0x2C}, {"minus", 0x2D}, {"equal", 0x2E}, {"capslock", 0x39}, {"printscreen", 0x46},
@@ -137,11 +137,11 @@ bool combo_parse(const char *text, combo_t *out)
             continue;
         }
         if (have_key || !key_usage(tok, &out->key)) {
-            return false;   /* 일반 키는 하나만, 모르는 이름은 거부 */
+            return false;   /* Only one non-modifier key; reject unknown names */
         }
         have_key = true;
     }
-    /* 수정 키 없는 단일 키는 일반 입력을 빼앗으므로 받지 않는다 */
+    /* A single key without modifiers would steal normal input, so it is rejected */
     out->valid = have_key && out->mods != 0;
     return out->valid;
 }
@@ -180,7 +180,7 @@ bool combo_parse_list(const char *text, combo_t out[ROUTER_HOST_MAX])
     return true;
 }
 
-/* ---------- 상태 ---------- */
+/* ---------- State ---------- */
 
 void router_init(void)
 {
@@ -239,7 +239,7 @@ static report_state_t *report_slot(uint8_t slot, uint8_t id)
     return free_slot;
 }
 
-/* 모든 장치, 모든 리포트의 합 */
+/* Union of all devices and all reports */
 static void union_state(uint8_t keys[32], uint8_t *buttons, uint16_t consumer[], uint8_t *consumer_count)
 {
     memset(keys, 0, 32);
@@ -267,7 +267,7 @@ static uint8_t held_mod_groups(const uint8_t keys[32])
     uint8_t m = 0;
     for (uint8_t u = USAGE_MOD_FIRST; u <= USAGE_MOD_LAST; u++) {
         if (hid_key_down(keys, u)) {
-            m |= (uint8_t)(1u << ((u - USAGE_MOD_FIRST) & 3));   /* 왼쪽/오른쪽 같은 묶음 */
+            m |= (uint8_t)(1u << ((u - USAGE_MOD_FIRST) & 3));   /* Left/right map to the same group */
         }
     }
     return m;
@@ -284,12 +284,12 @@ static int count_normal_keys(const uint8_t keys[32])
     return n;
 }
 
-/* 막힌 키를 빼고, 바뀐 것을 표시해 out을 채운다 */
+/* Fill in out, excluding blocked keys and flagging what changed */
 static void fill_out(const uint8_t keys[32], uint8_t buttons, const uint16_t consumer[], uint8_t consumer_count,
                      router_out_t *out)
 {
     for (int b = 0; b < 32; b++) {
-        /* 뗀 키는 막힘에서 푼다. 다시 누르면 정상으로 보낸다 */
+        /* Released keys are unblocked. Pressed again, they are sent normally */
         s_suppressed[b] &= keys[b];
         s_held[b] &= keys[b];
         out->keys[b] = keys[b] & (uint8_t)~s_suppressed[b] & (uint8_t)~s_held[b];
@@ -325,7 +325,7 @@ static bool any_bits(const uint8_t b[32])
     return false;
 }
 
-/* 패스키 받기: 새로 눌린 키만 본다. 숫자(윗줄 0x1E~0x27, 키패드 0x59~0x62), Backspace, Enter, Esc */
+/* Passkey entry: looks only at newly pressed keys. Digits (top row 0x1E-0x27, keypad 0x59-0x62), Backspace, Enter, Esc */
 static void passkey_feed(const uint8_t before[32], const uint8_t keys[32], router_out_t *out)
 {
     for (unsigned u = 0; u < 256; u++) {
@@ -381,7 +381,7 @@ void router_input(uint8_t slot, uint8_t report_key, const hid_input_t *in, route
 
     report_state_t *rs = report_slot(slot, report_key);
     if (rs) {
-        /* 리포트는 자기 필드에 대한 "지금 상태"다. 이 리포트에 없는 종류는 건드리지 않는다 */
+        /* A report is the "current state" of its own fields. Kinds absent from this report are left untouched */
         if (in->has_keys) {
             memcpy(rs->keys, in->keys, 32);
         }
@@ -402,7 +402,7 @@ void router_input(uint8_t slot, uint8_t report_key, const hid_input_t *in, route
     bool motion = in->has_motion && (in->dx || in->dy || in->wheel || in->pan);
 
     if (s_pk_active) {
-        /* 패스키 받기 중: 키 입력은 어느 호스트에도 보내지 않는다. 마우스는 그대로 둔다 */
+        /* During passkey entry: key input is sent to no host. The mouse passes through */
         passkey_feed(before, keys, out);
         uint8_t none[32] = {0};
         fill_out(none, buttons, consumer, consumer_count, out);
@@ -414,14 +414,14 @@ void router_input(uint8_t slot, uint8_t report_key, const hid_input_t *in, route
         return;
     }
 
-    /* 새로 눌린 일반 키가 어떤 호스트의 조합인지 본다 */
+    /* Check whether the newly pressed key completes some host's combo */
     bool triggered = false;
     uint8_t mods = held_mod_groups(keys);
     if (count_normal_keys(keys) == 1) {
         for (int h = 0; h < ROUTER_HOST_MAX; h++) {
             const combo_t *c = &s_combos[h];
             if (c->valid && c->mods == mods && hid_key_down(keys, c->key) && !hid_key_down(before, c->key)) {
-                /* 지금 눌린 것은 모두 뗄 때까지 막는다. 보류한 수정 키는 보내지 않은 채 막힌다 */
+                /* Block everything held now until released. Held modifiers get blocked without ever being sent */
                 memcpy(s_suppressed, keys, 32);
                 memset(s_held, 0, sizeof(s_held));
                 triggered = true;
@@ -437,7 +437,7 @@ void router_input(uint8_t slot, uint8_t report_key, const hid_input_t *in, route
     }
 
     if (!triggered) {
-        /* 보류를 풀 사건인가: 보류한 수정 키를 뗐거나, 다른 키, 마우스, 미디어 키가 왔다 */
+        /* Is this an event that ends the hold: a held modifier was released, or another key, mouse, or media key arrived */
         bool flush = false;
         if (any_bits(s_held)) {
             for (unsigned u = 0; u < 256 && !flush; u++) {
@@ -456,7 +456,7 @@ void router_input(uint8_t slot, uint8_t report_key, const hid_input_t *in, route
             }
         }
         if (flush) {
-            /* 보류한 수정 키를 이 사건 직전 상태와 함께 먼저 보낸다 */
+            /* Send the held modifiers first, together with the state just before this event */
             out->pre_valid = true;
             for (int b = 0; b < 32; b++) {
                 out->pre_keys[b] = before[b] & (uint8_t)~s_suppressed[b];
@@ -464,7 +464,7 @@ void router_input(uint8_t slot, uint8_t report_key, const hid_input_t *in, route
             memset(s_held, 0, sizeof(s_held));
             memcpy(s_last_keys, out->pre_keys, 32);
         }
-        /* 새로 눌린 조합 수정 키는 보류한다. 일반 키나 마우스 버튼이 눌려 있으면 조합이 될 수 없으니 바로 보낸다 */
+        /* Hold newly pressed combo modifiers. If a key or mouse button is held, it cannot become a combo, so send right away */
         if (count_normal_keys(keys) == 0 && buttons == 0) {
             for (unsigned u = USAGE_MOD_FIRST; u <= USAGE_MOD_LAST; u++) {
                 if (hid_key_down(keys, (uint8_t)u) && !hid_key_down(before, (uint8_t)u) && is_combo_modifier(u)) {
@@ -516,7 +516,7 @@ void router_passkey_end(void)
 {
     s_pk_active = false;
     s_pk_len = 0;
-    /* 끝낼 때 눌려 있던 키(보통 Enter)는 뗄 때까지 보내지 않는다 */
+    /* Keys held when it ends (usually Enter) are not sent until released */
     uint8_t keys[32];
     uint8_t buttons;
     uint16_t consumer[HID_CONSUMER_MAX];

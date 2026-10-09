@@ -7,83 +7,83 @@
 #include "esp_err.h"
 
 /*
- * 입력 장치(BLE HID, 보드가 Central) 관리.
+ * Input device management (BLE HID, board as Central).
  *
- * 규칙
- * - 키와 identity 주소의 원천은 NimBLE 본딩 저장소 하나다 (NVS에 영구 저장).
- * - BLE 상태는 NimBLE 호스트 태스크 하나가 소유한다. 아래 함수는 다른 태스크에서 불러도 되며,
- *   요청을 호스트 태스크로 넘겨 처리가 끝날 때까지 기다린다. 호스트 태스크 안에서는 부르지 않는다.
- * - 라디오(스캔, 연결 시도)와 보안 절차는 한 번에 하나씩 상태 기계로 처리한다.
- * - 본딩된 장치는 accept list로 자동 재연결한다 (HOGP 5.2.2 권장 방식).
+ * Rules
+ * - The single source of truth for keys and identity addresses is the NimBLE bond store (persisted in NVS).
+ * - BLE state is owned by the single NimBLE host task. The functions below may be called from other tasks;
+ *   they hand the request to the host task and wait until it is done. Do not call them from the host task.
+ * - The radio (scan, connection attempts) and security procedures are handled one at a time by a state machine.
+ * - Bonded devices auto-reconnect through the accept list (the method recommended by HOGP 5.2.2).
  */
 
-/* 보드가 밖으로 보내는 이벤트 한 개(JSON 문자열)를 받는 함수 */
+/* Callback that receives one outgoing event from the board (a JSON string) */
 typedef void (*ble_pair_event_fn)(const char *json);
 
-/* NimBLE을 켜고, 이벤트를 event로 보낸다 */
+/* Start NimBLE and deliver events to event */
 esp_err_t ble_pair_init(ble_pair_event_fn event);
 
-/* 새 장치 스캔을 켜거나 끈다. 켜 두면 60초 뒤 스스로 멈춘다. 스캔 중에는 자동 재연결을 쉰다 */
+/* Turn scanning for new devices on or off. Once on, it stops by itself after 60 seconds. Auto-reconnect pauses while scanning */
 esp_err_t ble_pair_scan(bool on);
 
-/* 찾은 장치 목록 (JSON 배열). all이 false면 HID 장치만 */
+/* Found devices list (JSON array). If all is false, HID devices only */
 size_t ble_pair_list_json(char *buf, size_t len, bool all);
 
-/* 연결된 장치 목록 (JSON 배열) */
+/* Connected devices list (JSON array) */
 size_t ble_pair_peers_json(char *buf, size_t len);
 
-/* 페어링된 장치 목록 (JSON 배열, NimBLE 본딩 기준) */
+/* Paired devices list (JSON array, based on NimBLE bonds) */
 size_t ble_pair_paired_json(char *buf, size_t len);
 
-/* 페어링 하나를 지운다 (본딩 키, 해석 리스트, 메타데이터. 연결 중이면 끊는다) */
+/* Remove one pairing (bond keys, resolving list, metadata; disconnects if connected) */
 esp_err_t ble_pair_paired_remove(const char *addr);
 
-/* 페어링을 모두 지운다 */
+/* Remove all pairings */
 esp_err_t ble_pair_paired_clear(void);
 
-/* addr("AA:BB:CC:DD:EE:FF")에 연결한다. 찾은 장치나 본딩된 장치여야 한다. 처음이면 페어링한다 */
+/* Connect to addr ("AA:BB:CC:DD:EE:FF"). Must be a found or bonded device. Pairs on first connection */
 esp_err_t ble_pair_connect(const char *addr);
 
-/* 연결된 장치를 끊는다. 본딩은 남기고, 사용자가 다시 연결할 때까지 자동 재연결하지 않는다 */
+/* Disconnect a connected device. The bond is kept, and it is not auto-reconnected until the user connects it again */
 esp_err_t ble_pair_disconnect(const char *addr);
 
-/* 숫자 비교(NUMCMP) 요청에 수락하거나 거부한다 */
+/* Accept or reject a numeric comparison (NUMCMP) request */
 esp_err_t ble_pair_accept(bool accept);
 
-/* 패스키 입력(INPUT) 요청에 6자리 코드를 보낸다 */
+/* Send a 6-digit code for a passkey entry (INPUT) request */
 esp_err_t ble_pair_passkey(uint32_t code);
 
-/* 스캔과 사용자 연결 시도를 멈추고, 진행 중인 페어링 입력을 거절한다. 이미 연결된 장치는 그대로 둔다 */
+/* Stop scanning and user connection attempts, and reject any pending pairing input. Already connected devices stay as they are */
 void ble_pair_cancel(void);
 
 void ble_pair_status(bool *scanning, bool *connected, bool *hid_ready,
                      char *peer, size_t peer_len);
 
-/* 라디오 상태: "idle", "scan", "connect", "auto", "cancel" */
+/* Radio state: "idle", "scan", "connect", "auto", "cancel" */
 const char *ble_pair_radio(void);
 
-/* NimBLE 저장소에 있는 본딩 수. 실패하면 -1 */
+/* Number of bonds in the NimBLE store. -1 on failure */
 int ble_pair_bond_count(void);
 
-/* 호스트 전환 키 조합 "ctrl+alt+1,ctrl+alt+2,ctrl+alt+3" (호스트 순서). 빈 문자열이면 기본값. 형식이 틀리면 ESP_ERR_INVALID_ARG */
+/* Host switch combos "ctrl+alt+1,ctrl+alt+2,ctrl+alt+3" (in host order). Empty string means the default. ESP_ERR_INVALID_ARG if malformed */
 esp_err_t ble_pair_set_combos(const char *text);
 
-/* 활성 호스트를 직접 고른다 (0부터). 이전 호스트에는 모두 뗌을 보낸다 */
+/* Select the active host directly (from 0). The previous host gets release-all */
 esp_err_t ble_pair_select_host(int host);
 
-/* 활성 호스트 (0부터) */
+/* Active host (from 0) */
 int ble_pair_active_host(void);
 
-/* ---- 호스트 (출력 쪽, host.c) ---- */
+/* ---- Hosts (output side, host.c) ---- */
 
-/* 호스트 추가 창 (최대 180초). 열린 동안 새 호스트가 페어링할 수 있다 */
+/* Host pairing window (up to 180 seconds). While open, a new host can pair */
 esp_err_t ble_pair_host_pair(bool open);
 
-/* 페어링된 호스트 목록 (JSON 배열) */
+/* Paired hosts list (JSON array) */
 size_t ble_pair_host_list_json(char *buf, size_t len);
 
-/* 호스트 하나를 지운다 (번호 0부터) */
+/* Remove one host (index from 0) */
 esp_err_t ble_pair_host_remove(int index);
 
-/* 호스트 화면의 패스키를 GUI에서 입력 */
+/* Passkey shown on the host screen, entered from the GUI */
 esp_err_t ble_pair_host_passkey(uint32_t code);
