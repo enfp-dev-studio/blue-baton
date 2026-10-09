@@ -23,9 +23,6 @@
 #define WIFI_FEATURE_JSON "false"
 #endif
 
-/* Unlocked by a matching PIN. Stays until the lock command or a reboot */
-static bool s_unlocked;
-
 void usb_ctl_emit(const char *json)
 {
     printf("KM< %s\n", json);
@@ -80,16 +77,6 @@ static void reply_ble(int id, esp_err_t err)
     }
 }
 
-/* If locked, send an error and return false */
-static bool require_unlock(int id)
-{
-    if (s_unlocked) {
-        return true;
-    }
-    reply_err_code(id, "locked", "Locked. Send auth with the PIN first");
-    return false;
-}
-
 static bool is_digits(const char *s, size_t min_len, size_t max_len)
 {
     size_t n = strlen(s);
@@ -111,11 +98,8 @@ static void cmd_hello(int id)
 
     char fields[256];
     snprintf(fields, sizeof(fields),
-             ",\"fw\":\"blue-baton\",\"version\":\"%s\",\"pin_set\":%s,\"unlocked\":%s,"
-             "\"combo_set\":%s,\"wifi_feature\":%s",
+             ",\"fw\":\"blue-baton\",\"version\":\"%s\",\"combo_set\":%s,\"wifi_feature\":%s",
              KM_FW_VERSION,
-             cfg_pin_is_set() ? "true" : "false",
-             s_unlocked ? "true" : "false",
              combo_set ? "true" : "false",
              WIFI_FEATURE_JSON);
     reply_ok(id, fields);
@@ -147,31 +131,13 @@ static void cmd_status(int id)
     reply_ok(id, fields);
 }
 
-static void cmd_auth(int id, const char *line)
-{
-    if (!cfg_pin_is_set()) {
-        reply_err_code(id, "no_pin", "No PIN is set yet. Set one with pin_set first");
-        return;
-    }
-    char pin[CFG_PIN_MAX + 1];
-    if (!json_get_string(line, "pin", pin, sizeof(pin))) {
-        reply_err_code(id, "bad_request", "pin is missing");
-        return;
-    }
-    if (!cfg_pin_check(pin)) {
-        reply_err_code(id, "wrong_pin", "Wrong PIN");
-        return;
-    }
-    s_unlocked = true;
-    reply_ok(id, "");
-}
-
+#if CONFIG_KM_WIFI_ENABLE
+/*
+ * PIN for the Wi-Fi setup API (web_server.c). USB itself is not locked: the computer the board is plugged into is
+ * trusted, as with other USB accessories. Over Wi-Fi anyone in range can reach the board, so that API needs a PIN.
+ */
 static void cmd_pin_set(int id, const char *line)
 {
-    if (cfg_pin_is_set() && !s_unlocked) {
-        reply_err_code(id, "locked", "A PIN is already set. Unlock with auth first");
-        return;
-    }
     char pin[CFG_PIN_MAX + 1];
     if (!json_get_string(line, "pin", pin, sizeof(pin)) || !is_digits(pin, 4, CFG_PIN_MAX)) {
         reply_err_code(id, "bad_pin", "PIN must be 4 to 8 digits");
@@ -181,8 +147,21 @@ static void cmd_pin_set(int id, const char *line)
         reply_err_code(id, "failed", "Failed to save the PIN");
         return;
     }
-    s_unlocked = true;
     reply_ok(id, "");
+}
+#endif
+
+/* Input monitor lease (see ble_pair_monitor). The settings UI renews it while the monitor is shown */
+static void cmd_monitor(int id, const char *line)
+{
+    bool on = false;
+    if (!json_get_bool(line, "on", &on)) {
+        reply_err_code(id, "bad_request", "on (true or false) is missing");
+        return;
+    }
+    char fields[32];
+    snprintf(fields, sizeof(fields), ",\"lease_ms\":%lu", (unsigned long)ble_pair_monitor(on));
+    reply_ok(id, fields);
 }
 
 /* Default combos. Used when nothing is stored (same as DEFAULT_COMBOS in ble_pair.c) */
@@ -372,50 +351,47 @@ static void handle_line(const char *line)
         cmd_hello(id);
     } else if (strcmp(cmd, "status") == 0) {
         cmd_status(id);
-    } else if (strcmp(cmd, "auth") == 0) {
-        cmd_auth(id, line);
-    } else if (strcmp(cmd, "lock") == 0) {
-        s_unlocked = false;
-        reply_ok(id, "");
+#if CONFIG_KM_WIFI_ENABLE
     } else if (strcmp(cmd, "pin_set") == 0) {
         cmd_pin_set(id, line);
+#endif
+    } else if (strcmp(cmd, "monitor") == 0) {
+        cmd_monitor(id, line);
     } else if (strcmp(cmd, "combo_get") == 0) {
-        if (require_unlock(id)) cmd_combo_get(id);
+        cmd_combo_get(id);
     } else if (strcmp(cmd, "combo_set") == 0) {
-        if (require_unlock(id)) cmd_combo_set(id, line);
+        cmd_combo_set(id, line);
     } else if (strcmp(cmd, "paired_list") == 0) {
-        if (require_unlock(id)) cmd_paired_list(id);
+        cmd_paired_list(id);
     } else if (strcmp(cmd, "paired_remove") == 0) {
-        if (require_unlock(id)) cmd_with_addr(id, line, ble_pair_paired_remove);
+        cmd_with_addr(id, line, ble_pair_paired_remove);
     } else if (strcmp(cmd, "paired_clear") == 0) {
-        if (require_unlock(id)) reply_ble(id, ble_pair_paired_clear());
+        reply_ble(id, ble_pair_paired_clear());
     } else if (strcmp(cmd, "host_select") == 0) {
-        if (require_unlock(id)) cmd_host_select(id, line);
+        cmd_host_select(id, line);
     } else if (strcmp(cmd, "host_pair") == 0) {
-        if (require_unlock(id)) cmd_host_pair(id, line);
+        cmd_host_pair(id, line);
     } else if (strcmp(cmd, "host_list") == 0) {
-        if (require_unlock(id)) cmd_host_list(id);
+        cmd_host_list(id);
     } else if (strcmp(cmd, "host_remove") == 0) {
-        if (require_unlock(id)) cmd_host_remove(id, line);
+        cmd_host_remove(id, line);
     } else if (strcmp(cmd, "host_passkey") == 0) {
-        if (require_unlock(id)) cmd_host_passkey(id, line);
+        cmd_host_passkey(id, line);
     } else if (strcmp(cmd, "pair_scan") == 0) {
-        if (require_unlock(id)) cmd_pair_scan(id, line);
+        cmd_pair_scan(id, line);
     } else if (strcmp(cmd, "pair_list") == 0) {
-        if (require_unlock(id)) cmd_pair_list(id, line);
+        cmd_pair_list(id, line);
     } else if (strcmp(cmd, "pair_connect") == 0) {
-        if (require_unlock(id)) cmd_with_addr(id, line, ble_pair_connect);
+        cmd_with_addr(id, line, ble_pair_connect);
     } else if (strcmp(cmd, "disconnect") == 0) {
-        if (require_unlock(id)) cmd_with_addr(id, line, ble_pair_disconnect);
+        cmd_with_addr(id, line, ble_pair_disconnect);
     } else if (strcmp(cmd, "pair_accept") == 0) {
-        if (require_unlock(id)) cmd_pair_accept(id, line);
+        cmd_pair_accept(id, line);
     } else if (strcmp(cmd, "passkey") == 0) {
-        if (require_unlock(id)) cmd_passkey(id, line);
+        cmd_passkey(id, line);
     } else if (strcmp(cmd, "pair_cancel") == 0) {
-        if (require_unlock(id)) {
-            ble_pair_cancel();
-            reply_ok(id, "");
-        }
+        ble_pair_cancel();
+        reply_ok(id, "");
     } else {
         reply_err_code(id, "unknown_cmd", "Unknown command");
     }

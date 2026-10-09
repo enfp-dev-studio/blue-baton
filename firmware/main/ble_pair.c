@@ -5,6 +5,7 @@
 #include "esp_check.h"
 #include "esp_log.h"
 #include "esp_random.h"
+#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
@@ -52,6 +53,8 @@
 #define CONNECT_MS 10000     /* Time limit for a connection attempt to a user-selected device */
 #define FAIL_LIMIT 3         /* Stop auto-reconnect for a device that disconnects this many times in a row before becoming ready */
 #define HCI_USER_TERM 0x13   /* HCI reason: remote user terminated connection */
+#define MONITOR_LEASE_MS 60000  /* Input content goes out this long after each monitor request (the UI renews it) */
+#define ACTIVITY_MS 250      /* At most one activity event per input device in this time */
 
 /* The NimBLE pool overrides in firmware/CMakeLists.txt must reach NimBLE (host reconnects depend on them) */
 _Static_assert(MYNEWT_VAL(BLE_SM_MAX_PROCS) == CONFIG_BT_NIMBLE_MAX_CONNECTIONS, "BLE_SM_MAX_PROCS override missing");
@@ -122,6 +125,7 @@ typedef struct {
     report_t rep[REPORT_MAX];
     uint8_t rep_count;
     uint8_t kinds;
+    int64_t activity_us;     /* Last activity event (esp_timer time) */
 } peer_t;
 
 typedef enum { RADIO_IDLE, RADIO_SCAN, RADIO_CONNECT, RADIO_AUTO, RADIO_CANCEL } radio_t;
@@ -853,6 +857,44 @@ static void meta_update(peer_t *p, const char *name, bool name_is_gatt, bool tou
     cfg_paired_put(&rec);
 }
 
+/* ---------- Input monitor ----------
+ * What was typed (raw reports, the routed key state) goes out on USB only while the settings UI's input monitor
+ * holds a lease. Any program on the computer can open the serial port, while the OS asks the user before an app
+ * may read keystrokes (macOS: Input Monitoring). Otherwise only "activity" goes out: which device, no content,
+ * at most every ACTIVITY_MS.
+ */
+static portMUX_TYPE s_monitor_lock = portMUX_INITIALIZER_UNLOCKED;
+static int64_t s_monitor_until;      /* esp_timer time. Written by the USB task, read by the host task */
+
+uint32_t ble_pair_monitor(bool on)
+{
+    int64_t until = on ? esp_timer_get_time() + (int64_t)MONITOR_LEASE_MS * 1000 : 0;
+    taskENTER_CRITICAL(&s_monitor_lock);
+    s_monitor_until = until;
+    taskEXIT_CRITICAL(&s_monitor_lock);
+    return on ? MONITOR_LEASE_MS : 0;
+}
+
+static bool monitor_on(void)
+{
+    taskENTER_CRITICAL(&s_monitor_lock);
+    int64_t until = s_monitor_until;
+    taskEXIT_CRITICAL(&s_monitor_lock);
+    return esp_timer_get_time() < until;
+}
+
+static void emit_activity(peer_t *p)
+{
+    int64_t now = esp_timer_get_time();
+    if (p->activity_us && now - p->activity_us < (int64_t)ACTIVITY_MS * 1000) {
+        return;
+    }
+    p->activity_us = now;
+    char buf[64];
+    snprintf(buf, sizeof(buf), "{\"event\":\"activity\",\"addr\":\"%s\"}", p->addr_str);
+    emit(buf);
+}
+
 /* ---------- GATT discovery (HOGP 1.0 Table 4.1 order) ---------- */
 
 static void emit_report(peer_t *p, uint16_t handle, const uint8_t *data, uint16_t len)
@@ -952,7 +994,8 @@ static void cache_save(const peer_t *p)
 
 /*
  * The state sent to the active host is also emitted as an event, for the settings UI and debugging
- * (host.c sends the actual reports). Sent only when the key state changes (mouse motion is not sent).
+ * (host.c sends the actual reports). Sent only when the key state changes (mouse motion is not sent),
+ * and only while the input monitor is on.
  */
 static void emit_route(const router_out_t *o)
 {
@@ -982,7 +1025,8 @@ static void route_out(const router_out_t *out, int switched_from)
         emit(buf);
         /* The previous host gets "release-all". Once the output side exists, it is sent here on the previous host's connection */
     }
-    if (out->pre_valid) {
+    bool monitor = monitor_on();
+    if (out->pre_valid && monitor) {
         /* Send the held combo modifiers first (for Ctrl+C: Ctrl, then Ctrl+C) */
         router_out_t pre = *out;
         memcpy(pre.keys, out->pre_keys, sizeof(pre.keys));
@@ -990,7 +1034,7 @@ static void route_out(const router_out_t *out, int switched_from)
         pre.consumer_changed = false;
         emit_route(&pre);
     }
-    if (switched_from >= 0 || out->keys_changed || out->buttons_changed || out->consumer_changed) {
+    if (monitor && (switched_from >= 0 || out->keys_changed || out->buttons_changed || out->consumer_changed)) {
         emit_route(out);
     }
     if (out->pk_event != ROUTER_PK_NONE) {
@@ -1695,7 +1739,10 @@ static int gap_event(struct ble_gap_event *event, void *arg)
         }
         uint8_t data[64];
         os_mbuf_copydata(event->notify_rx.om, 0, len, data);
-        emit_report(p, event->notify_rx.attr_handle, data, len);
+        emit_activity(p);
+        if (monitor_on()) {
+            emit_report(p, event->notify_rx.attr_handle, data, len);
+        }
         route_report(p, event->notify_rx.attr_handle, data, len);
         break;
     }

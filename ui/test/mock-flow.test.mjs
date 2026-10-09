@@ -1,6 +1,6 @@
 /*
- * Protocol client + mock board integration tests (no browser). Run: node --test firmware/ui/test/
- * Sends commands through the same BoardClient the UI uses and checks replies and events in the firmware 0.5 format.
+ * Protocol client + mock board integration tests (no browser). Run: node --test ui/test/
+ * Sends commands through the same BoardClient the UI uses and checks replies and events in the firmware 0.6 format.
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -29,21 +29,40 @@ function setup(params = '') {
   return { t, c, events, waitFor };
 }
 
-test('locked board refuses commands until auth', async () => {
+test('no lock: commands work right after hello', async () => {
   const { t, c } = setup();
   await t.open();
   const hello = await c.request('hello');
-  assert.equal(hello.unlocked, false);
-  await assert.rejects(c.request('paired_list'), (e) => e.code === 'locked');
-  await assert.rejects(c.request('auth', { pin: '0000' }), (e) => e.code === 'wrong_pin');
-  await c.request('auth', { pin: '2468' });
+  assert.equal(hello.fw, 'blue-baton');
+  assert.equal('unlocked' in hello, false);
   const pl = await c.request('paired_list');
   assert.equal(pl.paired.length, 2);
+  await assert.rejects(c.request('auth', { pin: '0000' }), (e) => e.code === 'unknown_cmd');
+  await t.close();
+});
+
+test('input content only under a monitor lease; activity always', async () => {
+  const { t, c, events, waitFor } = setup();
+  await t.open();
+  await waitFor((e) => e.event === 'activity' && e.addr === '00:00:5E:00:53:17');
+  assert.equal(events.some((e) => e.event === 'report'), false, 'no reports without a lease');
+  const r = await c.request('monitor', { on: true });
+  assert.equal(r.lease_ms, 60000);
+  await waitFor((e) => e.event === 'report' && e.addr === '00:00:5E:00:53:17');
+  await c.request('monitor', { on: false });
+  await new Promise((r) => setTimeout(r, 50));
+  const n = events.filter((e) => e.event === 'report').length;
+  await new Promise((r) => setTimeout(r, 400));
+  assert.equal(events.filter((e) => e.event === 'report').length, n, 'no reports after the lease ends');
+  /* activity is throttled to one per 250 ms per device */
+  const acts = events.filter((e) => e.event === 'activity' && e.addr === '00:00:5E:00:53:17');
+  assert.ok(acts.length >= 1);
+  await assert.rejects(c.request('monitor', {}), (e) => e.code === 'bad_request');
   await t.close();
 });
 
 test('bonded devices reconnect by themselves with stored keys', async () => {
-  const { t, waitFor } = setup('unlocked');
+  const { t, waitFor } = setup();
   await t.open();
   await waitFor((e) => e.event === 'autoconnect');
   const enc = await waitFor((e) => e.event === 'encrypted' && e.addr === '00:00:5E:00:53:17');
@@ -53,7 +72,7 @@ test('bonded devices reconnect by themselves with stored keys', async () => {
 });
 
 test('slots full -> no_slot, then numeric comparison pairing after freeing one', async () => {
-  const { t, c, waitFor } = setup('unlocked&fast');
+  const { t, c, waitFor } = setup('fast');
   await t.open();
   await waitFor((e) => e.event === 'hid_ready' && e.addr === '00:00:5E:00:53:22');
   await c.request('pair_scan', { on: true });
@@ -74,7 +93,7 @@ test('slots full -> no_slot, then numeric comparison pairing after freeing one',
 });
 
 test('wrong passkey fails with a security failure, then unknown command and bad state errors', async () => {
-  const { t, c, waitFor } = setup('unlocked&fast');
+  const { t, c, waitFor } = setup('fast');
   await t.open();
   await waitFor((e) => e.event === 'hid_ready' && e.addr === '00:00:5E:00:53:22');
   await c.request('disconnect', { addr: '00:00:5E:00:53:22' });
@@ -91,7 +110,7 @@ test('wrong passkey fails with a security failure, then unknown command and bad 
 });
 
 test('connect on a paired offline device resumes auto-connect instead of a direct attempt', async () => {
-  const { t, c, events, waitFor } = setup('unlocked');
+  const { t, c, events, waitFor } = setup();
   await t.open();
   await waitFor((e) => e.event === 'hid_ready' && e.addr === '00:00:5E:00:53:17');
   await c.request('disconnect', { addr: '00:00:5E:00:53:17' });
@@ -108,7 +127,7 @@ test('connect on a paired offline device resumes auto-connect instead of a direc
 });
 
 test('remove a pairing', async () => {
-  const { t, c, waitFor } = setup('unlocked');
+  const { t, c, waitFor } = setup();
   await t.open();
   await c.request('paired_remove', { addr: '00:00:5E:00:53:17' });
   await waitFor((e) => e.event === 'unpaired' && e.id_addr === '00:00:5E:00:53:17');
@@ -120,7 +139,7 @@ test('remove a pairing', async () => {
 
 test('host pairing: window, passkey typed in the GUI, then the host shows up as ready', async () => {
   const lines = [];
-  const { t, c, waitFor } = setup('unlocked');
+  const { t, c, waitFor } = setup();
   const onLine = t.onLine;
   await t.open();
   t.onLine = (line) => {
@@ -146,7 +165,7 @@ test('host pairing: window, passkey typed in the GUI, then the host shows up as 
 });
 
 test('host pairing with a wrong passkey fails, and host_remove frees the slot', async () => {
-  const { t, c, waitFor } = setup('unlocked');
+  const { t, c, waitFor } = setup();
   await t.open();
   await c.request('host_pair', { on: true });
   await waitFor((e) => e.event === 'host_passkey_request');

@@ -5,7 +5,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Label } from '@/components/ui/label';
 import { t } from '@/lib/board/i18n.js';
-import type { BoardState, Controller } from '@/lib/board/types';
+import type { Actions, BoardState, Controller } from '@/lib/board/types';
 import { cn } from '@/lib/utils';
 
 function stored(key: string) {
@@ -24,14 +24,31 @@ function store(key: string, on: boolean) {
   }
 }
 
-/* Developer area: the input monitor (plain DOM, updated dozens of times a second) and the protocol log */
-export function Diagnostics({ s, ctl }: { s: BoardState; ctl: Controller }) {
+function useVisible() {
+  const [visible, setVisible] = useState(() => document.visibilityState === 'visible');
+  useEffect(() => {
+    const on = () => setVisible(document.visibilityState === 'visible');
+    document.addEventListener('visibilitychange', on);
+    return () => document.removeEventListener('visibilitychange', on);
+  }, []);
+  return visible;
+}
+
+/*
+ * Developer area: the input monitor (plain DOM, updated dozens of times a second) and the protocol log.
+ * The board sends input content only while the monitor is open and the window is visible.
+ */
+export function Diagnostics({ s, a, ctl }: { s: BoardState; a: Actions; ctl: Controller }) {
   const [open, setOpen] = useState(() => stored('bb.diagOpen'));
   const [boardLines, setBoardLines] = useState(false);
   const holder = useRef<HTMLDivElement>(null);
+  const visible = useVisible();
   useEffect(() => {
     if (open && holder.current) holder.current.replaceChildren(ctl.monitorRoot);
   }, [open, ctl.monitorRoot]);
+  useEffect(() => {
+    a.monitor(open && visible);
+  }, [a, open, visible]);
   const rows = open ? s.log.filter((r) => boardLines || r.dir !== '·').slice(-200) : [];
   return (
     <Collapsible

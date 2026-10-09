@@ -51,8 +51,6 @@ export interface BoardState {
   link: 'disconnected' | 'connecting' | 'connected';
   transport: string;
   fw: string | null;
-  pinSet: boolean;
-  unlocked: boolean;
   radio: string;
   scanning: boolean;
   scanPending?: boolean;
@@ -77,9 +75,7 @@ export interface BoardState {
 export interface Actions {
   connect(): Promise<void>;
   disconnectLink(): Promise<void>;
-  unlock(pin: string): Promise<void>;
-  setPin(pin: string): Promise<void>;
-  lock(): Promise<void>;
+  monitor(on: boolean): void;
   dismiss(): void;
   openAdd(): void;
   closeAdd(): void;

@@ -17,6 +17,7 @@
 /* Open the settings store (NVS, namespace km_cfg). Call after nvs_flash_init() */
 esp_err_t cfg_init(void);
 
+/* PIN for the Wi-Fi setup API only (USB is not locked) */
 bool cfg_pin_is_set(void);
 bool cfg_pin_check(const char *pin);
 esp_err_t cfg_pin_set(const char *pin);

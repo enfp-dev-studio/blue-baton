@@ -1,8 +1,8 @@
-# USB Control Protocol (firmware 0.5)
+# USB Control Protocol (firmware 0.6)
 
-The board connects over USB to the main machine, and that machine's settings UI (`firmware/ui`, via the local bridge or Web Serial) controls the board with this protocol.
+The board connects over USB to the main machine, and that machine's settings app (`app/`, or the UI in `ui/` via the local bridge or Web Serial) controls the board with this protocol.
 
-Changes from earlier versions are collected at the end under "0.4 → 0.5 changes" and "0.3 → 0.4 changes".
+Changes from earlier versions are collected at the end under "0.5 → 0.6 changes", "0.4 → 0.5 changes" and "0.3 → 0.4 changes".
 
 ## Basic rules
 
@@ -12,7 +12,7 @@ Changes from earlier versions are collected at the end under "0.4 → 0.5 change
   ```
 - Board → host: one JSON line with the `KM< ` prefix
   ```text
-  KM< {"id":1,"ok":true,"fw":"blue-baton","version":"0.5","pin_set":true,"unlocked":false,"combo_set":false,"wifi_feature":false}
+  KM< {"id":1,"ok":true,"fw":"blue-baton","version":"0.6","combo_set":false,"wifi_feature":false}
   ```
 - A response carries the same `id` as its request. Notifications the board sends on its own (events) have an `event` field and no `id`.
 - Board logs (`I (123) km: ...`) come out on the same port. The host should read only lines that start with `KM< `. Locate `KM< `, then parse from there.
@@ -25,39 +25,44 @@ Changes from earlier versions are collected at the end under "0.4 → 0.5 change
   - `id_addr`: the device's identity address. This is the persistent key that identifies a paired device.
   - For devices with a static address the two are the same. For devices that use an RPA they differ.
 
-## Lock
+## Access and input content
 
-- There is no PIN at first. Setting a PIN (4 to 8 digits) with `pin_set` unlocks the board immediately.
-- Once a PIN is set, `auth` must unlock the board first. `lock` locks it again.
-- After a reboot the board starts locked. The PIN and saved values persist in NVS.
-- Commands blocked while locked return `code: "locked"`, `error: "Locked. Send auth with the PIN first"`.
+- USB is not locked. The computer the board is plugged into is trusted, as with other USB accessories (receivers,
+  KVM switches, keyboard setup apps).
+- What is typed does not go out on USB by default. Any program on the computer can open the serial port, while the
+  OS asks the user before an app may read keystrokes (macOS: Input Monitoring). Only `activity` (which device, no
+  content) is sent, at most every 250 ms per device.
+- `report` and `route` (input content) are sent only while a client holds the input monitor lease: `monitor`
+  `{"on":true}` turns it on for `lease_ms` (60 s) and must be renewed; `{"on":false}` or a reboot ends it. The
+  settings UI renews it only while its input monitor is open and visible.
+- The Wi-Fi setup API (`KM_WIFI_ENABLE=y` builds only) is reachable by anyone in radio range, so it needs a PIN
+  (`X-PIN` header), set over USB with `pin_set`. Builds without Wi-Fi erase a PIN left by earlier firmware at boot.
 
 ## Commands
 
-| Command | Arguments | Unlock required | Description |
-|---|---|---|---|
-| `hello` | none | No | Firmware info, whether a PIN is set, unlocked state, whether a switch combo is set, whether the Wi-Fi feature is present |
-| `status` | none | No | See "status response" below |
-| `pin_set` | `pin` | If a PIN is set | Set or change the PIN |
-| `auth` | `pin` | No | Check the PIN. Unlocks on a match |
-| `lock` | none | No | Lock again |
-| `combo_get` | none | Yes | The host switch combos actually in effect (`combo`). If nothing is stored or the stored value is malformed, the default applies and `default:true`; if an invalid value is stored, `stored_invalid:true` |
-| `combo_set` | `combo` | Yes | Comma-separated list of combos in host order (e.g. `ctrl+alt+1,ctrl+alt+2,ctrl+alt+3`, up to 95 characters). Validated, then applied and saved immediately. If invalid, `code:"bad_combo"` |
-| `host_select` | `host` (1–3) | Yes | Select the active host directly. Same handling as a combo switch (release-all to the previous host) |
-| `host_pair` | `on` | Yes | Open or close the host pairing window. When opened, it accepts connections and pairing from new hosts for 180 seconds. It closes by itself once one host attaches. If 3 hosts are already paired, `code:"hosts_full"`. While it is open, input device scanning and user connection attempts are paused |
-| `host_list` | none | Yes | List of paired hosts (`hosts`). See "host_list entries" below |
-| `host_remove` | `host` (1–3) | Yes | Delete the bond of the host at that number. Disconnects it if connected. "Blue Baton" must also be removed on that computer before it can be added again |
-| `host_passkey` | `code` (6-digit string) | Yes | Answer `host_passkey_request` from the GUI (instead of typing on a keyboard attached to the router) |
-| `pair_scan` | `on` | Yes | Turn new-device scanning on/off. Once on, it stops by itself after 60 seconds (`scan_stopped` `reason:"timeout"`). Auto-reconnect pauses while scanning. If a user connection attempt is in progress, it is abandoned (`connect_failed` `status:"cancelled"`) and the scan starts right away |
-| `pair_list` | `all` (optional, default false) | Yes | Found devices list (`devices`). HID devices only by default; with `all:true`, every connectable device. Currently connected devices are excluded |
-| `pair_connect` | `addr` | Yes | Newly found device: connect and pair (10-second attempt). Paired device: not connected directly, but put back on the auto-connect list (auto-connect is re-enabled if it was off). It connects when the device wakes and advertises. Stops the scan if one is running |
-| `disconnect` | `addr` | Yes | Disconnect a connected device. The pairing is kept, and the device is not auto-reconnected until the next `pair_connect` |
-| `pair_accept` | `accept` | Yes | Accept/reject a numeric comparison (`numcmp`) request |
-| `passkey` | `code` (6-digit string) | Yes | Answer `passkey_request` |
-| `pair_cancel` | none | Yes | Stop scanning and user connection attempts, and reject any pending pairing input. **Devices that are already connected are not disconnected** |
-| `paired_list` | none | Yes | List of paired input devices (`paired`). The source is the NimBLE bond store. Bonds recorded as hosts are excluded |
-| `paired_remove` | `addr` (identity) | Yes | Delete one pairing (bond keys, resolving list, name, etc.). Disconnects it if connected |
-| `paired_clear` | none | Yes | Delete all pairings |
+| Command | Arguments | Description |
+|---|---|---|
+| `hello` | none | Firmware info, whether a switch combo is set, whether the Wi-Fi feature is present |
+| `status` | none | See "status response" below |
+| `monitor` | `on` | Input monitor lease (see "Access and input content"). Reply: `lease_ms` (60000 when on, 0 when off) |
+| `pin_set` | `pin` (4 to 8 digits) | Wi-Fi builds only: set the Wi-Fi setup API PIN |
+| `combo_get` | none | The host switch combos actually in effect (`combo`). If nothing is stored or the stored value is malformed, the default applies and `default:true`; if an invalid value is stored, `stored_invalid:true` |
+| `combo_set` | `combo` | Comma-separated list of combos in host order (e.g. `ctrl+alt+1,ctrl+alt+2,ctrl+alt+3`, up to 95 characters). Validated, then applied and saved immediately. If invalid, `code:"bad_combo"` |
+| `host_select` | `host` (1–3) | Select the active host directly. Same handling as a combo switch (release-all to the previous host) |
+| `host_pair` | `on` | Open or close the host pairing window. When opened, it accepts connections and pairing from new hosts for 180 seconds. It closes by itself once one host attaches. If 3 hosts are already paired, `code:"hosts_full"`. While it is open, input device scanning and user connection attempts are paused |
+| `host_list` | none | List of paired hosts (`hosts`). See "host_list entries" below |
+| `host_remove` | `host` (1–3) | Delete the bond of the host at that number. Disconnects it if connected. "Blue Baton" must also be removed on that computer before it can be added again |
+| `host_passkey` | `code` (6-digit string) | Answer `host_passkey_request` from the GUI (instead of typing on a keyboard attached to the router) |
+| `pair_scan` | `on` | Turn new-device scanning on/off. Once on, it stops by itself after 60 seconds (`scan_stopped` `reason:"timeout"`). Auto-reconnect pauses while scanning. If a user connection attempt is in progress, it is abandoned (`connect_failed` `status:"cancelled"`) and the scan starts right away |
+| `pair_list` | `all` (optional, default false) | Found devices list (`devices`). HID devices only by default; with `all:true`, every connectable device. Currently connected devices are excluded |
+| `pair_connect` | `addr` | Newly found device: connect and pair (10-second attempt). Paired device: not connected directly, but put back on the auto-connect list (auto-connect is re-enabled if it was off). It connects when the device wakes and advertises. Stops the scan if one is running |
+| `disconnect` | `addr` | Disconnect a connected device. The pairing is kept, and the device is not auto-reconnected until the next `pair_connect` |
+| `pair_accept` | `accept` | Accept/reject a numeric comparison (`numcmp`) request |
+| `passkey` | `code` (6-digit string) | Answer `passkey_request` |
+| `pair_cancel` | none | Stop scanning and user connection attempts, and reject any pending pairing input. **Devices that are already connected are not disconnected** |
+| `paired_list` | none | List of paired input devices (`paired`). The source is the NimBLE bond store. Bonds recorded as hosts are excluded |
+| `paired_remove` | `addr` (identity) | Delete one pairing (bond keys, resolving list, name, etc.). Disconnects it if connected |
+| `paired_clear` | none | Delete all pairings |
 
 Failure `code`
 
@@ -72,10 +77,7 @@ Failure `code`
 | `hosts_full` | All 3 host slots are in use |
 | `bad_host` | Host number is not 1–3 |
 | `bad_code` | Passkey is not 6 digits |
-| `locked` | Locked: unlock with `auth` first (also returned by `pin_set` when a PIN exists and the board is locked) |
-| `no_pin` | `auth` before any PIN is set |
-| `wrong_pin` | `auth` with the wrong PIN |
-| `bad_pin` | PIN is not 4–8 digits |
+| `bad_pin` | `pin_set` (Wi-Fi builds): PIN is not 4–8 digits |
 | `bad_combo` | Switch combo missing or malformed |
 | `bad_request` | Missing or malformed argument (`cmd`, `on`, `accept`, `pin`) |
 | `unknown_cmd` | Unknown command |
@@ -151,13 +153,14 @@ hosts: [{"host":1,"addr":"AA:BB:CC:DD:EE:FF","name":"MacBook Pro","connected":tr
 | `subscribe_failed` | `addr`, `val`, `status` | Failed to enable notifications for one input report (the rest continue) |
 | `hid_ready` | `addr`, `id_addr`, `kinds`, `reports`, `services` | Ready to receive input |
 | `device_name` | `addr`, `name` | Read the GAP Device Name (devices without a name in their advertising get their name here) |
-| `report` | `addr`, `handle`, `data` (hex) | Input report. `handle` is the `val` from `report_ref` |
+| `activity` | `addr` | Input arrived from that device. No content; at most every 250 ms per device |
+| `report` | `addr`, `handle`, `data` (hex) | Input report. `handle` is the `val` from `report_ref`. Only under the input monitor lease |
 | `failed` | `addr`, `stage`, `status` | A connection ended in failure. The board disconnects it. `stage`: `security_start`, `security`, `not_bonded`, `services`, `no_hid_service`, `characteristics`, `descriptors` |
 | `disconnected` | `addr`, `id_addr`, `reason` | Disconnected (HCI reason code. 531 = remote side disconnected) |
 | `unpaired` | `id_addr` | One pairing was deleted |
 | `unpaired_all` | none | All pairings were deleted |
 | `host_switch` | `host`, `from` | The active host changed (combo or `host_select`). 1-based |
-| `route` | `host`, `keys`, `buttons`, `consumer` | The state to send to the active host changed (keys, mouse buttons, media keys). `keys` is a list of Keyboard page Usages (including modifiers 0xE0–0xE7). Mouse motion is not included. For diagnostics |
+| `route` | `host`, `keys`, `buttons`, `consumer` | The state to send to the active host changed (keys, mouse buttons, media keys). `keys` is a list of Keyboard page Usages (including modifiers 0xE0–0xE7). Mouse motion is not included. For diagnostics, only under the input monitor lease |
 | `host_online` | `host`, `online` | Whether the host switched to is connected right now. If `false`, input is dropped until it connects (it is not sent later in a burst) |
 | `host_window` | `open`, `seconds` | The host pairing window opened/closed |
 | `host_connected` | `host`, `addr`, `bonded`, `itvl` | A host connected. For a bonded host `host` is its number; for a computer attaching for the first time through the window, `host:0` |
@@ -178,15 +181,14 @@ hosts: [{"host":1,"addr":"AA:BB:CC:DD:EE:FF","name":"MacBook Pro","connected":tr
 
 ### Adding a new device
 
-1. Unlock with `auth`
-2. `pair_scan` `{"on":true}` → watch for `device_found`
-3. `pair_connect` `{"addr":"..."}` (the board stops the scan on its own)
-4. Answer according to the events
+1. `pair_scan` `{"on":true}` → watch for `device_found`
+2. `pair_connect` `{"addr":"..."}` (the board stops the scan on its own)
+3. Answer according to the events
    - No request at all: Just Works (most mice, some keyboards)
    - `numcmp` → `pair_accept` `{"accept":true}`
    - `passkey_request` → `passkey` `{"code":"123456"}`
    - `passkey_display` → type the number the board shows on the device
-5. `encrypted` `bond:"new"` → `paired` → `hid_ready` → `device_name`
+4. `encrypted` `bond:"new"` → `paired` → `hid_ready` → `device_name`
 
 ### Adding a host (Mac, Windows)
 
@@ -222,6 +224,13 @@ Only while the window is open does the board present itself as a keyboard (IO ca
   - Keys held at that moment are not sent to any host until each one is released (the combo does not leak)
   - The previous host receives a "release-all". Pressing the combo of the host already in use swallows the combo without switching
   - When an input device disconnects, the keys it was holding are treated as released
+
+## 0.5 → 0.6 changes
+
+- USB is no longer locked: `auth` and `lock` are gone, `hello` no longer has `pin_set` and `unlocked`, and the
+  `locked`, `no_pin` and `wrong_pin` codes are gone. `pin_set` remains only in Wi-Fi builds (for the Wi-Fi setup API).
+  A PIN stored by earlier firmware is erased at boot in builds without Wi-Fi.
+- Input content (`report`, `route`) goes out only under the new `monitor` lease. New event `activity` (no content).
 
 ## 0.4 → 0.5 changes
 

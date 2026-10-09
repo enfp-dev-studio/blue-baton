@@ -44,7 +44,6 @@ pub struct Labels {
     pub inputs: String,
     pub no_inputs: String,
     pub board_off: String,
-    pub locked: String,
 }
 
 impl Default for Labels {
@@ -60,7 +59,6 @@ impl Default for Labels {
             inputs: "Input devices".into(),
             no_inputs: "No input device connected".into(),
             board_off: "Board not connected".into(),
-            locked: "Locked · open Blue Baton to unlock".into(),
         }
     }
 }
@@ -71,7 +69,7 @@ pub struct Model {
     pub active: u8,
     pub hosts: Vec<HostItem>,
     pub inputs: Vec<InputItem>,
-    /// connected | disconnected | locked
+    /// connected | disconnected
     pub board: String,
     pub labels: Labels,
     pub tooltip: String,
@@ -127,8 +125,7 @@ fn build_menu(app: &AppHandle, model: &Model, dev_api_on: bool) -> tauri::Result
     let menu = Menu::new(app)?;
     let connected = model.board == "connected";
     if !connected {
-        let text = if model.board == "locked" { &l.locked } else { &l.board_off };
-        menu.append(&MenuItem::with_id(app, "status", text, false, None::<&str>)?)?;
+        menu.append(&MenuItem::with_id(app, "status", &l.board_off, false, None::<&str>)?)?;
     }
     if connected {
         for n in 1..=3u8 {

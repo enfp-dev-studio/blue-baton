@@ -12,7 +12,7 @@ BLE mouse ────┴─→ ESP32-S3 (NimBLE) ─┼─ BLE HID → host 2
                     └─ USB: menu bar app (settings, quick switch)
 ```
 
-Status: firmware 0.5. Two Macs verified on real hardware (input from a BLE mouse reaches the active Mac; hosts switch from the settings UI). Keyboard combo switching and Windows hosts are implemented but not yet verified on hardware.
+Status: firmware 0.6. Two Macs verified on real hardware (input from a BLE mouse reaches the active Mac; hosts switch from the settings UI). Keyboard combo switching and Windows hosts are implemented but not yet verified on hardware.
 
 License: not decided yet. Until a license is added, no rights are granted to reuse the code.
 

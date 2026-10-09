@@ -74,6 +74,12 @@ esp_err_t ble_pair_select_host(int host);
 /* Active host (from 0) */
 int ble_pair_active_host(void);
 
+/*
+ * Input monitor lease: while on, input content (report and route events) goes out; otherwise only activity.
+ * on renews the lease and returns its length in ms; off ends it. Safe from any task (does not wait for the host task)
+ */
+uint32_t ble_pair_monitor(bool on);
+
 /* ---- Hosts (output side, host.c) ---- */
 
 /* Host pairing window (up to 180 seconds). While open, a new host can pair */

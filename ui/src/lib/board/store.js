@@ -16,8 +16,6 @@ export class Store {
       linkError: '',
       transport: '',
       fw: null,
-      pinSet: false,
-      unlocked: false,
       radio: 'idle',
       scanning: false,
       scanUntil: 0,

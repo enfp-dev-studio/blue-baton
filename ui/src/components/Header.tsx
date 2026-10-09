@@ -1,4 +1,4 @@
-import { Lock, Usb } from 'lucide-react';
+import { Usb } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Logo, StateTag } from '@/components/parts';
 import { RADIO, t } from '@/lib/board/i18n.js';
@@ -28,7 +28,7 @@ export function Header({ s, a, ctl }: { s: BoardState; a: Actions; ctl: Controll
               </StateTag>
             )}
           </span>
-          {connected && s.unlocked && (
+          {connected && (
             <span className={cn('hidden rounded-full px-2.5 py-1 text-xs sm:inline', busyRadio ? 'bg-primary/10 text-primary' : 'text-muted-foreground')}>
               {RADIO[s.radio] || s.radio}
             </span>
@@ -36,11 +36,6 @@ export function Header({ s, a, ctl }: { s: BoardState; a: Actions; ctl: Controll
           {!connected && ctl.needsSerial && (
             <Button size="sm" className="rounded-full" onClick={a.connect} disabled={s.link === 'connecting'}>
               <Usb /> {t('link.connect')}
-            </Button>
-          )}
-          {connected && s.unlocked && (
-            <Button size="sm" variant="ghost" className="rounded-full text-muted-foreground" onClick={a.lock} title={t('link.lockTitle')}>
-              <Lock /> {t('link.lock')}
             </Button>
           )}
           {connected && !ctl.inApp && (

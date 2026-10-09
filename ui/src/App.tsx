@@ -7,7 +7,7 @@ import { DevicesPanel } from '@/components/DevicesPanel';
 import { Diagnostics } from '@/components/Diagnostics';
 import { Header } from '@/components/Header';
 import { HostsPanel } from '@/components/HostsPanel';
-import { ConnectCard, LockCard } from '@/components/LockCard';
+import { ConnectCard } from '@/components/ConnectCard';
 import type { Controller } from '@/lib/board/types';
 import { useBoard } from '@/lib/useBoard';
 
@@ -24,21 +24,20 @@ export function App({ ctl }: { ctl: Controller }) {
     else toast(n.text, { id: n.at });
   }, [s.notice?.at]);
 
-  const ready = s.link === 'connected' && s.unlocked;
+  const ready = s.link === 'connected';
   return (
     <TooltipProvider>
       <div className="min-h-screen bg-[radial-gradient(1200px_420px_at_50%_-180px,var(--glow),transparent_70%)]">
         <Header s={s} a={a} ctl={ctl} />
         <main className="mx-auto grid max-w-[900px] gap-4 px-3 pb-14 pt-6 sm:px-4">
-          {s.link !== 'connected' && <ConnectCard s={s} a={a} ctl={ctl} />}
-          {s.link === 'connected' && !s.unlocked && <LockCard s={s} a={a} />}
+          {!ready && <ConnectCard s={s} a={a} ctl={ctl} />}
           {ready && (
             <>
               <HostsPanel s={s} a={a} confirm={setConfirm} />
               <DevicesPanel s={s} a={a} confirm={setConfirm} />
             </>
           )}
-          <Diagnostics s={s} ctl={ctl} />
+          <Diagnostics s={s} a={a} ctl={ctl} />
         </main>
         {ready && <HostPairingDialog s={s} a={a} />}
         {ready && <AddDeviceDialog s={s} a={a} />}

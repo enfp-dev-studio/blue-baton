@@ -4,7 +4,6 @@
 //! - Menu bar / tray icon with the active host: left click opens a panel under it (quick switching),
 //!   right click a menu (tray.rs). No Dock icon (LSUIElement in Info.plist).
 //! - The settings window is the shared UI (../../ui); closing it only hides it.
-//! - Remembers the settings PIN in the system keychain so the tray works without unlocking each time.
 //! - Optional developer API compatible with tools/bridge.py (devapi.rs).
 
 mod board;
@@ -20,8 +19,6 @@ use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_notification::NotificationExt;
 use tauri_plugin_positioner::{Position, WindowExt};
 
-const KEYCHAIN_SERVICE: &str = "com.enfpdev.bluebaton";
-const KEYCHAIN_PIN: &str = "board-pin";
 /// Passed by the login item so the app starts in the menu bar without opening the window
 const HIDDEN_ARG: &str = "--hidden";
 
@@ -190,27 +187,6 @@ fn notify(app: AppHandle, title: String, body: String) {
     let _ = app.notification().builder().title(title).body(body).show();
 }
 
-fn pin_entry() -> Option<keyring::Entry> {
-    keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_PIN).ok()
-}
-
-#[tauri::command]
-fn pin_load() -> Option<String> {
-    pin_entry()?.get_password().ok()
-}
-
-#[tauri::command]
-fn pin_save(pin: String) -> Result<(), String> {
-    pin_entry().ok_or("keychain unavailable")?.set_password(&pin).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-fn pin_clear() {
-    if let Some(e) = pin_entry() {
-        let _ = e.delete_credential();
-    }
-}
-
 pub fn run() {
     tauri::Builder::default()
         // First, so a second launch only brings the running app forward (one owner for the serial port)
@@ -260,7 +236,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            board_status, board_send, tray_update, window_show, panel_hide, app_quit, notify, pin_load, pin_save, pin_clear
+            board_status, board_send, tray_update, window_show, panel_hide, app_quit, notify
         ])
         .build(tauri::generate_context!())
         .expect("error while building Blue Baton")

@@ -1,6 +1,6 @@
 /*
  * Mock board. Lets us build and check the UI without hardware.
- * Imitates the firmware 0.5 commands, replies, and event formats (firmware/PROTOCOL.md).
+ * Imitates the firmware 0.6 commands, replies, and event formats (firmware/PROTOCOL.md).
  *
  * Devices
  * - The mouse and keyboard captured from real hardware: their Report Maps, handles, and report IDs as-is.
@@ -10,7 +10,7 @@
  * Hosts: host 1 is a bonded mock Mac (connects after boot). Opening the host pairing window makes a mock PC
  * connect 2 s later and request a passkey. The code shown on that PC is printed as a board log line.
  *
- * URL options: ?mock (default), &unlocked (opens without a PIN), &fast (10 s scan)
+ * URL options: ?mock (default), &fast (10 s scan)
  */
 
 import { t } from '../i18n.js';
@@ -63,6 +63,10 @@ function catalog() {
   ];
 }
 
+/* Same as the firmware (ble_pair.c) */
+const MONITOR_LEASE_MS = 60000;
+const ACTIVITY_MS = 250;
+
 const hex = (bytes) => bytes.map((b) => (b & 0xff).toString(16).padStart(2, '0').toUpperCase()).join('');
 const i16 = (v) => [v & 0xff, (v >> 8) & 0xff];
 
@@ -71,9 +75,8 @@ class MockBoard {
     this.emit = emit;
     this.opts = opts;
     this.devices = catalog();
-    this.pinSet = true;
-    this.pin = '2468';   /* mock board only */
-    this.unlocked = opts.unlocked;
+    this.monitorUntil = 0;     /* input monitor lease (performance.now() ms) */
+    this.activityAt = new Map();   /* addr -> last activity event */
     this.combo = '';
     this.activeHost = 1;
     this.scanning = false;
@@ -233,6 +236,16 @@ class MockBoard {
     this.radioUpdate();
   }
 
+  /* Input from a device: activity (throttled, no content) always; the report itself only while the monitor is on */
+  input(addr, handle, data) {
+    const now = performance.now();
+    if (now - (this.activityAt.get(addr) ?? -Infinity) >= ACTIVITY_MS) {
+      this.activityAt.set(addr, now);
+      this.ev({ event: 'activity', addr });
+    }
+    if (now < this.monitorUntil) this.ev({ event: 'report', addr, handle, data });
+  }
+
   /* Ready devices send input: the mouse moves in circles, the keyboard types text */
   tickInputs() {
     const now = performance.now();
@@ -245,7 +258,7 @@ class MockBoard {
         if (phase < 1.6) {
           const a = phase * 4;
           const btn = phase > 1.4 ? 1 : 0;
-          this.ev({ event: 'report', addr: d.addr, handle: 25, data: hex([btn, ...i16(Math.round(Math.cos(a) * 6)), ...i16(Math.round(Math.sin(a) * 6)), 0]) });
+          this.input(d.addr, 25, hex([btn, ...i16(Math.round(Math.cos(a) * 6)), ...i16(Math.round(Math.sin(a) * 6)), 0]));
         }
       } else if (d.role === 'nkro' || d.role === 'simple') {
         const text = 'hello km ';
@@ -258,9 +271,9 @@ class MockBoard {
         if (d.role === 'nkro') {
           const bits = new Array(15).fill(0);
           if (down) bits[usage >> 3] |= 1 << (usage & 7);
-          this.ev({ event: 'report', addr: d.addr, handle: 80, data: hex(bits) });
+          this.input(d.addr, 80, hex(bits));
         } else {
-          this.ev({ event: 'report', addr: d.addr, handle: 20, data: hex([0, 0, down ? usage : 0, 0, 0, 0, 0, 0]) });
+          this.input(d.addr, 20, hex([0, 0, down ? usage : 0, 0, 0, 0, 0, 0]));
         }
       }
     }
@@ -381,25 +394,13 @@ class MockBoard {
 
   handle(req) {
     const { id, cmd } = req;
-    const open = ['hello', 'status', 'auth', 'lock', 'pin_set'];
-    if (!open.includes(cmd) && !this.unlocked) {
-      return this.fail(id, 'locked', 'Locked. Send auth with the PIN first');
-    }
     switch (cmd) {
       case 'hello':
-        return this.reply(id, { fw: 'blue-baton', version: '0.5-mock', pin_set: this.pinSet, unlocked: this.unlocked, combo_set: !!this.combo, wifi_feature: false });
-      case 'auth':
-        if (req.pin !== this.pin) return this.fail(id, 'wrong_pin', 'Wrong PIN');
-        this.unlocked = true;
-        return this.reply(id);
-      case 'lock':
-        this.unlocked = false;
-        return this.reply(id);
-      case 'pin_set':
-        if (!/^\d{4,8}$/.test(req.pin || '')) return this.fail(id, 'bad_pin', 'PIN must be 4 to 8 digits');
-        this.pin = req.pin;
-        this.unlocked = true;
-        return this.reply(id);
+        return this.reply(id, { fw: 'blue-baton', version: '0.6-mock', combo_set: !!this.combo, wifi_feature: false });
+      case 'monitor':
+        if (typeof req.on !== 'boolean') return this.fail(id, 'bad_request', 'on (true or false) is missing');
+        this.monitorUntil = req.on ? performance.now() + MONITOR_LEASE_MS : 0;
+        return this.reply(id, { lease_ms: req.on ? MONITOR_LEASE_MS : 0 });
       case 'combo_get':
         return this.reply(id, { combo: this.combo || 'ctrl+alt+1,ctrl+alt+2,ctrl+alt+3', default: !this.combo, stored_invalid: false });
       case 'host_select': {
@@ -410,7 +411,7 @@ class MockBoard {
           this.activeHost = req.host;
           this.ev({ event: 'host_switch', host: req.host, from });
           this.ev({ event: 'host_online', host: req.host, online: this.hosts.get(req.host)?.state === 'ready' });
-          this.ev({ event: 'route', host: req.host, keys: [], buttons: 0, consumer: [] });
+          if (performance.now() < this.monitorUntil) this.ev({ event: 'route', host: req.host, keys: [], buttons: 0, consumer: [] });
         }
         return;
       }
@@ -544,7 +545,7 @@ class MockBoard {
 export class MockTransport {
   constructor(params = new URLSearchParams()) {
     this.label = t('transport.mock');
-    this.opts = { unlocked: params.has('unlocked'), fast: params.has('fast') };
+    this.opts = { fast: params.has('fast') };
     this.board = null;
     this.onLine = () => {};
     this.onClose = () => {};

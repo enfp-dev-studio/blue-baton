@@ -18,7 +18,7 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:5180/?mock&unlocked` for the mock board (`&lang=ko` for Korean, `&fast` for 10 s scans).
+Open `http://localhost:5180/?mock` for the mock board (`&lang=ko` for Korean, `&fast` for 10 s scans).
 Inside the menu bar app (`npm run dev` in `../app`) the window loads this dev server and talks to the real board.
 
 ```bash
@@ -33,7 +33,7 @@ npm test
 
 | Where | Transport | Notes |
 |---|---|---|
-| Menu bar app | `transport/tauri.js` | The app owns the USB port (`app/src-tauri/src/board.rs`); lines arrive as events. The PIN is remembered in the system keychain |
+| Menu bar app | `transport/tauri.js` | The app owns the USB port (`app/src-tauri/src/board.rs`); lines arrive as events |
 | Dev bridge | `transport/bridge.js` | `?bridge`. Server-sent events + POST. The UI, monitors, and the flash helper share one port |
 | Browser | `transport/webserial.js` | Chrome/Edge only. A port allowed once opens without the picker next time |
 | No board | `transport/mock.js` | `?mock`. Imitates the mouse and keyboard captured from real hardware and the pairing methods not tried on hardware |

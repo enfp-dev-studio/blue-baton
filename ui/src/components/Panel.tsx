@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
 import { LogicalSize } from '@tauri-apps/api/dpi';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { Lock, Plus, Settings } from 'lucide-react';
+import { Plus, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DeviceIcon, Keycaps, Logo, StateTag } from '@/components/parts';
 import { hostStateText, hostStateTone, stateText, stateTone, t } from '@/lib/board/i18n.js';
@@ -44,7 +44,7 @@ export function Panel({ ctl }: { ctl: Controller }) {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  const ready = s.link === 'connected' && s.unlocked;
+  const ready = s.link === 'connected';
   const inputs = [...s.devices.values()].filter((d) => d.state !== 'offline');
   return (
     <div className="p-2.5">
@@ -66,14 +66,7 @@ export function Panel({ ctl }: { ctl: Controller }) {
 
         {!ready ? (
           <div className="px-4 py-5 text-center text-sm text-muted-foreground">
-            {s.link === 'connected' ? (
-              <>
-                <Lock className="mx-auto mb-2 size-5" />
-                {t('panel.unlockHint')}
-              </>
-            ) : (
-              t('link.searching')
-            )}
+            {t('link.searching')}
           </div>
         ) : (
           <div className="grid gap-4 px-3 py-3">

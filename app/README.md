@@ -10,7 +10,8 @@ A small menu bar (macOS) / tray (Windows) app built with [Tauri 2](https://tauri
 - The settings window is the full UI (`../ui`); the panel is the same UI with `?view=panel`. Closing the window keeps the app running.
 - The app owns the board's USB serial port (`src-tauri/src/board.rs`), finds it by USB ID (0x303A:0x1001),
   and reconnects after an unplug.
-- The settings PIN is remembered in the system keychain, so the menu works after a restart without unlocking.
+- No PIN: like other USB accessories, the board trusts the computer it is plugged into. It sends what is typed only
+  while the input monitor in Diagnostics is open (`firmware/PROTOCOL.md`, "Access and input content").
 - Pairing prompts (host passkey, device codes) bring the window forward and post a notification.
 - Developer API (off by default): the same HTTP interface as `firmware/tools/bridge.py` on 127.0.0.1:8766,
   so `firmware/tools/flash.sh` and monitoring tools work while the app holds the port. Board lines are also
@@ -31,8 +32,9 @@ npm run build
 The app is at `src-tauri/target/release/bundle/macos/Blue Baton.app`. `npm run dev` runs it against the UI dev
 server (`../ui`, port 5180) with live reload.
 
-Icons: `npm run icons` redraws `assets/icon-1024.png` and the menu bar template icon (`assets/make_icons.py`,
-no image libraries) and regenerates the platform icon sizes.
+Icons: `npm run icons` writes `assets/icon.svg` and `assets/tray.svg` (`assets/make_icons.py`), rasterizes them with
+headless Chrome (`CHROME` overrides the path) into `assets/icon-1024.png` and the menu bar template icon, and
+regenerates the platform icon sizes. The mark is a hollow relay baton passed at speed.
 
 ## Distribution (later)
 

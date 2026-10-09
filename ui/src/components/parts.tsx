@@ -98,19 +98,30 @@ export function DeviceIcon({ kinds, appearance, className }: { kinds?: string[];
 }
 
 /* The mark: a baton (capsule) passed between two hands (dots) */
+/* The app icon at UI size (app/assets/make_icons.py draws the full one): a hollow baton passed at speed */
 export function Logo({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 32 32" className={className} aria-hidden="true">
       <defs>
-        <linearGradient id="bb-grad" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#7c9cff" />
-          <stop offset="1" stopColor="#2b59f5" />
+        <linearGradient id="bb-bg" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#2c3d8a" />
+          <stop offset="1" stopColor="#0f1538" />
+        </linearGradient>
+        <linearGradient id="bb-tube" x1="0" y1="-2.2" x2="0" y2="2.2" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#c9d6ff" />
+          <stop offset="0.5" stopColor="#3d6bff" />
+          <stop offset="1" stopColor="#1a32a8" />
         </linearGradient>
       </defs>
-      <rect x="1" y="1" width="30" height="30" rx="9" fill="url(#bb-grad)" />
-      <rect x="9.4" y="13.9" width="13.2" height="4.2" rx="2.1" fill="#fff" transform="rotate(-32 16 16)" />
-      <circle cx="8.2" cy="20.9" r="1.5" fill="#fff" opacity="0.6" />
-      <circle cx="23.8" cy="11.1" r="1.5" fill="#fff" />
+      <rect x="1" y="1" width="30" height="30" rx="9" fill="url(#bb-bg)" />
+      <g transform="translate(17.6 15) rotate(-33)">
+        <rect x="-12.6" y="-1.9" width="4.2" height="1.2" rx="0.6" fill="#9db3ff" opacity="0.7" />
+        <rect x="-11.4" y="0.8" width="3" height="1.2" rx="0.6" fill="#9db3ff" opacity="0.5" />
+        <ellipse cx="-7.2" cy="0" rx="0.8" ry="2.2" fill="url(#bb-tube)" />
+        <rect x="-7.2" y="-2.2" width="14.4" height="4.4" fill="url(#bb-tube)" />
+        <ellipse cx="7.2" cy="0" rx="0.8" ry="2.2" fill="#dfe6ff" />
+        <ellipse cx="7.3" cy="0" rx="0.5" ry="1.5" fill="#16246e" />
+      </g>
     </svg>
   );
 }

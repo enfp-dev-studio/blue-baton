@@ -50,7 +50,7 @@ export function createController(params = new URLSearchParams(location.search), 
   client.on((ev) => {
     switch (ev.event) {
       case '_closed':
-        store.set({ link: 'disconnected', unlocked: false, prompt: null });
+        store.set({ link: 'disconnected', prompt: null });
         if (ev.reason !== 'closed') {
           store.notice('error', ev.reason === 'unplugged' ? t('notice.unplugged') : t('notice.lost'));
           reconnectSoon();
@@ -70,6 +70,8 @@ export function createController(params = new URLSearchParams(location.search), 
         return;
       case 'report':
         monitor.onEvent(ev);   /* too many to log */
+        return;
+      case 'activity':
         livePulse(ev.addr);
         return;
       default:
@@ -112,8 +114,9 @@ export function createController(params = new URLSearchParams(location.search), 
   });
 
   /*
-   * Live input: the sending device and the host receiving it light up briefly. Reports arrive dozens of times
-   * a second, so this sets a data attribute directly instead of re-rendering (React does not own data-live).
+   * Live input: the sending device and the host receiving it light up while input arrives. The board sends
+   * activity at most every 250 ms per device, so the light outlasts that gap. It sets a data attribute directly
+   * instead of re-rendering (React does not own data-live).
    */
   const pulseTimers = new WeakMap();
 
@@ -121,7 +124,7 @@ export function createController(params = new URLSearchParams(location.search), 
     if (!el) return;
     el.setAttribute('data-live', '');
     clearTimeout(pulseTimers.get(el));
-    pulseTimers.set(el, setTimeout(() => el.removeAttribute('data-live'), 160));
+    pulseTimers.set(el, setTimeout(() => el.removeAttribute('data-live'), 400));
   }
 
   function livePulse(addr) {
@@ -131,7 +134,7 @@ export function createController(params = new URLSearchParams(location.search), 
   }
 
   async function refresh() {
-    if (store.state.link !== 'connected' || !store.state.unlocked) return;
+    if (store.state.link !== 'connected') return;
     try {
       const [st, pl, hl] = await Promise.all([
         client.request('status'),
@@ -167,26 +170,23 @@ export function createController(params = new URLSearchParams(location.search), 
     store.set({ link: 'connected', linkError: '' });
     const hello = await run(() => client.request('hello'));
     if (!hello) return;
-    store.set({ fw: hello.version, pinSet: hello.pin_set, unlocked: hello.unlocked });
-    if (hello.unlocked) {
-      refresh();
-    } else if (hello.pin_set && app) {
-      /* The menu bar app remembers the PIN in the system keychain, so the tray works after a restart */
-      const pin = await app.core.invoke('pin_load').catch(() => null);
-      if (pin) {
-        const ok = await run(() => client.request('auth', { pin }), { quiet: true });
-        if (ok) {
-          store.set({ unlocked: true });
-          refresh();
-        } else {
-          app.core.invoke('pin_clear');
-        }
-      }
-    }
+    store.set({ fw: hello.version });
+    refresh();
+    if (monitorWanted) renewMonitor();
   }
 
-  function rememberPin(pin) {
-    if (app) app.core.invoke('pin_save', { pin }).catch(() => {});
+  /*
+   * Input monitor: the board sends what was typed only under a lease (PROTOCOL.md "Input monitor").
+   * Renewed while the monitor is on screen; if this window goes away the lease ends by itself.
+   */
+  let monitorWanted = false;
+  let monitorTimer = null;
+
+  async function renewMonitor() {
+    clearTimeout(monitorTimer);
+    if (!monitorWanted || store.state.link !== 'connected') return;
+    const r = await run(() => client.request('monitor', { on: true }), { quiet: true });
+    if (monitorWanted) monitorTimer = setTimeout(renewMonitor, (r?.lease_ms || 60000) / 3);
   }
 
   const actions = {
@@ -209,26 +209,15 @@ export function createController(params = new URLSearchParams(location.search), 
       await transport.close();
       store.notice('info', t('notice.released'));
     },
-    async unlock(pin) {
-      const ok = await run(() => client.request('auth', { pin }));
-      if (ok) {
-        rememberPin(pin);
-        store.set({ unlocked: true, notice: null });
-        refresh();
+    monitor(on) {
+      if (on === monitorWanted) return;
+      monitorWanted = on;
+      if (on) {
+        renewMonitor();
+      } else {
+        clearTimeout(monitorTimer);
+        if (store.state.link === 'connected') run(() => client.request('monitor', { on: false }), { quiet: true });
       }
-    },
-    async setPin(pin) {
-      const ok = await run(() => client.request('pin_set', { pin }));
-      if (ok) {
-        rememberPin(pin);
-        store.set({ unlocked: true, pinSet: true, notice: null });
-        refresh();
-      }
-    },
-    async lock() {
-      await run(() => client.request('lock'));
-      if (app) app.core.invoke('pin_clear');
-      store.set({ unlocked: false, addOpen: false });
     },
     dismiss() {
       store.set({ notice: null });
@@ -362,7 +351,7 @@ export function createController(params = new URLSearchParams(location.search), 
 
 /* What the tray menu shows. Labels come from the UI language so the menu matches the window */
 function trayModel(s) {
-  const board = s.link !== 'connected' ? 'disconnected' : s.unlocked ? 'connected' : 'locked';
+  const board = s.link === 'connected' ? 'connected' : 'disconnected';
   const hosts = [1, 2, 3].map((n) => {
     const h = s.hosts.get(n);
     return { n, name: h ? h.name || t('hosts.unnamed') : '', state: h ? h.state : 'empty' };
@@ -388,7 +377,6 @@ function trayModel(s) {
       inputs: t('devices.title'),
       no_inputs: t('tray.noInputs'),
       board_off: t('link.disconnected'),
-      locked: t('tray.locked'),
     },
   };
 }

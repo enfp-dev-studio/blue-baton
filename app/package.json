@@ -1,12 +1,12 @@
 {
   "name": "blue-baton-app",
   "private": true,
-  "version": "0.5.0",
-  "description": "Blue Baton menu bar app (Tauri). The window shows the settings UI in ../firmware/ui",
+  "version": "0.6.0",
+  "description": "Blue Baton menu bar app (Tauri). The window shows the settings UI in ../ui",
   "scripts": {
     "dev": "tauri dev",
     "build": "tauri build",
-    "icons": "python3 assets/make_icons.py && tauri icon assets/icon-1024.png"
+    "icons": "python3 assets/make_icons.py && tauri icon assets/icon-1024.png && rm -rf src-tauri/icons/android src-tauri/icons/ios"
   },
   "devDependencies": {
     "@tauri-apps/cli": "2.12.1"

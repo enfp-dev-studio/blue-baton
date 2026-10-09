@@ -2,6 +2,7 @@
 
 #include "esp_log.h"
 #include "nvs.h"
+#include "sdkconfig.h"
 
 #include "cfg_store.h"
 
@@ -27,6 +28,13 @@ esp_err_t cfg_init(void)
         nvs_commit(s_nvs);
         ESP_LOGW(TAG, "removed v1 paired records (no bond keys behind them)");
     }
+#if !CONFIG_KM_WIFI_ENABLE
+    /* Before 0.6 the USB settings were locked with a PIN. Only the Wi-Fi setup API uses one now */
+    if (nvs_erase_key(s_nvs, KEY_PIN) == ESP_OK) {
+        nvs_commit(s_nvs);
+        ESP_LOGW(TAG, "removed the old settings PIN (USB settings are no longer locked)");
+    }
+#endif
     return ESP_OK;
 }
 

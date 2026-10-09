@@ -32,7 +32,7 @@ static void heartbeat_task(void *param)
 void app_main(void)
 {
     /*
-     * The PIN, switch combos, pairing records (km_cfg) and NimBLE bond keys (nimble_bond) live in NVS,
+     * Switch combos, pairing records (km_cfg) and NimBLE bond keys (nimble_bond) live in NVS,
      * so open it before BLE. If there are no free pages or the format changed, erase and reopen as the ESP-IDF examples do.
      */
     esp_err_t err = nvs_flash_init();
