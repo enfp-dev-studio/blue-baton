@@ -687,20 +687,20 @@ static radio_t radio_wanted(void)
 }
 
 /*
- * Input connection parameters. Latency to the output is input interval + output interval, so request short
- * ones (7.5-15 ms, Latency 0; the controller picks 15 ms next to 15 ms host links). Real hardware: a fixed 7.5 ms
- * connected once, then every new connection failed with HCI 0x0D (limited resources) while two hosts were up.
- * If the device later requests other values, accept them. Supervision timeout 4 seconds.
+ * Input connection parameters. Latency to the output is input interval + output interval, so request a short one:
+ * 10 ms, Latency 0. Real hardware, with two Macs connected at 15 ms: the controller refused a fixed 7.5 ms every
+ * time (HCI 0x0D, limited resources) and accepted 10 ms (once refused, then accepted on the retry); a 7.5-15 ms
+ * range got 15 ms. If the device later requests other values, accept them. Supervision timeout 4 seconds.
  * Connection-attempt scan: user connections scan continuously (to find it fast); auto-reconnect shares the
  * radio at 30 ms/60 ms (50%).
  * Units: interval 1.25 ms, scan 0.625 ms, supervision 10 ms.
  */
-static struct ble_gap_conn_params s_conn_user = {
-    .scan_itvl = 0x0010, .scan_window = 0x0010, .itvl_min = 6, .itvl_max = 12,
+static const struct ble_gap_conn_params s_conn_user = {
+    .scan_itvl = 0x0010, .scan_window = 0x0010, .itvl_min = 8, .itvl_max = 8,
     .latency = 0, .supervision_timeout = 400, .min_ce_len = 0, .max_ce_len = 0,
 };
-static struct ble_gap_conn_params s_conn_auto = {
-    .scan_itvl = 0x0060, .scan_window = 0x0030, .itvl_min = 6, .itvl_max = 12,
+static const struct ble_gap_conn_params s_conn_auto = {
+    .scan_itvl = 0x0060, .scan_window = 0x0030, .itvl_min = 8, .itvl_max = 8,
     .latency = 0, .supervision_timeout = 400, .min_ce_len = 0, .max_ce_len = 0,
 };
 
@@ -1868,7 +1868,7 @@ typedef enum {
     OP_SCAN, OP_CONNECT, OP_DISCONNECT, OP_ACCEPT, OP_PASSKEY, OP_CANCEL,
     OP_REMOVE, OP_CLEAR, OP_LIST, OP_PEERS, OP_PAIRED, OP_STATUS, OP_RADIO, OP_BONDS,
     OP_COMBOS, OP_HOST_SELECT, OP_HOST_GET,
-    OP_HOST_PAIR, OP_HOST_LIST, OP_HOST_REMOVE, OP_HOST_PASSKEY, OP_STATS, OP_INPUT_ITVL,
+    OP_HOST_PAIR, OP_HOST_LIST, OP_HOST_REMOVE, OP_HOST_PASSKEY, OP_STATS,
 } op_t;
 
 typedef struct {
@@ -2268,14 +2268,6 @@ static esp_err_t op_dispatch(req_t *r)
     case OP_STATS:
         r->out_len = host_stats_json(r->buf, r->len);
         return ESP_OK;
-    case OP_INPUT_ITVL: {
-        uint16_t lo = (uint16_t)(r->num & 0xFFFF), hi = (uint16_t)(r->num >> 16);
-        s_conn_user.itvl_min = s_conn_auto.itvl_min = lo;
-        s_conn_user.itvl_max = s_conn_auto.itvl_max = hi;
-        s_auto_dirty = true;   /* Restart a running auto-reconnect with the new values */
-        radio_update();
-        return ESP_OK;
-    }
     }
     return ESP_ERR_INVALID_ARG;
 }
@@ -2472,15 +2464,6 @@ size_t ble_pair_host_list_json(char *buf, size_t len)
     req_t r = {.op = OP_HOST_LIST, .buf = buf, .len = len};
     host_call(&r);
     return r.out_len;
-}
-
-esp_err_t ble_pair_input_itvl(uint16_t min, uint16_t max)
-{
-    if (min < 6 || max < min || max > 3200) {
-        return ESP_ERR_INVALID_ARG;
-    }
-    req_t r = {.op = OP_INPUT_ITVL, .num = (uint32_t)min | ((uint32_t)max << 16)};
-    return host_call(&r);
 }
 
 size_t ble_pair_stats_json(char *buf, size_t len)

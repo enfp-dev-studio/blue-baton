@@ -46,7 +46,6 @@ Changes from earlier versions are collected at the end under "0.5 → 0.6 change
 | `status` | none | See "status response" below |
 | `monitor` | `on` | Input monitor lease (see "Access and input content"). Reply: `lease_ms` (60000 when on, 0 when off) |
 | `stats` | none | Latency statistics since the last `stats` (`stats`): `mouse_sent`, `mouse_merged` (sends that carried motion held back by pacing), `mouse_wait_avg_us`, `mouse_wait_max_us` (how long motion waited on the board before it was sent), `notify_avg_us`, `notify_max_us` (time inside the notify call that hands a report to the controller), `hosts` (`host`, `itvl`, `latency` of each host link). Reading resets the counters |
-| `input_itvl` | `min`, `max` (units of 1.25 ms) | Diagnostic: connection interval range for input connections until reboot (default 6–12). Restarts auto-reconnect |
 | `pin_set` | `pin` (4 to 8 digits) | Wi-Fi builds only: set the Wi-Fi setup API PIN |
 | `combo_get` | none | The host switch combos actually in effect (`combo`). If nothing is stored or the stored value is malformed, the default applies and `default:true`; if an invalid value is stored, `stored_invalid:true` |
 | `combo_set` | `combo` | Comma-separated list of combos in host order (e.g. `ctrl+alt+1,ctrl+alt+2,ctrl+alt+3`, up to 95 characters). Validated, then applied and saved immediately. If invalid, `code:"bad_combo"` |
@@ -140,7 +139,7 @@ hosts: [{"host":1,"addr":"AA:BB:CC:DD:EE:FF","name":"MacBook Pro","connected":tr
 | `autoconnect_failed` | `rc`, `retry_ms` | Starting auto-reconnect failed (for example `rc` 525 = HCI 0x0D, the controller refused for lack of resources). The board tries again after `retry_ms` |
 | `connecting` | `addr` | Connection attempt to a user-chosen device in progress |
 | `connect_failed` | `addr`, `status` | User connection failed (`status`: HCI/NimBLE code or `"no_slot"`) |
-| `connected` | `addr`, `id_addr`, `bonded`, `user`, `itvl`, `latency`, `timeout` | Connected. `bonded`: an already paired device, `user`: a connection the user chose. Connection parameters: `itvl` in units of 1.25 ms, `timeout` in units of 10 ms. The board requests 7.5–15 ms, latency 0, supervision timeout 4 s |
+| `connected` | `addr`, `id_addr`, `bonded`, `user`, `itvl`, `latency`, `timeout` | Connected. `bonded`: an already paired device, `user`: a connection the user chose. Connection parameters: `itvl` in units of 1.25 ms, `timeout` in units of 10 ms. The board requests 10 ms, latency 0, supervision timeout 4 s |
 | `conn_params` | `addr`, `status`, `itvl`, `latency`, `timeout` | The device changed the connection parameters |
 | `numcmp` | `addr`, `code` (6-digit string) | Numeric comparison. Check that the number matches the device's and answer with `pair_accept` |
 | `passkey_request` | `addr` | The 6 digits shown on the device must be entered. Answer with `passkey` |
@@ -240,7 +239,8 @@ Only while the window is open does the board present itself as a keyboard (IO ca
 - Build: `-O2`, 240 MHz, 32 KB instruction cache, NimBLE log level WARNING (NimBLE logged every notification at
   INFO). Handing a mouse report to the controller went from 1.13 ms to 0.07 ms on average.
 - Auto-reconnect retries after a failed start (new event `autoconnect_failed`); before, the radio stayed idle.
-- New diagnostic command `input_itvl`.
+- Input devices are asked for 10 ms (was 7.5–15 ms, where the controller picked 15 ms). With two hosts connected
+  the controller refuses a fixed 7.5 ms (HCI 0x0D).
 
 ## 0.4 → 0.5 changes
 
