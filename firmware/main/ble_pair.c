@@ -148,7 +148,7 @@ static ble_addr_t s_user_target;
 static char s_user_target_str[18];
 static bool s_radio_hold;            /* An operation that needs the radio stopped (such as bond deletion) is in progress */
 static bool s_auto_dirty;            /* Auto-reconnect targets changed (rebuild the accept list) */
-static peer_t *s_sec_owner;          /* Connection currently running a security procedure (one overall, N-13) */
+static peer_t *s_sec_owner;          /* Input connection currently running a security procedure (inputs start one at a time) */
 
 static char s_evt[1500];             /* For long events such as the Report Map */
 
@@ -590,8 +590,7 @@ static void fail_peer(peer_t *p, const char *stage, int status)
  * The SM procedure pool has one slot per connection (firmware/CMakeLists.txt; the ESP-IDF default is 1).
  * Input devices still start security one at a time, so a host's LTK request always finds a free slot.
  * ENOMEM means the pool is full anyway. This module's connection events cannot tell when another
- * procedure ends, so retry on ENC_CHANGE from the global GAP listener and a 1-second timer
- * (host-side-design 3.6).
+ * procedure ends, so retry on ENC_CHANGE from the global GAP listener and a 1-second timer.
  */
 static struct ble_npl_callout s_sec_retry;
 static struct ble_gap_event_listener s_gap_listener;
@@ -638,9 +637,9 @@ static void sec_pump(void)
     }
 }
 
-/* ---------- Radio state machine (one scan or connection attempt at a time, N-12) ---------- */
+/* ---------- Radio state machine (NimBLE runs one Central procedure at a time: ble_gap_master) ---------- */
 
-/* Is this a bond recorded as a host in the metadata? Hosts are not input device auto-connect targets (host-side-design H-59) */
+/* Is this a bond recorded as a host in the metadata? Hosts are not input device auto-connect targets */
 static bool is_host_bond(const ble_addr_t *id)
 {
     cfg_paired_t m;
@@ -1508,7 +1507,7 @@ static void on_connect(struct ble_gap_event *event)
     if (event->connect.status != 0) {
         /*
          * EPREEMPTED: the stack aborts an in-progress connection attempt when it adds a new device's IRK to
-         * the resolving list (N-10).
+         * the resolving list (ble_hs_pvcy_add_entry calls ble_gap_preempt).
          * It is not an error, so a user connection is simply retried.
          */
         if (was == RADIO_CONNECT && event->connect.status != BLE_HS_EPREEMPTED) {
@@ -1660,7 +1659,7 @@ static int gap_event(struct ble_gap_event *event, void *arg)
         break;
 
     case BLE_GAP_EVENT_DISC_COMPLETE:
-        /* Arrives on timeout (0) or when the stack aborted it (EPREEMPTED, N-10). Not sent on cancel */
+        /* Arrives on timeout (0) or when the stack aborted it (EPREEMPTED, when an IRK is added to the resolving list). Not sent on cancel */
         if (s_radio == RADIO_SCAN) {
             s_radio = RADIO_IDLE;
         }
@@ -1721,7 +1720,7 @@ static int gap_event(struct ble_gap_event *event, void *arg)
         break;
 
     case BLE_GAP_EVENT_REPEAT_PAIRING:
-        /* Arrives only in the Peripheral role (host connections). The policy is decided in the host stage (P12). Ignored for now */
+        /* NimBLE delivers this only for Peripheral (host) connections, which host.c handles. Ignored here */
         return BLE_GAP_REPEAT_PAIRING_IGNORE;
 
     default:
@@ -1949,7 +1948,7 @@ static esp_err_t op_remove(const char *addr)
     /* ble_gap_unpair returns EBUSY while scanning or advertising. Pause the radio briefly */
     s_radio_hold = true;
     radio_update();
-    host_adv_hold(true);            /* ble_gap_unpair also returns EBUSY while advertising (H-64) */
+    host_adv_hold(true);            /* ble_gap_unpair also returns EBUSY while advertising */
     int rc = ble_gap_unpair(&id);   /* Disconnects if connected, and removes it from the resolving list and the store */
     host_adv_hold(false);
     s_radio_hold = false;
@@ -2245,9 +2244,10 @@ esp_err_t ble_pair_init(ble_pair_event_fn event)
     ble_hs_cfg.sm_sc = 1;
     /*
      * Do not distribute our IRK. We do not use an RPA, but NimBLE sends a real IRK if it distributes the ID key.
-     * Core says a device that does not use an RPA should use an all-zero IRK; Microsoft says to exchange IRKs only with an RPA.
-     * A peer that receives a real IRK and puts us in Network Privacy mode may ignore our public-address advertising
-     * (host-side-design 3.5, H-15, H-16, H-44). We still receive the peer's IRK (we need to resolve the peer's RPA).
+     * Core says a device that does not use an RPA should use an all-zero IRK (Core v6.0 Vol 3 Part H 3.6.4); Microsoft
+     * says to exchange IRKs only with an RPA (Bluetooth Accessory Guidelines 7.2). A peer that receives a real IRK and
+     * puts us in Network Privacy mode may ignore our public-address advertising (Core v6.0 Vol 6 Part B 4.7).
+     * We still receive the peer's IRK (we need to resolve the peer's RPA).
      */
     ble_hs_cfg.sm_our_key_dist = BLE_SM_PAIR_KEY_DIST_ENC;
     ble_hs_cfg.sm_their_key_dist = BLE_SM_PAIR_KEY_DIST_ENC | BLE_SM_PAIR_KEY_DIST_ID;

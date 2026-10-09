@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Local bridge: this one program holds the board's USB serial port and shares it with several clients (GUI proposal 5.4).
+Local bridge: this one program holds the board's USB serial port and shares it with several clients.
 
   - The settings UI (browser), a dev monitor, and a log writer can attach at the same time without fighting over the port.
   - To flash, /release frees the port and /acquire takes it back afterwards (tools/flash.sh).

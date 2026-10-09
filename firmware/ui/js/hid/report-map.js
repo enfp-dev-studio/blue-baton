@@ -1,6 +1,6 @@
 /*
  * HID Report Map (Report Descriptor) parsing and input report decoding. Reads the short items of HID 1.11 6.2.2.
- * Fields are extracted exactly as the Report Map describes them, with no per-device assumptions (entries/006).
+ * Fields are extracted exactly as the Report Map describes them, with no per-device assumptions.
  */
 
 import { t } from '../i18n.js';

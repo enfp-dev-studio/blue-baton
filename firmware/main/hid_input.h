@@ -6,7 +6,7 @@
 
 /*
  * Parse an input device's Report Map into a layout, and decode input reports into a common form.
- * Uses only HID 1.11 Report Descriptor rules and the HID Usage Tables, with no per-device assumptions (D-026, D-030).
+ * Uses only HID 1.11 Report Descriptor rules and the HID Usage Tables, with no per-device assumptions.
  * Same rules as the UI-side parser (ui/js/hid/report-map.js).
  */
 

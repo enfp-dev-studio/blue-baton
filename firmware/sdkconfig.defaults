@@ -11,7 +11,7 @@ CONFIG_BT_NIMBLE_ROLE_PERIPHERAL=y
 CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
 
 # 2 input + 3 host = 5, plus 1 incoming connection via advertising (when an unknown device briefly takes it), plus 1 input connection attempt
-# (advertising and connection attempts need a free slot when they start, host-side-design 4.1)
+# (advertising and connection attempts need a free slot when they start, NimBLE ble_gap.c)
 CONFIG_BT_NIMBLE_MAX_CONNECTIONS=7
 # Controller activities: 7 connections + 1 advertising + 1 scan or connection attempt
 CONFIG_BT_CTRL_BLE_MAX_ACT=9

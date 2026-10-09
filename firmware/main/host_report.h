@@ -6,7 +6,7 @@
 
 /*
  * Reports sent to hosts (output side). One fixed Report Map, plus the rules that turn router state (router_out_t)
- * into that Report Map's report bytes (proposals/2026-10-09-host-side-design.md 4.3).
+ * into that Report Map's report bytes.
  * It does not depend on NimBLE, so it is tested without the board.
  */
 

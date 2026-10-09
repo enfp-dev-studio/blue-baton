@@ -9,8 +9,6 @@
 
 /*
  * Output side: the board appears to 3 hosts (Mac, Windows) as a HOGP HID device (keyboard + mouse).
- * Design: devlog/proposals/2026-10-09-host-side-design.md (D-037 to D-040)
- *
  * - Keeps connections to 3 hosts at once and sends reports only to the active host.
  * - Host pairing is accepted only while the "host pairing window" is open. The board presents itself as a
  *   keyboard (KeyboardOnly), and the 6 digits shown on the host screen are typed on a keyboard attached to the

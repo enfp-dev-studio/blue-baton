@@ -2,7 +2,7 @@
  * UI state. The board is the source of truth, so state changes only through board replies and events
  * (no optimistic updates).
  *
- * Devices form a single list (GUI proposal 5.1):
+ * Devices form a single list:
  *   devices: paired devices plus the device currently connecting (pairing). Keyed by identity address
  *   found:   devices found by a scan that are not paired yet. Keyed by over-the-air address. Shown only in "Add device"
  */

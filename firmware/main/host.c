@@ -27,13 +27,13 @@
 static const char *TAG = "host";
 
 #define HOST_LINK_MAX 4          /* 3 hosts + 1 candidate being paired */
-#define WINDOW_MS 180000         /* Host pairing window: HOGP's Limited Discoverable limit (H-9) */
+#define WINDOW_MS 180000         /* Host pairing window: HOGP 1.0 5.1 Limited Discoverable limit */
 #define FAST_ADV_MS 30000        /* How long fast advertising is kept */
 #define CANDIDATE_MS 60000       /* Time within which a candidate connection must finish pairing */
 #define PARAM_RETRY_MS 2000      /* Delay before re-requesting connection parameters after a collision with the peer's procedure */
 #define PARAM_RETRY_MAX 2
 #define SEC_REQ_MS 1000          /* Send a Security Request if a bonded host has not started encryption within this time */
-/* Advertising interval (units of 0.625 ms): Apple recommends 20 ms, then 152.5 ms (H-40); the window uses 30 ms (Swift Pair, H-45) */
+/* Advertising interval (units of 0.625 ms): Apple recommends 20 ms, then 152.5 ms (Accessory Design Guidelines R31 58.5); the window uses 30 ms (Microsoft Swift Pair) */
 #define ADV_ITVL_RECONNECT_FAST 32
 #define ADV_ITVL_WINDOW_FAST 48
 #define ADV_ITVL_SLOW 244
@@ -41,7 +41,7 @@ static const char *TAG = "host";
 #define APPEARANCE_KEYBOARD 0x03C1
 #define HCI_USER_TERM 0x13
 
-/* ---------- GATT table (fixed handles. Do not reorder, H-17) ---------- */
+/* ---------- GATT table (fixed handles: no Service Changed, so do not reorder. Core v6.0 Vol 3 Part G 2.5.2) ---------- */
 
 enum {
     A_MANUF = 1, A_MODEL, A_FWREV, A_PNP, A_BATTERY,
@@ -58,7 +58,7 @@ static int chr_access(uint16_t conn, uint16_t attr, struct ble_gatt_access_ctxt 
 static int ref_access(uint16_t conn, uint16_t attr, struct ble_gatt_access_ctxt *ctxt, void *arg);
 
 /* Protection: HID, battery and device information values need an authenticated (MITM) bond to read or write (HOGP 6.1 Level 3).
- * Service and characteristic declarations (discovery) are not protected (Apple H-41) */
+ * Service and characteristic declarations (discovery) are not protected (Apple Accessory Design Guidelines R31 58.8) */
 #define R_AUTH (BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_READ_AUTHEN)
 #define W_AUTH (BLE_GATT_CHR_F_WRITE | BLE_GATT_CHR_F_WRITE_AUTHEN)
 #define WNR_AUTH (BLE_GATT_CHR_F_WRITE_NO_RSP | BLE_GATT_CHR_F_WRITE_AUTHEN)
@@ -74,7 +74,7 @@ static int ref_access(uint16_t conn, uint16_t attr, struct ble_gatt_access_ctxt 
 
 static const struct ble_gatt_svc_def s_svcs[] = {
     {
-        /* Device information (DIS, exactly one, H-1). HOGP makes PnP ID mandatory */
+        /* Device information (DIS, exactly one: HOGP 1.0 2.2). HOGP makes PnP ID mandatory */
         .type = BLE_GATT_SVC_TYPE_PRIMARY,
         .uuid = BLE_UUID16_DECLARE(0x180A),
         .characteristics = (struct ble_gatt_chr_def[]){
@@ -141,7 +141,7 @@ typedef struct {
     char id_str[18];
     int index;                   /* Host number (from 0). -1 for a candidate */
     uint8_t sub;                 /* Subscription bits (N_*) */
-    uint8_t protocol_mode;       /* 1 Report, 0 Boot. Every connection starts in Report (H-3) */
+    uint8_t protocol_mode;       /* 1 Report, 0 Boot. Every connection starts in Report (HIDS 1.0 2.4.1.1) */
     bool suspended;
     uint8_t led;
     host_sent_t sent;
@@ -516,7 +516,7 @@ static void mouse_timer_cb(struct ble_npl_event *ev)
 }
 
 /*
- * Mouse: motion is sent at most once per connection interval, so it does not pile up in the controller and add latency (H-32).
+ * Mouse: motion is sent at most once per connection interval, so it does not pile up in the per-connection queue and add latency (NimBLE ble_l2cap.c queues when the controller is full).
  * When buttons change, send right away together with the motion accumulated so far.
  */
 static void send_mouse(host_link_t *l, const router_out_t *o)
@@ -582,7 +582,7 @@ static void release_all(host_link_t *l)
 void host_send(const router_out_t *out, int switched_from)
 {
     if (switched_from >= 0) {
-        /* Send the release directly on the previous host's connection (regardless of the active value, avoiding the ZMK bug in H-49) */
+        /* Send the release directly on the previous host's connection (regardless of the active value. ZMK sends it after switching, so it never reaches the previous host: zmk issue #2202) */
         release_all(link_by_index(switched_from));
         char buf[96];
         snprintf(buf, sizeof(buf), "{\"event\":\"host_online\",\"host\":%d,\"online\":%s}",
@@ -594,7 +594,7 @@ void host_send(const router_out_t *out, int switched_from)
         return;   /* Drop input for a disconnected host (key input replayed later is dangerous) */
     }
     if (switched_from >= 0) {
-        release_all(l);   /* Zero anything left over on the new host (H-55) */
+        release_all(l);   /* Zero anything left over on the new host */
     }
     if (out->pre_valid) {
         send_keyboard(l, out->pre_keys);
@@ -624,7 +624,7 @@ static void adv_start(int mode, int itvl)
 {
     struct ble_hs_adv_fields f;
     memset(&f, 0, sizeof(f));
-    /* Window: Limited Discoverable. Reconnect: non-discoverable (bonded hosts connect regardless of the flags, H-44) */
+    /* Window: Limited Discoverable. Reconnect: non-discoverable (the flags only affect discovery; bonded hosts still connect) */
     f.flags = BLE_HS_ADV_F_BREDR_UNSUP | (mode == 2 ? BLE_HS_ADV_F_DISC_LTD : 0);
     static const ble_uuid16_t hid_uuid = BLE_UUID16_INIT(0x1812);
     f.uuids16 = &hid_uuid;
@@ -634,7 +634,7 @@ static void adv_start(int mode, int itvl)
     f.appearance_is_present = 1;
     f.name = (const uint8_t *)DEVICE_NAME;
     f.name_len = strlen(DEVICE_NAME);
-    f.name_is_complete = 1;   /* Windows does not active-scan, so the name goes in the advertising packet (H-45) */
+    f.name_is_complete = 1;   /* Windows does not active-scan, so the name goes in the advertising packet (Microsoft Swift Pair) */
     int rc = ble_gap_adv_set_fields(&f);
     if (rc != 0) {
         ESP_LOGE(TAG, "adv fields rc=%d", rc);
@@ -648,13 +648,13 @@ static void adv_start(int mode, int itvl)
 
     struct ble_gap_adv_params p;
     memset(&p, 0, sizeof(p));
-    p.conn_mode = BLE_GAP_CONN_MODE_UND;   /* Directed advertising is not used (Apple H-40) */
+    p.conn_mode = BLE_GAP_CONN_MODE_UND;   /* Directed advertising is not used (Apple Accessory Design Guidelines R31 58) */
     p.disc_mode = mode == 2 ? BLE_GAP_DISC_MODE_LTD : BLE_GAP_DISC_MODE_NON;
     p.itvl_min = itvl;
     p.itvl_max = itvl;
     rc = ble_gap_adv_start(BLE_OWN_ADDR_PUBLIC, NULL, BLE_HS_FOREVER, &p, host_gap_event, NULL);
     if (rc != 0) {
-        ESP_LOGW(TAG, "adv start rc=%d", rc);   /* ENOMEM if no connection slot is free (H-21). Re-decided once a slot frees up */
+        ESP_LOGW(TAG, "adv start rc=%d", rc);   /* ENOMEM if no connection slot is free (ble_gap.c). Re-decided once a slot frees up */
         return;
     }
     s_adv_mode = mode;
@@ -738,7 +738,7 @@ static void emit_link(const char *event, const host_link_t *l, const char *extra
 
 static void request_conn_params(host_link_t *l)
 {
-    /* 15 ms (Apple: a multiple of 15; Microsoft keyboards: 15 ms or more), Latency 4, supervision 6 s (H-39, H-43, design 4.8) */
+    /* 15 ms (Apple: a multiple of 15; Microsoft keyboards: 15 ms or more), Latency 4, supervision 6 s (Apple ADG R31 58.6, Microsoft Bluetooth Accessory Guidelines 4.4) */
     struct ble_gap_upd_params p = {
         .itvl_min = 12, .itvl_max = 12, .latency = 4, .supervision_timeout = 600, .min_ce_len = 0, .max_ce_len = 0,
     };
@@ -831,14 +831,14 @@ static host_link_t *link_ensure(uint16_t conn)
     if (ble_gap_conn_find(conn, &d) != 0 || d.role != BLE_GAP_ROLE_SLAVE) {
         return NULL;   /* Not a host connection (input devices are on the Central side, ble_pair.c) */
     }
-    s_adv_mode = 0;   /* Advertising ends once a Peripheral connection forms (H-21) */
+    s_adv_mode = 0;   /* Advertising ends once a Peripheral connection forms (ble_gap.c) */
     int index = host_index_of(&d.peer_id_addr);
     for (int i = 0; i < HOST_LINK_MAX && !l; i++) {
         if (!s_links[i].used) {
             l = &s_links[i];
         }
     }
-    /* Accept only a bonded host, or a new one while the window is open with a slot left. No advertising filter, so filter here (design 4.1) */
+    /* Accept only a bonded host, or a new one while the window is open with a slot left. No advertising filter (bonded hosts may use RPAs), so filter here */
     bool accept = l && (index >= 0 ? !link_by_index(index) : (s_window && host_count() < ROUTER_HOST_MAX));
     if (!accept) {
         ble_gap_terminate(conn, HCI_USER_TERM);
@@ -1056,7 +1056,7 @@ static int on_repeat_pairing(struct ble_gap_event *event)
      * Only inside the window, and only if the new pairing is authenticated, delete the old keys and accept again.
      * Metadata (number, name) is kept.
      * Outside the window, reject and disconnect (prevents address spoofing that gets a bond deleted before
-     * authentication, input side P12).
+     * authentication).
      */
     if (s_window && event->repeat_pairing.new_authenticated) {
         struct ble_gap_conn_desc d;
@@ -1143,7 +1143,7 @@ esp_err_t host_pair_window(bool open)
         return ESP_OK;
     }
     s_window = open;
-    /* Present as a keyboard only while the window is open (Passkey Entry: we type the digits shown on the host screen, H-8, H-26) */
+    /* Present as a keyboard only while the window is open (Passkey Entry: we type the digits shown on the host screen. Core v6.0 Vol 3 Part H 2.3.5.1 table 2.8; NimBLE reads sm_io_cap for each pairing) */
     ble_hs_cfg.sm_io_cap = open ? BLE_HS_IO_KEYBOARD_ONLY : BLE_HS_IO_KEYBOARD_DISPLAY;
     if (open) {
         s_window_until_us = now_us() + (int64_t)WINDOW_MS * 1000;
@@ -1174,7 +1174,7 @@ esp_err_t host_remove(int index)
         }
         ble_addr_t id = {.type = recs[i].type};
         memcpy(id.val, recs[i].val, 6);
-        host_adv_hold(true);   /* ble_gap_unpair returns EBUSY while advertising (H-64) */
+        host_adv_hold(true);   /* ble_gap_unpair returns EBUSY while advertising */
         int rc = ble_gap_unpair(&id);
         host_adv_hold(false);
         if (rc != 0 && rc != BLE_HS_ENOENT) {

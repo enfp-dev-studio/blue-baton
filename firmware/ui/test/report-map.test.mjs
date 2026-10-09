@@ -4,7 +4,7 @@ import test from 'node:test';
 
 import { PAGE, ReportDecoder, parseReportMap, pressedUsages } from '../js/hid/report-map.js';
 
-/* Report Maps from real hardware (entries/007) */
+/* Report Maps from real hardware (Xiaoxin Mplus 5.0 mouse, ABKO AK84BT-1 keyboard) */
 const MOUSE_MAP =
   '05010902A10185010901A1000509190129051500250195057501810295017503810105010930093116018026FF7F75109502' +
   '810609381581257F750895018106C0C0';

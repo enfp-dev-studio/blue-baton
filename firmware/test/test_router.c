@@ -1,6 +1,6 @@
 /*
  * Unit tests for hid_input.c (input normalization) and router.c (merging, switch combos). Runs on a Mac without a board.
- * Uses Report Maps captured from real hardware (entries/007).
+ * Uses Report Maps captured from real hardware (Xiaoxin Mplus 5.0 mouse, ABKO AK84BT-1 keyboard).
  */
 #include <stdio.h>
 #include <string.h>

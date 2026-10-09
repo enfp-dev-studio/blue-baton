@@ -1,7 +1,7 @@
 # Settings UI (firmware/ui)
 
 A web page for pairing input devices and hosts with the board (KM Router) and watching its state. Plain ES modules, no build step.
-The structure follows section 5.1 of the [GUI proposal](../../devlog/proposals/2026-10-09-gui-app.md).
+Layers: transport (USB, bridge, mock) → protocol client → store → views.
 
 ## Opening it (three transports)
 

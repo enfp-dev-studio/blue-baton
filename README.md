@@ -12,7 +12,7 @@ BLE mouse ────┴─→ ESP32-S3 (NimBLE) ─┼─ BLE HID → host 2
                     └─ USB: settings UI and logs
 ```
 
-Status: firmware 0.5. Two Macs verified on real hardware (input from a BLE mouse reaches the active Mac; hosts switch from the settings UI). Keyboard combo switching and Windows hosts are implemented but not yet verified on hardware. Progress log (Korean): [devlog/journal/00-overview.md](devlog/journal/00-overview.md).
+Status: firmware 0.5. Two Macs verified on real hardware (input from a BLE mouse reaches the active Mac; hosts switch from the settings UI). Keyboard combo switching and Windows hosts are implemented but not yet verified on hardware.
 
 License: not decided yet. Until a license is added, no rights are granted to reuse the code.
 
@@ -25,7 +25,6 @@ License: not decided yet. Until a license is added, no rights are granted to reu
 | [firmware/ui/](firmware/ui/) | Settings UI (plain ES modules, no build step; local bridge, Web Serial, or mock board) |
 | [firmware/tools/](firmware/tools/) | Local bridge `bridge.py`, flash helper `flash.sh` |
 | [firmware/test/](firmware/test/) | Tests that run without the board (C and JS) |
-| [devlog/](devlog/) | Build log in Korean: design decisions, work entries, proposals, raw logs |
 
 ## Build, flash, test
 

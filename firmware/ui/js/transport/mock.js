@@ -1,9 +1,9 @@
 /*
- * Mock board. Lets us build and check the UI without hardware (GUI proposal 5.2).
+ * Mock board. Lets us build and check the UI without hardware.
  * Imitates the firmware 0.5 commands, replies, and event formats (firmware/PROTOCOL.md).
  *
  * Devices
- * - The mouse and keyboard captured from real hardware: their Report Maps, handles, and report IDs as-is (entries/007).
+ * - The mouse and keyboard captured from real hardware: their Report Maps, handles, and report IDs as-is.
  * - Pairing methods we could not test on real hardware are virtual devices: numeric comparison, passkey entry,
  *   passkey display, a device whose name is only in the scan response, and a non-HID device.
  *

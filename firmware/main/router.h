@@ -21,7 +21,7 @@
  *   nothing is sent and the switch happens. If another key, mouse, or media key arrives, or a held modifier is
  *   released, the held modifiers are sent first (pre_keys) and then that event. So Ctrl+C works as usual, and a
  *   modifier tap goes out as press and release.
- *   This keeps the previous host from seeing "Ctrl+Alt pressed then released" (host-side-design 3.4).
+ *   This keeps the previous host from seeing "Ctrl+Alt pressed then released".
  * - Passkey entry mode (host pairing): key input is sent to no host and digits are collected.
  */
 
