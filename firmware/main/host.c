@@ -34,11 +34,15 @@ static const char *TAG = "host";
 #define PARAM_RETRY_MS 2000      /* Delay before re-requesting connection parameters after a collision with the peer's procedure */
 #define PARAM_RETRY_MAX 2
 /*
- * Connection interval request: 15 ms (units of 1.25 ms). Apple QA1931 allows a HID accessory down to 11.25 ms,
- * but real hardware (macOS 26) answered an 11.25 ms request with status 0 and kept 30 ms, then moved to 15 ms
- * by itself, and the board's controller once refused the request locally (HCI 0x12). So 15 ms only.
+ * Connection interval request: 15 ms (units of 1.25 ms).
+ * - macOS gives 15 ms at the least (Apple ADG), and takes a 15 ms request at once.
+ * - A 7.5-15 ms range (as ZMK asks) was refused by the board's own controller before it reached the host
+ *   (HCI 0x12 on LE Connection Update) for 3 of 6 requests with an input device connected; the host then kept its
+ *   own parameters (seen: latency 0 with a 720 ms supervision timeout). A 15 ms request was never refused (~110).
+ * - An 11.25 ms request was answered with status 0 while macOS 26 kept 30 ms, then moved to 15 ms by itself.
  */
-#define ITVL_HOST 12
+#define ITVL_HOST_MIN 12
+#define ITVL_HOST_MAX 12
 #define SEC_REQ_MS 1000          /* Send a Security Request if a bonded host has not started encryption within this time */
 /* Advertising interval (units of 0.625 ms): Apple recommends 20 ms, then 152.5 ms (Accessory Design Guidelines R31 58.5); the window uses 30 ms (Microsoft Swift Pair) */
 #define ADV_ITVL_RECONNECT_FAST 32
@@ -730,7 +734,7 @@ static void request_conn_params(host_link_t *l)
 {
     /* 15 ms, Latency 4, supervision 6 s (Apple ADG R31 58.6; Microsoft Bluetooth Accessory Guidelines 4.4) */
     struct ble_gap_upd_params p = {
-        .itvl_min = ITVL_HOST, .itvl_max = ITVL_HOST, .latency = 4, .supervision_timeout = 600,
+        .itvl_min = ITVL_HOST_MIN, .itvl_max = ITVL_HOST_MAX, .latency = 4, .supervision_timeout = 600,
         .min_ce_len = 0, .max_ce_len = 0,
     };
     int rc = ble_gap_update_params(l->conn, &p);
