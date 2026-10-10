@@ -687,20 +687,24 @@ static radio_t radio_wanted(void)
 }
 
 /*
- * Input connection parameters. Latency to the output is input interval + output interval, so request a short one:
- * 10 ms, Latency 0. Real hardware, with two Macs connected at 15 ms: the controller refused a fixed 7.5 ms every
- * time (HCI 0x0D, limited resources) and accepted 10 ms (once refused, then accepted on the retry); a 7.5-15 ms
- * range got 15 ms. If the device later requests other values, accept them. Supervision timeout 4 seconds.
+ * Input connection parameters: 8.75 ms, Latency 0, supervision timeout 4 s.
+ * - The board adds on average half the input interval to a report's trip (the host link wait is the same as with
+ *   the device connected directly), so shorter is better.
+ * - Host links run on each host's clock and input links on ours, so their timing drifts and they collide now and
+ *   then whatever we pick; an interval that is not a multiple or divisor of the host interval (15 ms on macOS)
+ *   spreads those collisions instead of bunching them while the timings pass each other.
+ * - With a host connected the controller refuses 7.5 ms (HCI 0x0D, every time on real hardware).
+ * If the device later requests other values, they are accepted as asked (the controller may refuse them).
  * Connection-attempt scan: user connections scan continuously (to find it fast); auto-reconnect shares the
  * radio at 30 ms/60 ms (50%).
  * Units: interval 1.25 ms, scan 0.625 ms, supervision 10 ms.
  */
 static const struct ble_gap_conn_params s_conn_user = {
-    .scan_itvl = 0x0010, .scan_window = 0x0010, .itvl_min = 8, .itvl_max = 8,
+    .scan_itvl = 0x0010, .scan_window = 0x0010, .itvl_min = 7, .itvl_max = 7,
     .latency = 0, .supervision_timeout = 400, .min_ce_len = 0, .max_ce_len = 0,
 };
 static const struct ble_gap_conn_params s_conn_auto = {
-    .scan_itvl = 0x0060, .scan_window = 0x0030, .itvl_min = 8, .itvl_max = 8,
+    .scan_itvl = 0x0060, .scan_window = 0x0030, .itvl_min = 7, .itvl_max = 7,
     .latency = 0, .supervision_timeout = 400, .min_ce_len = 0, .max_ce_len = 0,
 };
 

@@ -139,7 +139,7 @@ hosts: [{"host":1,"addr":"AA:BB:CC:DD:EE:FF","name":"MacBook Pro","connected":tr
 | `autoconnect_failed` | `rc`, `retry_ms` | Starting auto-reconnect failed (for example `rc` 525 = HCI 0x0D, the controller refused for lack of resources). The board tries again after `retry_ms` |
 | `connecting` | `addr` | Connection attempt to a user-chosen device in progress |
 | `connect_failed` | `addr`, `status` | User connection failed (`status`: HCI/NimBLE code or `"no_slot"`) |
-| `connected` | `addr`, `id_addr`, `bonded`, `user`, `itvl`, `latency`, `timeout` | Connected. `bonded`: an already paired device, `user`: a connection the user chose. Connection parameters: `itvl` in units of 1.25 ms, `timeout` in units of 10 ms. The board requests 10 ms, latency 0, supervision timeout 4 s |
+| `connected` | `addr`, `id_addr`, `bonded`, `user`, `itvl`, `latency`, `timeout` | Connected. `bonded`: an already paired device, `user`: a connection the user chose. Connection parameters: `itvl` in units of 1.25 ms, `timeout` in units of 10 ms. The board requests 8.75 ms, latency 0, supervision timeout 4 s |
 | `conn_params` | `addr`, `status`, `itvl`, `latency`, `timeout` | The device changed the connection parameters |
 | `conn_params_req` | `addr`, `itvl_min`, `itvl_max`, `latency`, `timeout` | The device asked for other connection parameters. The board accepts as asked; the controller may still refuse (then no `conn_params` follows) |
 | `numcmp` | `addr`, `code` (6-digit string) | Numeric comparison. Check that the number matches the device's and answer with `pair_accept` |
@@ -240,7 +240,7 @@ Only while the window is open does the board present itself as a keyboard (IO ca
 - Build: `-O2`, 240 MHz, 32 KB instruction cache, NimBLE log level WARNING (NimBLE logged every notification at
   INFO). Handing a mouse report to the controller went from 1.13 ms to 0.07 ms on average.
 - Auto-reconnect retries after a failed start (new event `autoconnect_failed`); before, the radio stayed idle.
-- Input devices are asked for 10 ms (was 7.5–15 ms, where the controller picked 15 ms). With two hosts connected
+- Input devices are asked for 8.75 ms (was 7.5–15 ms, where the controller picked 15 ms). With a host connected
   the controller refuses a fixed 7.5 ms (HCI 0x0D).
 
 ## 0.4 → 0.5 changes
