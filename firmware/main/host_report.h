@@ -60,13 +60,3 @@ typedef struct {
     uint8_t consumer[HOST_CONSUMER_LEN];
     uint8_t system;
 } host_sent_t;
-
-/* If the new value differs from the last sent one, update last and return true (must send) */
-bool host_sent_update(uint8_t *last, const uint8_t *now, size_t len);
-
-/* Releases to send to the previous host on switch: marks only nonzero reports */
-typedef struct {
-    bool kb, mouse, consumer, system;
-} host_release_t;
-
-host_release_t host_release_needed(const host_sent_t *sent);

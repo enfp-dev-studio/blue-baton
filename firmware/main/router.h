@@ -53,9 +53,11 @@ typedef struct {
     int32_t dx, dy, wheel, pan;          /* Motion of this input (not accumulated) */
     uint16_t consumer[HID_CONSUMER_MAX];
     uint8_t consumer_count;
+    uint8_t system;                      /* System Control bitmap (as in hid_input_t) */
     bool keys_changed;
     bool buttons_changed;
     bool consumer_changed;
+    bool system_changed;
     bool motion;
     /* When releasing held modifiers: send this key state as a keyboard report before keys */
     bool pre_valid;

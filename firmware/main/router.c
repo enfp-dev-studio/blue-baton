@@ -8,13 +8,19 @@
 #define USAGE_MOD_FIRST 0xE0
 #define USAGE_MOD_LAST 0xE7
 
+/* Input state: pressed keys, mouse buttons, media keys, system keys */
 typedef struct {
-    bool used;
-    uint8_t id;
     uint8_t keys[32];
     uint8_t buttons;
     uint16_t consumer[HID_CONSUMER_MAX];
     uint8_t consumer_count;
+    uint8_t system;
+} state_t;
+
+typedef struct {
+    bool used;
+    uint8_t id;
+    state_t s;
 } report_state_t;
 
 typedef struct {
@@ -31,10 +37,7 @@ static bool s_pk_active;
 static uint8_t s_pk_digits[6];
 static uint8_t s_pk_len;
 static uint8_t s_led[ROUTER_HOST_MAX];
-static uint8_t s_last_keys[32];      /* Last sent keys (for change detection) */
-static uint8_t s_last_buttons;
-static uint16_t s_last_consumer[HID_CONSUMER_MAX];
-static uint8_t s_last_consumer_count;
+static state_t s_last;               /* Last sent state (for change detection; keys exclude blocked keys) */
 
 /* ---------- Combo parsing ---------- */
 
@@ -190,9 +193,7 @@ void router_init(void)
     memset(s_led, 0, sizeof(s_led));
     s_pk_active = false;
     s_pk_len = 0;
-    memset(s_last_keys, 0, sizeof(s_last_keys));
-    s_last_buttons = 0;
-    s_last_consumer_count = 0;
+    memset(&s_last, 0, sizeof(s_last));
     s_active = 0;
 }
 
@@ -240,26 +241,31 @@ static report_state_t *report_slot(uint8_t slot, uint8_t id)
 }
 
 /* Union of all devices and all reports */
-static void union_state(uint8_t keys[32], uint8_t *buttons, uint16_t consumer[], uint8_t *consumer_count)
+static void union_state(state_t *u)
 {
-    memset(keys, 0, 32);
-    *buttons = 0;
-    *consumer_count = 0;
+    memset(u, 0, sizeof(*u));
     for (int s = 0; s < ROUTER_INPUT_MAX; s++) {
         for (int r = 0; r < ROUTER_REPORT_MAX; r++) {
-            const report_state_t *rs = &s_dev[s].reports[r];
-            if (!rs->used) {
+            const state_t *rs = &s_dev[s].reports[r].s;
+            if (!s_dev[s].reports[r].used) {
                 continue;
             }
             for (int b = 0; b < 32; b++) {
-                keys[b] |= rs->keys[b];
+                u->keys[b] |= rs->keys[b];
             }
-            *buttons |= rs->buttons;
-            for (int c = 0; c < rs->consumer_count && *consumer_count < HID_CONSUMER_MAX; c++) {
-                consumer[(*consumer_count)++] = rs->consumer[c];
+            u->buttons |= rs->buttons;
+            for (int c = 0; c < rs->consumer_count && u->consumer_count < HID_CONSUMER_MAX; c++) {
+                u->consumer[u->consumer_count++] = rs->consumer[c];
             }
+            u->system |= rs->system;
         }
     }
+}
+
+static bool consumer_differs(const state_t *a, const state_t *b)
+{
+    return a->consumer_count != b->consumer_count ||
+           memcmp(a->consumer, b->consumer, sizeof(uint16_t) * a->consumer_count) != 0;
 }
 
 static uint8_t held_mod_groups(const uint8_t keys[32])
@@ -285,26 +291,25 @@ static int count_normal_keys(const uint8_t keys[32])
 }
 
 /* Fill in out, excluding blocked keys and flagging what changed */
-static void fill_out(const uint8_t keys[32], uint8_t buttons, const uint16_t consumer[], uint8_t consumer_count,
-                     router_out_t *out)
+static void fill_out(const state_t *u, router_out_t *out)
 {
+    state_t sent = *u;
     for (int b = 0; b < 32; b++) {
         /* Released keys are unblocked. Pressed again, they are sent normally */
-        s_suppressed[b] &= keys[b];
-        s_held[b] &= keys[b];
-        out->keys[b] = keys[b] & (uint8_t)~s_suppressed[b] & (uint8_t)~s_held[b];
+        s_suppressed[b] &= u->keys[b];
+        s_held[b] &= u->keys[b];
+        sent.keys[b] = u->keys[b] & (uint8_t)~s_suppressed[b] & (uint8_t)~s_held[b];
     }
-    out->buttons = buttons;
-    out->consumer_count = consumer_count;
-    memcpy(out->consumer, consumer, sizeof(uint16_t) * consumer_count);
-    out->keys_changed = memcmp(out->keys, s_last_keys, 32) != 0;
-    out->buttons_changed = out->buttons != s_last_buttons;
-    out->consumer_changed = consumer_count != s_last_consumer_count ||
-                            memcmp(consumer, s_last_consumer, sizeof(uint16_t) * consumer_count) != 0;
-    memcpy(s_last_keys, out->keys, 32);
-    s_last_buttons = out->buttons;
-    memcpy(s_last_consumer, consumer, sizeof(uint16_t) * consumer_count);
-    s_last_consumer_count = consumer_count;
+    memcpy(out->keys, sent.keys, 32);
+    out->buttons = sent.buttons;
+    out->consumer_count = sent.consumer_count;
+    memcpy(out->consumer, sent.consumer, sizeof(out->consumer));
+    out->system = sent.system;
+    out->keys_changed = memcmp(sent.keys, s_last.keys, 32) != 0;
+    out->buttons_changed = sent.buttons != s_last.buttons;
+    out->consumer_changed = consumer_differs(&sent, &s_last);
+    out->system_changed = sent.system != s_last.system;
+    s_last = sent;
 }
 
 static bool is_combo_modifier(unsigned u)
@@ -373,39 +378,38 @@ void router_input(uint8_t slot, uint8_t report_key, const hid_input_t *in, route
     if (slot >= ROUTER_INPUT_MAX) {
         return;
     }
-    uint8_t before[32];
-    uint8_t b_dummy;
-    uint16_t c_dummy[HID_CONSUMER_MAX];
-    uint8_t cc_dummy;
-    union_state(before, &b_dummy, c_dummy, &cc_dummy);
+    state_t before;
+    union_state(&before);
 
     report_state_t *rs = report_slot(slot, report_key);
     if (rs) {
         /* A report is the "current state" of its own fields. Kinds absent from this report are left untouched */
         if (in->has_keys) {
-            memcpy(rs->keys, in->keys, 32);
+            memcpy(rs->s.keys, in->keys, 32);
         }
         if (in->has_buttons) {
-            rs->buttons = in->buttons;
+            rs->s.buttons = in->buttons;
         }
         if (in->has_consumer) {
-            rs->consumer_count = in->consumer_count;
-            memcpy(rs->consumer, in->consumer, sizeof(rs->consumer));
+            rs->s.consumer_count = in->consumer_count;
+            memcpy(rs->s.consumer, in->consumer, sizeof(rs->s.consumer));
+        }
+        if (in->has_system) {
+            rs->s.system = in->system;
         }
     }
 
-    uint8_t keys[32];
-    uint8_t buttons;
-    uint16_t consumer[HID_CONSUMER_MAX];
-    uint8_t consumer_count;
-    union_state(keys, &buttons, consumer, &consumer_count);
+    state_t now;
+    union_state(&now);
+    const uint8_t *keys = now.keys;
     bool motion = in->has_motion && (in->dx || in->dy || in->wheel || in->pan);
 
     if (s_pk_active) {
         /* During passkey entry: key input is sent to no host. The mouse passes through */
-        passkey_feed(before, keys, out);
-        uint8_t none[32] = {0};
-        fill_out(none, buttons, consumer, consumer_count, out);
+        passkey_feed(before.keys, keys, out);
+        state_t no_keys = now;
+        memset(no_keys.keys, 0, sizeof(no_keys.keys));
+        fill_out(&no_keys, out);
         out->dx = in->dx;
         out->dy = in->dy;
         out->wheel = in->wheel;
@@ -420,7 +424,7 @@ void router_input(uint8_t slot, uint8_t report_key, const hid_input_t *in, route
     if (count_normal_keys(keys) == 1) {
         for (int h = 0; h < ROUTER_HOST_MAX; h++) {
             const combo_t *c = &s_combos[h];
-            if (c->valid && c->mods == mods && hid_key_down(keys, c->key) && !hid_key_down(before, c->key)) {
+            if (c->valid && c->mods == mods && hid_key_down(keys, c->key) && !hid_key_down(before.keys, c->key)) {
                 /* Block everything held now until released. Held modifiers get blocked without ever being sent */
                 memcpy(s_suppressed, keys, 32);
                 memset(s_held, 0, sizeof(s_held));
@@ -437,21 +441,20 @@ void router_input(uint8_t slot, uint8_t report_key, const hid_input_t *in, route
     }
 
     if (!triggered) {
-        /* Is this an event that ends the hold: a held modifier was released, or another key, mouse, or media key arrived */
+        /* Is this an event that ends the hold: a held modifier was released, or another key, mouse, media or system key arrived */
         bool flush = false;
         if (any_bits(s_held)) {
             for (unsigned u = 0; u < 256 && !flush; u++) {
-                bool now = hid_key_down(keys, (uint8_t)u);
-                bool was = hid_key_down(before, (uint8_t)u);
-                if (was && !now && hid_key_down(s_held, (uint8_t)u)) {
+                bool down = hid_key_down(keys, (uint8_t)u);
+                bool was = hid_key_down(before.keys, (uint8_t)u);
+                if (was && !down && hid_key_down(s_held, (uint8_t)u)) {
                     flush = true;
-                } else if (now && !was && !is_combo_modifier(u)) {
+                } else if (down && !was && !is_combo_modifier(u)) {
                     flush = true;
                 }
             }
-            if ((in->has_buttons && buttons != s_last_buttons) || motion ||
-                (in->has_consumer && (consumer_count != s_last_consumer_count ||
-                                      memcmp(consumer, s_last_consumer, sizeof(uint16_t) * consumer_count) != 0))) {
+            if (now.buttons != s_last.buttons || motion || consumer_differs(&now, &s_last) ||
+                now.system != s_last.system) {
                 flush = true;
             }
         }
@@ -459,22 +462,22 @@ void router_input(uint8_t slot, uint8_t report_key, const hid_input_t *in, route
             /* Send the held modifiers first, together with the state just before this event */
             out->pre_valid = true;
             for (int b = 0; b < 32; b++) {
-                out->pre_keys[b] = before[b] & (uint8_t)~s_suppressed[b];
+                out->pre_keys[b] = before.keys[b] & (uint8_t)~s_suppressed[b];
             }
             memset(s_held, 0, sizeof(s_held));
-            memcpy(s_last_keys, out->pre_keys, 32);
+            memcpy(s_last.keys, out->pre_keys, 32);
         }
         /* Hold newly pressed combo modifiers. If a key or mouse button is held, it cannot become a combo, so send right away */
-        if (count_normal_keys(keys) == 0 && buttons == 0) {
+        if (count_normal_keys(keys) == 0 && now.buttons == 0) {
             for (unsigned u = USAGE_MOD_FIRST; u <= USAGE_MOD_LAST; u++) {
-                if (hid_key_down(keys, (uint8_t)u) && !hid_key_down(before, (uint8_t)u) && is_combo_modifier(u)) {
+                if (hid_key_down(keys, (uint8_t)u) && !hid_key_down(before.keys, (uint8_t)u) && is_combo_modifier(u)) {
                     s_held[u >> 3] |= (uint8_t)(1u << (u & 7));
                 }
             }
         }
     }
 
-    fill_out(keys, buttons, consumer, consumer_count, out);
+    fill_out(&now, out);
     out->dx = in->dx;
     out->dy = in->dy;
     out->wheel = in->wheel;
@@ -489,12 +492,9 @@ void router_device_gone(uint8_t slot, router_out_t *out)
         return;
     }
     memset(&s_dev[slot], 0, sizeof(s_dev[slot]));
-    uint8_t keys[32];
-    uint8_t buttons;
-    uint16_t consumer[HID_CONSUMER_MAX];
-    uint8_t consumer_count;
-    union_state(keys, &buttons, consumer, &consumer_count);
-    fill_out(keys, buttons, consumer, consumer_count, out);
+    state_t now;
+    union_state(&now);
+    fill_out(&now, out);
 }
 
 void router_release_report(router_out_t *out)
@@ -503,6 +503,7 @@ void router_release_report(router_out_t *out)
     out->keys_changed = true;
     out->buttons_changed = true;
     out->consumer_changed = true;
+    out->system_changed = true;
 }
 
 void router_passkey_begin(void)
@@ -517,12 +518,9 @@ void router_passkey_end(void)
     s_pk_active = false;
     s_pk_len = 0;
     /* Keys held when it ends (usually Enter) are not sent until released */
-    uint8_t keys[32];
-    uint8_t buttons;
-    uint16_t consumer[HID_CONSUMER_MAX];
-    uint8_t consumer_count;
-    union_state(keys, &buttons, consumer, &consumer_count);
-    memcpy(s_suppressed, keys, 32);
+    state_t now;
+    union_state(&now);
+    memcpy(s_suppressed, now.keys, 32);
 }
 
 bool router_passkey_active(void)

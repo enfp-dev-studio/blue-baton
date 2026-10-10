@@ -66,6 +66,14 @@ test('real keyboard: consumer control array gives the usage (volume up)', () => 
   assert.equal(f.umin.usage + (f.value - f.lmin), 0xe9);
 });
 
+test('array with listed usages: the value selects the (value - Logical Minimum)-th usage; out of range is none', () => {
+  const d = new ReportDecoder();
+  d.addRef({ addr: 'C', val: 10, id: 0, type: 1 });
+  d.addMap({ addr: 'C', hex: '050C0901A101150125037508950109E909EA09E28100C0' });
+  assert.deepEqual([...pressedUsages(d.decode('C', 10, bytes('02')).fields, PAGE.CONSUMER)], [0xea]);
+  assert.equal(pressedUsages(d.decode('C', 10, bytes('00')).fields, PAGE.CONSUMER).size, 0);
+});
+
 test('report id byte in payload is stripped only when it is really there', () => {
   const d = decoderFor('M', MOUSE_MAP, [[25, 1]]);
   const withId = d.decode('M', 25, bytes('01010500FBFF01'));

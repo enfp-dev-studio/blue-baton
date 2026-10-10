@@ -441,18 +441,29 @@ static int ref_access(uint16_t conn, uint16_t attr, struct ble_gatt_access_ctxt 
 
 /* ---------- Sending ---------- */
 
-static void notify(host_link_t *l, int n, const uint8_t *data, uint16_t len)
+/* true once the stack has taken the report (it then goes out at the next connection event) */
+static bool notify(host_link_t *l, int n, const uint8_t *data, uint16_t len)
 {
     if (!(l->sub & (1u << n)) || l->state != HL_READY) {
-        return;
+        return false;
     }
     struct os_mbuf *om = ble_hs_mbuf_from_flat(data, len);
     if (!om) {
-        return;
+        ESP_LOGW(TAG, "notify: no buffer");
+        return false;
     }
     int rc = ble_gatts_notify_custom(l->conn, s_notify_handle[n], om);
     if (rc != 0) {
         ESP_LOGW(TAG, "notify failed rc=%d", rc);
+    }
+    return rc == 0;
+}
+
+/* Send a report if it differs from what this host last received. last changes only when the stack took it, so a failed report goes out with the next change */
+static void send_changed(host_link_t *l, int n, uint8_t *last, const uint8_t *now, uint16_t len)
+{
+    if (memcmp(last, now, len) != 0 && notify(l, n, now, len)) {
+        memcpy(last, now, len);
     }
 }
 
@@ -466,11 +477,9 @@ static void send_keyboard(host_link_t *l, const uint8_t keys[32])
     uint8_t kb[HOST_KB_LEN];
     host_kb_report(keys, kb);
     if (boot_mode(l)) {
-        if (host_sent_update(l->boot_kb, kb, HOST_KB_LEN)) {
-            notify(l, N_BOOT_KB, kb, HOST_KB_LEN);
-        }
-    } else if (host_sent_update(l->sent.kb, kb, HOST_KB_LEN)) {
-        notify(l, N_KB, kb, HOST_KB_LEN);
+        send_changed(l, N_BOOT_KB, l->boot_kb, kb, HOST_KB_LEN);
+    } else {
+        send_changed(l, N_KB, l->sent.kb, kb, HOST_KB_LEN);
     }
 }
 
@@ -481,9 +490,17 @@ static void send_consumer(host_link_t *l, const uint16_t *usages, uint8_t count)
     }
     uint8_t c[HOST_CONSUMER_LEN];
     host_consumer_report(usages, count, c);
-    if (host_sent_update(l->sent.consumer, c, HOST_CONSUMER_LEN)) {
-        notify(l, N_CONSUMER, c, HOST_CONSUMER_LEN);
+    send_changed(l, N_CONSUMER, l->sent.consumer, c, HOST_CONSUMER_LEN);
+}
+
+/* System Control: power down, sleep, wake up (same bit order as router_out_t.system) */
+static void send_system(host_link_t *l, uint8_t bits)
+{
+    if (boot_mode(l)) {
+        return;
     }
+    uint8_t v = bits & 0x07;
+    send_changed(l, N_SYSTEM, &l->sent.system, &v, HOST_SYSTEM_LEN);
 }
 
 /*
@@ -506,13 +523,15 @@ static void send_mouse(host_link_t *l, const router_out_t *o)
         if (boot_mode(l)) {
             uint8_t b[HOST_BOOT_MOUSE_LEN];
             host_boot_mouse_report(&l->motion, l->buttons, b);
-            l->boot_buttons = b[0];
-            notify(l, N_BOOT_MOUSE, b, sizeof(b));
+            if (notify(l, N_BOOT_MOUSE, b, sizeof(b))) {
+                l->boot_buttons = b[0];
+            }
         } else {
             uint8_t m[HOST_MOUSE_LEN];
             host_mouse_report(&l->motion, l->buttons, m);
-            l->sent.buttons = l->buttons;
-            notify(l, N_MOUSE, m, sizeof(m));
+            if (notify(l, N_MOUSE, m, sizeof(m))) {
+                l->sent.buttons = l->buttons;
+            }
         }
         int64_t in_notify = now_us() - t;
         s_mouse_sent++;
@@ -529,34 +548,19 @@ static void release_all(host_link_t *l)
     if (!l || l->state != HL_READY) {
         return;
     }
-    host_release_t r = host_release_needed(&l->sent);
     uint8_t zeros[HOST_KB_LEN > HOST_MOUSE_LEN ? HOST_KB_LEN : HOST_MOUSE_LEN] = {0};
     if (boot_mode(l)) {
-        if (memcmp(l->boot_kb, zeros, HOST_KB_LEN) != 0) {
-            memset(l->boot_kb, 0, HOST_KB_LEN);
-            notify(l, N_BOOT_KB, zeros, HOST_KB_LEN);
-        }
-        if (l->boot_buttons) {
+        send_changed(l, N_BOOT_KB, l->boot_kb, zeros, HOST_KB_LEN);
+        if (l->boot_buttons && notify(l, N_BOOT_MOUSE, zeros, HOST_BOOT_MOUSE_LEN)) {
             l->boot_buttons = 0;
-            notify(l, N_BOOT_MOUSE, zeros, HOST_BOOT_MOUSE_LEN);
         }
     } else {
-        if (r.kb) {
-            memset(l->sent.kb, 0, HOST_KB_LEN);
-            notify(l, N_KB, zeros, HOST_KB_LEN);
-        }
-        if (r.mouse) {
+        send_changed(l, N_KB, l->sent.kb, zeros, HOST_KB_LEN);
+        if (l->sent.buttons && notify(l, N_MOUSE, zeros, HOST_MOUSE_LEN)) {
             l->sent.buttons = 0;
-            notify(l, N_MOUSE, zeros, HOST_MOUSE_LEN);
         }
-        if (r.consumer) {
-            memset(l->sent.consumer, 0, HOST_CONSUMER_LEN);
-            notify(l, N_CONSUMER, zeros, HOST_CONSUMER_LEN);
-        }
-        if (r.system) {
-            l->sent.system = 0;
-            notify(l, N_SYSTEM, zeros, HOST_SYSTEM_LEN);
-        }
+        send_changed(l, N_CONSUMER, l->sent.consumer, zeros, HOST_CONSUMER_LEN);
+        send_changed(l, N_SYSTEM, &l->sent.system, zeros, HOST_SYSTEM_LEN);
     }
     memset(&l->motion, 0, sizeof(l->motion));
     l->buttons = 0;
@@ -587,6 +591,9 @@ void host_send(const router_out_t *out, int switched_from)
     }
     if (out->consumer_changed) {
         send_consumer(l, out->consumer, out->consumer_count);
+    }
+    if (out->system_changed) {
+        send_system(l, out->system);
     }
     if (out->buttons_changed || out->motion) {
         send_mouse(l, out);

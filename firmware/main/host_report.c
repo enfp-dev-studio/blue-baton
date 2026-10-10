@@ -128,33 +128,3 @@ void host_boot_mouse_report(host_motion_t *m, uint8_t buttons, uint8_t out[HOST_
     m->wheel = 0;
     m->pan = 0;
 }
-
-bool host_sent_update(uint8_t *last, const uint8_t *now, size_t len)
-{
-    if (memcmp(last, now, len) == 0) {
-        return false;
-    }
-    memcpy(last, now, len);
-    return true;
-}
-
-static bool nonzero(const uint8_t *p, size_t len)
-{
-    for (size_t i = 0; i < len; i++) {
-        if (p[i]) {
-            return true;
-        }
-    }
-    return false;
-}
-
-host_release_t host_release_needed(const host_sent_t *sent)
-{
-    host_release_t r = {
-        .kb = nonzero(sent->kb, HOST_KB_LEN),
-        .mouse = sent->buttons != 0,
-        .consumer = nonzero(sent->consumer, HOST_CONSUMER_LEN),
-        .system = sent->system != 0,
-    };
-    return r;
-}

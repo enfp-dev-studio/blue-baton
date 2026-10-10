@@ -7,7 +7,7 @@
 /*
  * Parse an input device's Report Map into a layout, and decode input reports into a common form.
  * Uses only HID 1.11 Report Descriptor rules and the HID Usage Tables, with no per-device assumptions.
- * Same rules as the UI-side parser (ui/js/hid/report-map.js).
+ * Same rules as the UI-side parser (ui/src/lib/board/hid/report-map.js).
  */
 
 #define HID_PAGE_DESKTOP 0x01
@@ -19,6 +19,7 @@
 #define HID_FIELD_MAX 48       /* Input items per Report Map (real-hardware keyboards have around 20) */
 #define HID_REPORT_MAX 16      /* Input report IDs per Report Map */
 #define HID_CONSUMER_MAX 4     /* Media keys pressed at once in one report */
+#define HID_USAGE_MAX 96       /* Usages listed one by one per Report Map (a consumer bitmap can list a few dozen) */
 
 /* One Input item (Report Count fields of the same size) */
 typedef struct {
@@ -27,12 +28,17 @@ typedef struct {
     uint8_t bit_size;       /* Bits per field */
     uint16_t count;         /* Number of fields (an NKRO bitmap can have hundreds) */
     uint16_t page;
-    uint16_t usage_min;     /* Start of the Usage range. Variable: field n = usage_min + n; Array: value v = usage_min + (v - logical_min) */
     int32_t logical_min;
     bool array;             /* Data/Array bit of the Input Main item */
     bool relative;
+    /*
+     * Usages (HID 1.11 6.2.2.8): a range (usage_min) or a list (layout usages[usage_first .. +usage_count]).
+     * Variable: field n is the n-th Usage (with a list, the last repeats if too few).
+     * Array: value v selects the (v - logical_min)-th Usage.
+     */
     bool has_usage_range;
-    uint16_t usages[6];     /* For Variable with Usages listed one by one (the last repeats if too few) */
+    uint16_t usage_min;
+    uint8_t usage_first;
     uint8_t usage_count;
 } hid_field_t;
 
@@ -58,6 +64,8 @@ typedef struct {
     uint8_t field_count;
     hid_report_info_t reports[HID_REPORT_MAX];
     uint8_t report_count;
+    uint16_t usages[HID_USAGE_MAX];   /* Listed Usages of all fields */
+    uint8_t usage_total;
     bool truncated;         /* Ran out of slots and dropped some */
     hid_led_t led;          /* First LED output report, if any */
 } hid_layout_t;
@@ -73,6 +81,8 @@ typedef struct {
     uint16_t consumer[HID_CONSUMER_MAX];  /* Usages of pressed media keys */
     uint8_t consumer_count;
     bool has_consumer;
+    uint8_t system;                       /* System Control bitmap: bit0 Power Down, bit1 Sleep, bit2 Wake Up (Generic Desktop 0x81-0x83) */
+    bool has_system;
 } hid_input_t;
 
 /* Build a layout from a Report Map. On a malformed item, keep what was read up to that point */

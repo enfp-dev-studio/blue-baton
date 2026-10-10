@@ -84,7 +84,7 @@ typedef struct {
 typedef enum { PS_CONNECTED, PS_SECURING, PS_DISCOVERING, PS_READY } peer_state_t;
 
 typedef enum {
-    ST_SVC, ST_CHR, ST_DSC, ST_REF, ST_INFO, ST_MAP, ST_SUB, ST_DONE
+    ST_MTU, ST_SVC, ST_CHR, ST_DSC, ST_REF, ST_INFO, ST_MAP, ST_SUB, ST_DONE
 } disc_stage_t;
 
 typedef struct {
@@ -131,6 +131,7 @@ typedef struct {
     report_t rep[REPORT_MAX];
     uint8_t rep_count;
     uint8_t kinds;
+    uint16_t mtu;            /* ATT MTU agreed at the start of discovery */
     int64_t activity_us;     /* Last activity event (esp_timer time) */
     bool led_written;        /* led_last reached the device */
     uint8_t led_last;        /* Host LED byte last written to the device's LED output report */
@@ -1087,7 +1088,7 @@ static void emit_route(const router_out_t *o)
     for (int c = 0; c < o->consumer_count && n < (int)sizeof(buf) - 16; c++) {
         n += snprintf(buf + n, sizeof(buf) - n, "%s%u", c ? "," : "", o->consumer[c]);
     }
-    snprintf(buf + n, sizeof(buf) - n, "]}");
+    snprintf(buf + n, sizeof(buf) - n, "],\"system\":%u}", o->system);
     emit(buf);
 }
 
@@ -1210,8 +1211,8 @@ static void peer_ready(peer_t *p)
     hid_kinds_json(p->kinds, kinds, sizeof(kinds));
     snprintf(buf, sizeof(buf),
              "{\"event\":\"hid_ready\",\"addr\":\"%s\",\"id_addr\":\"%s\",\"kinds\":%s,\"reports\":%u,"
-             "\"services\":%u}",
-             p->addr_str, p->id_str, kinds, p->rep_count, p->svc_count);
+             "\"services\":%u,\"mtu\":%u}",
+             p->addr_str, p->id_str, kinds, p->rep_count, p->svc_count, p->mtu);
     emit(buf);
     int rc = gap_name_read(p->conn, on_name_read);
     if (rc != 0) {
@@ -1576,18 +1577,38 @@ static void disc_next(peer_t *p)
     }
 }
 
+static int on_mtu(uint16_t conn, const struct ble_gatt_error *error, uint16_t mtu, void *arg)
+{
+    peer_t *p = peer_by_conn(conn);
+    if (!p || p->stage != ST_MTU) {
+        return 0;
+    }
+    /* If the device refuses, the ATT default (23) stays and discovery goes on as usual */
+    p->mtu = ble_att_mtu(conn);
+    p->stage = ST_SVC;
+    int rc = ble_gattc_disc_svc_by_uuid(p->conn, &s_uuid_hid.u, on_svc, NULL);
+    if (rc != 0) {
+        disc_fail(p, "services", rc);
+    }
+    return 0;
+}
+
+/*
+ * Discovery starts with the ATT MTU exchange (once per connection, by the client: Core Vol 3 Part F 3.4.2), as other
+ * HID hosts do. With the default 23 bytes, notifications carry at most 20 bytes and the Report Map is read 22 bytes at a time
+ */
 static void disc_start(peer_t *p)
 {
     p->state = PS_DISCOVERING;
-    p->stage = ST_SVC;
+    p->stage = ST_MTU;
     p->idx = 0;
     p->svc_count = 0;
     p->chr_count = 0;
     p->rep_count = 0;
     p->kinds = 0;
-    int rc = ble_gattc_disc_svc_by_uuid(p->conn, &s_uuid_hid.u, on_svc, NULL);
+    int rc = ble_gattc_exchange_mtu(p->conn, on_mtu, NULL);
     if (rc != 0) {
-        disc_fail(p, "services", rc);
+        disc_fail(p, "mtu", rc);
     }
 }
 

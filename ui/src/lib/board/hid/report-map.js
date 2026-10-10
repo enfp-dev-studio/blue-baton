@@ -68,7 +68,7 @@ export function parseReportMap(d) {
           L.fields.push({
             page: isArr && umin ? umin.page : u.page,
             usage: u.usage, size: rsize, offset: L.bits + n * rsize,
-            lmin, arr: isArr, rel: isRel, umin,
+            lmin, arr: isArr, rel: isRel, umin, list: usages,
           });
         }
         L.bits += rsize * rcount;
@@ -134,13 +134,18 @@ export function typeChar(u, shift) {
   return '';
 }
 
-/* Pressed usages: 1-bit fields with value 1, and for array fields the usage the value points to */
+/*
+ * Pressed usages: 1-bit fields with value 1, and for array fields the usage the value selects:
+ * the (value - Logical Minimum)-th of the Usage range or list. Outside the range means none (HID 1.11 6.2.2.5).
+ */
 export function pressedUsages(fields, page) {
   const set = new Set();
   for (const f of fields) {
     if (f.page !== page) continue;
     if (f.arr) {
-      if (f.value !== 0 && f.umin) set.add(f.umin.usage + (f.value - f.lmin));
+      const idx = f.value - f.lmin;
+      const u = idx < 0 ? 0 : f.umin ? f.umin.usage + idx : f.list[idx]?.usage || 0;
+      if (u) set.add(u);
     } else if (f.value) {
       set.add(f.usage);
     }

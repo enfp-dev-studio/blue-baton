@@ -154,16 +154,16 @@ hosts: [{"host":1,"addr":"AA:BB:CC:DD:EE:FF","name":"MacBook Pro","connected":tr
 | `hid_info` | `addr`, `svc`, `bcd_hid`, `country`, `remote_wake`, `normally_connectable` | HID Information |
 | `report_map` | `addr`, `svc`, `len`, `truncated`, `kinds`, `hex` | The full Report Map. One per service (`svc`). `truncated:true` if it exceeds 512 bytes |
 | `subscribe_failed` | `addr`, `val`, `status` | Failed to enable notifications for one input report (the rest continue) |
-| `hid_ready` | `addr`, `id_addr`, `kinds`, `reports`, `services` | Ready to receive input |
+| `hid_ready` | `addr`, `id_addr`, `kinds`, `reports`, `services`, `mtu` | Ready to receive input. `mtu`: ATT MTU agreed with the device (23 if it refused the exchange) |
 | `device_name` | `addr`, `name` | Read the GAP Device Name (devices without a name in their advertising get their name here) |
 | `activity` | `addr` | Input arrived from that device. No content; at most every 250 ms per device |
 | `report` | `addr`, `handle`, `data` (hex) | Input report. `handle` is the `val` from `report_ref`. Only under the input monitor lease |
-| `failed` | `addr`, `stage`, `status` | A connection ended in failure. The board disconnects it. `stage`: `security_start`, `security`, `not_bonded`, `services`, `no_hid_service`, `characteristics`, `descriptors` |
+| `failed` | `addr`, `stage`, `status` | A connection ended in failure. The board disconnects it. `stage`: `security_start`, `security`, `not_bonded`, `mtu`, `services`, `no_hid_service`, `characteristics`, `descriptors` |
 | `disconnected` | `addr`, `id_addr`, `reason` | Disconnected (HCI reason code. 531 = remote side disconnected) |
 | `unpaired` | `id_addr` | One pairing was deleted |
 | `unpaired_all` | none | All pairings were deleted |
 | `host_switch` | `host`, `from` | The active host changed (combo or `host_select`). 1-based |
-| `route` | `host`, `keys`, `buttons`, `consumer` | The state to send to the active host changed (keys, mouse buttons, media keys). `keys` is a list of Keyboard page Usages (including modifiers 0xE0–0xE7). Mouse motion is not included. For diagnostics, only under the input monitor lease |
+| `route` | `host`, `keys`, `buttons`, `consumer`, `system` | The state to send to the active host changed (keys, mouse buttons, media keys, system keys). `system` bits: 1 Power Down, 2 Sleep, 4 Wake Up. `keys` is a list of Keyboard page Usages (including modifiers 0xE0–0xE7). Mouse motion is not included. For diagnostics, only under the input monitor lease |
 | `host_online` | `host`, `online` | Whether the host switched to is connected right now. If `false`, input is dropped until it connects (it is not sent later in a burst) |
 | `host_window` | `open`, `seconds` | The host pairing window opened/closed |
 | `host_connected` | `host`, `addr`, `bonded`, `itvl` | A host connected. For a bonded host `host` is its number; for a computer attaching for the first time through the window, `host:0` |
@@ -245,6 +245,11 @@ Only while the window is open does the board present itself as a keyboard (IO ca
   events now also list output reports (`type` 2).
 - Input devices are asked for 8.75 ms (was 7.5–15 ms, where the controller picked 15 ms). With a host connected
   the controller refuses a fixed 7.5 ms (HCI 0x0D).
+- Discovery starts with an ATT MTU exchange (`hid_ready` `mtu`); the Report Map is read in far fewer requests.
+- System keys (Generic Desktop Power Down, Sleep, Wake Up) from input devices reach the host (`route` `system`).
+- Media keys: a report with every array slot empty now releases the key (before, it was ignored and the key stayed
+  held on the host); Usages listed one by one are no longer limited to 6, and array values select from such a list.
+- A report the stack could not take is no longer remembered as sent, so the next change carries the full state.
 
 ## 0.4 → 0.5 changes
 

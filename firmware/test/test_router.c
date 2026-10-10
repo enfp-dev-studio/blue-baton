@@ -127,6 +127,8 @@ static void test_input(void)
     /* Media key array (ID 2): Volume Up 0xE9 */
     CHECK(decode_hex(&s_kb, 2, "E900", &in), "consumer decodes");
     CHECK(in.has_consumer && in.consumer_count == 1 && in.consumer[0] == 0xE9, "volume up");
+    /* Release: every array slot empty still says "no media key" (HID 1.11 6.2.2.5) */
+    CHECK(decode_hex(&s_kb, 2, "0000", &in) && in.has_consumer && in.consumer_count == 0, "media key release");
 
     /* Unknown Report ID, short data */
     CHECK(!decode_hex(&s_kb, 9, "00", &in), "unknown report id");
@@ -138,6 +140,24 @@ static void test_input(void)
     size_t n = hex("05010902A10109301581257F750895038106C0", m, sizeof(m));
     hid_layout_parse(m, n, &l);
     CHECK(decode_hex(&l, 0, "010203", &in) && in.dx == 6, "last usage repeats (dx=%d)", (int)in.dx);
+
+    /* Consumer bitmap with 8 Usages listed one by one: bit 6 is Volume Down (0xEA), bit 7 Eject (0xB8) */
+    n = hex("050C0901A101150025017501950809B509B609B709CD09E209E909EA09B88102C0", m, sizeof(m));
+    hid_layout_parse(m, n, &l);
+    CHECK(decode_hex(&l, 0, "40", &in) && in.consumer_count == 1 && in.consumer[0] == 0xEA, "7th listed usage");
+    CHECK(decode_hex(&l, 0, "80", &in) && in.consumer_count == 1 && in.consumer[0] == 0xB8, "8th listed usage");
+
+    /* Consumer array with listed Usages: value v selects the (v - Logical Minimum)-th one */
+    n = hex("050C0901A101150125037508950109E909EA09E28100C0", m, sizeof(m));
+    hid_layout_parse(m, n, &l);
+    CHECK(decode_hex(&l, 0, "02", &in) && in.consumer_count == 1 && in.consumer[0] == 0xEA, "array picks from list");
+    CHECK(decode_hex(&l, 0, "00", &in) && in.has_consumer && in.consumer_count == 0, "array value 0 is none here");
+
+    /* System Control as a 2-bit array (Logical 1-3 = Power Down, Sleep, Wake Up) */
+    n = hex("05010980A10185051981298315012503750295018100750695018103C0", m, sizeof(m));
+    hid_layout_parse(m, n, &l);
+    CHECK(decode_hex(&l, 5, "02", &in) && in.has_system && in.system == 0x02, "system sleep (array)");
+    CHECK(decode_hex(&l, 5, "00", &in) && in.has_system && in.system == 0, "system release (array)");
 
     /* Push/Pop: Report Size 8 is saved and then restored */
     n = hex("05010902A10175089501A47501B409308106C0", m, sizeof(m));
@@ -374,6 +394,32 @@ static void test_router(void)
     /* The "release-all" sent to the previous host on a switch */
     router_release_report(&o);
     CHECK(out_empty(&o) && o.buttons == 0 && o.keys_changed && o.buttons_changed, "release report");
+    /* Media key through the router: press, then the empty array releases it */
+    setup_router();
+    hid_input_t mi;
+    decode_hex(&s_kb, 2, "E900", &mi);
+    router_input(0, 2, &mi, &o, &from);
+    CHECK(o.consumer_changed && o.consumer_count == 1 && o.consumer[0] == 0xE9, "media key pressed");
+    decode_hex(&s_kb, 2, "0000", &mi);
+    router_input(0, 2, &mi, &o, &from);
+    CHECK(o.consumer_changed && o.consumer_count == 0, "media key released");
+
+    /* System key: press, release, and released when the device goes away */
+    setup_router();
+    hid_input_t si = {0};
+    si.has_system = true;
+    si.system = 0x02;
+    router_input(0, 5, &si, &o, &from);
+    CHECK(o.system_changed && o.system == 0x02, "sleep pressed");
+    si.system = 0;
+    router_input(0, 5, &si, &o, &from);
+    CHECK(o.system_changed && o.system == 0, "sleep released");
+    si.system = 0x01;
+    router_input(1, 5, &si, &o, &from);
+    router_device_gone(1, &o);
+    CHECK(o.system_changed && o.system == 0, "system key released when its device disconnects");
+    router_release_report(&o);
+    CHECK(o.system_changed && o.system == 0, "release-all includes system keys");
 }
 
 /* ---------- output reports (host side) ---------- */
@@ -398,6 +444,10 @@ static void test_host_report(void)
     CHECK(kb[0] == 0x02 && kb[1] == 0 && kb[2] == 0x04 && kb[3] == 0x90 && kb[4] == 0, "kb bytes");
     hid_input_t in;
     CHECK(hid_decode(&l, HOST_RID_KEYBOARD, kb, sizeof(kb), &in) && memcmp(in.keys, keys, 32) == 0, "kb round trip");
+
+    /* System Control as variable bits (our own ID4): Sleep */
+    uint8_t sys = 0x02;
+    CHECK(hid_decode(&l, HOST_RID_SYSTEM, &sys, 1, &in) && in.has_system && in.system == 0x02, "system round trip");
 
     /* 7 or more keys: all 6 slots are ErrorRollOver, modifiers unchanged */
     uint8_t many[32] = {0};
@@ -439,13 +489,6 @@ static void test_host_report(void)
     CHECK(hid_decode(&l, HOST_RID_CONSUMER, cs, sizeof(cs), &in) && in.consumer_count == 1 && in.consumer[0] == 0xE9,
           "consumer round trip");
 
-    /* The same value is not resent. Release only for reports that are non-zero */
-    host_kb_report(keys, kb);   /* Shift + a + LANG1 */
-    host_sent_t sent = {0};
-    CHECK(host_sent_update(sent.kb, kb, HOST_KB_LEN), "first send");
-    CHECK(!host_sent_update(sent.kb, kb, HOST_KB_LEN), "same value not resent");
-    host_release_t r = host_release_needed(&sent);
-    CHECK(r.kb && !r.mouse && !r.consumer && !r.system, "release only the keyboard");
 }
 
 int main(void)

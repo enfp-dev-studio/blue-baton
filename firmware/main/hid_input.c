@@ -28,6 +28,8 @@
 #define USAGE_X 0x30
 #define USAGE_Y 0x31
 #define USAGE_WHEEL 0x38
+#define USAGE_SYS_POWER_DOWN 0x81   /* Generic Desktop System Control: 0x81 Power Down, 0x82 Sleep, 0x83 Wake Up */
+#define USAGE_SYS_WAKE_UP 0x83
 #define USAGE_AC_PAN 0x238
 
 typedef struct {
@@ -61,10 +63,9 @@ void hid_layout_parse(const uint8_t *map, size_t len, hid_layout_t *out)
     globals_t g = {0};
     globals_t stack[STACK_MAX];
     int sp = 0;
-    /* Local: reset at every Main item */
-    uint16_t usages[6];
-    uint16_t usage_pages[6];
-    uint8_t usage_count = 0;
+    /* Local: reset at every Main item. Listed Usages go into out->usages from local_first on, and stay only if an Input field keeps them */
+    uint8_t local_first = 0;
+    uint16_t first_page = 0;    /* Usage Page of the first listed Usage */
     bool have_min = false;
     uint16_t usage_min = 0;
     uint16_t usage_min_page = 0;
@@ -137,16 +138,23 @@ void hid_layout_parse(const uint8_t *map, size_t len, hid_layout_t *out)
         } else if (type == TYPE_LOCAL) {
             /* For a 4-byte Usage, the upper 16 bits are the Usage Page (extended Usage) */
             uint16_t page = size == 4 ? (uint16_t)(data >> 16) : g.page;
-            if (tag == TAG_USAGE && usage_count < 6) {
-                usages[usage_count] = (uint16_t)data;
-                usage_pages[usage_count] = page;
-                usage_count++;
+            if (tag == TAG_USAGE) {
+                if (out->usage_total == local_first) {
+                    first_page = page;
+                }
+                if (out->usage_total < HID_USAGE_MAX) {
+                    out->usages[out->usage_total++] = (uint16_t)data;
+                } else {
+                    out->truncated = true;
+                }
             } else if (tag == TAG_USAGE_MIN) {
                 have_min = true;
                 usage_min = (uint16_t)data;
                 usage_min_page = page;
             }
         } else if (type == TYPE_MAIN) {
+            uint8_t usage_count = (uint8_t)(out->usage_total - local_first);
+            bool keep_usages = false;
             if (tag == TAG_INPUT) {
                 hid_report_info_t *r = report_info(out, g.report_id);
                 uint32_t total = g.report_size * g.report_count;
@@ -163,10 +171,11 @@ void hid_layout_parse(const uint8_t *map, size_t len, hid_layout_t *out)
                         f->relative = (data & INPUT_RELATIVE) != 0;
                         f->has_usage_range = have_min;
                         f->usage_min = usage_min;
+                        f->usage_first = local_first;
                         f->usage_count = usage_count;
-                        memcpy(f->usages, usages, sizeof(usages));
+                        keep_usages = true;
                         if (usage_count > 0 && !(f->array && have_min)) {
-                            f->page = usage_pages[0];
+                            f->page = first_page;
                         } else if (have_min) {
                             f->page = usage_min_page;
                         } else {
@@ -190,7 +199,7 @@ void hid_layout_parse(const uint8_t *map, size_t len, hid_layout_t *out)
                     out_bits[out_n++] = 0;
                 }
                 if (k < out_n) {
-                    uint16_t page = usage_count > 0 ? usage_pages[0] : (have_min ? usage_min_page : g.page);
+                    uint16_t page = usage_count > 0 ? first_page : (have_min ? usage_min_page : g.page);
                     bool led = page == HID_PAGE_LED && !(data & INPUT_CONSTANT) && (data & INPUT_VARIABLE) &&
                                g.report_size == 1 && (usage_count > 0 || have_min);
                     if (led && (!out->led.present || out->led.report_id == g.report_id)) {
@@ -203,7 +212,7 @@ void hid_layout_parse(const uint8_t *map, size_t len, hid_layout_t *out)
                         }
                         for (uint32_t n = 0; n < g.report_count; n++) {
                             uint16_t usage = have_min ? (uint16_t)(usage_min + n)
-                                                      : usages[n < usage_count ? n : usage_count - 1];
+                                                      : out->usages[local_first + (n < usage_count ? n : usage_count - 1)];
                             if (usage >= 1 && usage <= HID_LED_COUNT) {
                                 out->led.bit[usage - 1] = (int16_t)(out_bits[k] + n);
                             }
@@ -213,7 +222,10 @@ void hid_layout_parse(const uint8_t *map, size_t len, hid_layout_t *out)
                 }
             }
             /* Local items are reset at every Main item (HID 1.11 6.2.2.8) */
-            usage_count = 0;
+            if (!keep_usages) {
+                out->usage_total = local_first;
+            }
+            local_first = out->usage_total;
             have_min = false;
         }
     }
@@ -290,12 +302,46 @@ static void add_consumer(hid_input_t *o, uint32_t usage)
 }
 
 /* Usage of Variable field n: the listed Usages (the last repeats if too few) or the range */
-static uint32_t variable_usage(const hid_field_t *f, uint16_t n)
+static uint32_t variable_usage(const hid_layout_t *l, const hid_field_t *f, uint16_t n)
 {
     if (f->usage_count > 0) {
-        return f->usages[n < f->usage_count ? n : f->usage_count - 1];
+        return l->usages[f->usage_first + (n < f->usage_count ? n : f->usage_count - 1)];
     }
     return (uint32_t)f->usage_min + n;
+}
+
+/* Usage selected by Array value v: the (v - Logical Minimum)-th Usage. 0 if none (a value outside the range means no control, HID 1.11 6.2.2.5) */
+static uint32_t array_usage(const hid_layout_t *l, const hid_field_t *f, int32_t v)
+{
+    if (v < f->logical_min) {
+        return 0;
+    }
+    uint32_t idx = (uint32_t)(v - f->logical_min);
+    if (f->has_usage_range) {
+        return f->usage_min + idx;
+    }
+    return idx < f->usage_count ? l->usages[f->usage_first + idx] : 0;
+}
+
+/* An Array reports the whole state of its kind, so a report with every slot empty still means "none pressed" */
+static void array_kind(hid_input_t *o, uint16_t page)
+{
+    switch (page) {
+    case HID_PAGE_KEYBOARD:
+        o->has_keys = true;
+        break;
+    case HID_PAGE_BUTTON:
+        o->has_buttons = true;
+        break;
+    case HID_PAGE_CONSUMER:
+        o->has_consumer = true;
+        break;
+    case HID_PAGE_DESKTOP:
+        o->has_system = true;   /* Generic Desktop arrays are System Control (pointer axes are never arrays) */
+        break;
+    default:
+        break;
+    }
 }
 
 bool hid_decode(const hid_layout_t *layout, uint8_t report_id, const uint8_t *data, size_t len, hid_input_t *out)
@@ -316,19 +362,17 @@ bool hid_decode(const hid_layout_t *layout, uint8_t report_id, const uint8_t *da
             continue;
         }
         bool is_signed = f->logical_min < 0;
+        if (f->array) {
+            array_kind(out, f->page);
+        }
         for (uint16_t n = 0; n < f->count; n++) {
             int32_t v;
             if (!get_bits(data, len, (uint32_t)f->bit_offset + (uint32_t)n * f->bit_size, f->bit_size, is_signed, &v)) {
                 break;
             }
-            uint32_t usage;
-            if (f->array) {
-                if (v == 0 || v < f->logical_min) {
-                    continue;   /* 0 in an array means "nothing pressed" */
-                }
-                usage = (uint32_t)f->usage_min + (uint32_t)(v - f->logical_min);
-            } else {
-                usage = variable_usage(f, n);
+            uint32_t usage = f->array ? array_usage(layout, f, v) : variable_usage(layout, f, n);
+            if (f->array && usage == 0) {
+                continue;
             }
             switch (f->page) {
             case HID_PAGE_KEYBOARD:
@@ -344,7 +388,12 @@ bool hid_decode(const hid_layout_t *layout, uint8_t report_id, const uint8_t *da
                 }
                 break;
             case HID_PAGE_DESKTOP:
-                if (!f->array && f->relative) {
+                if (usage >= USAGE_SYS_POWER_DOWN && usage <= USAGE_SYS_WAKE_UP) {
+                    out->has_system = true;
+                    if (f->array || v) {
+                        out->system |= (uint8_t)(1u << (usage - USAGE_SYS_POWER_DOWN));
+                    }
+                } else if (!f->array && f->relative) {
                     out->has_motion = true;
                     if (usage == USAGE_X) {
                         out->dx += v;
