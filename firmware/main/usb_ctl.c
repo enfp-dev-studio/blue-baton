@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "esp_system.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "sdkconfig.h"
@@ -118,7 +119,7 @@ static void cmd_status(int id)
     char fields[600];
     snprintf(fields, sizeof(fields),
              ",\"scanning\":%s,\"connected\":%s,\"hid_ready\":%s,\"peer\":\"%s\",\"peers\":%s,"
-             "\"radio\":\"%s\",\"bonds\":%d,\"bonds_max\":%d,\"active_host\":%d",
+             "\"radio\":\"%s\",\"bonds\":%d,\"bonds_max\":%d,\"active_host\":%d,\"heap_free\":%lu,\"heap_min\":%lu",
              scanning ? "true" : "false",
              connected ? "true" : "false",
              hid_ready ? "true" : "false",
@@ -127,7 +128,9 @@ static void cmd_status(int id)
              ble_pair_radio(),
              ble_pair_bond_count(),
              CONFIG_BT_NIMBLE_MAX_BONDS,
-             ble_pair_active_host() + 1);
+             ble_pair_active_host() + 1,
+             (unsigned long)esp_get_free_heap_size(),
+             (unsigned long)esp_get_minimum_free_heap_size());
     reply_ok(id, fields);
 }
 

@@ -38,12 +38,6 @@ static const char *TAG = "host";
  * by itself, and the board's controller once refused the request locally (HCI 0x12). So 15 ms only.
  */
 #define ITVL_HOST 12
-/*
- * Mouse pacing: up to MOUSE_PER_ITVL reports per host interval go out at once, with a burst tolerance of one
- * interval (a connection event carries several packets). Real hardware: with 2 per interval and no tolerance,
- * arrival jitter of a fraction of a millisecond made every report wait for the 1 ms timer (average 1.19 ms).
- */
-#define MOUSE_PER_ITVL 3
 #define SEC_REQ_MS 1000          /* Send a Security Request if a bonded host has not started encryption within this time */
 /* Advertising interval (units of 0.625 ms): Apple recommends 20 ms, then 152.5 ms (Accessory Design Guidelines R31 58.5); the window uses 30 ms (Microsoft Swift Pair) */
 #define ADV_ITVL_RECONNECT_FAST 32
@@ -163,9 +157,6 @@ typedef struct {
     uint8_t boot_buttons;
     host_motion_t motion;
     uint8_t buttons;
-    bool mouse_pending;
-    int64_t mouse_tat_us;        /* Mouse pacing: theoretical arrival time of the next report (GCRA) */
-    int64_t mouse_since_us;      /* When the oldest unsent motion arrived (0: nothing waiting) */
     uint16_t itvl;               /* Connection interval (units of 1.25 ms) */
     uint16_t latency;
     bool pk_wait;                /* Waiting for passkey entry */
@@ -176,13 +167,6 @@ typedef struct {
 } host_link_t;
 
 static host_link_t s_links[HOST_LINK_MAX];
-/*
- * Mouse send timers are created only once per slot. In this port, callout init allocates a new timer resource
- * on every call, so initializing per connection leaks resources. The timers stay even when the link state (s_links) is cleared.
- */
-static struct ble_npl_callout s_mouse_timer[HOST_LINK_MAX];
-
-static struct ble_npl_callout *mouse_timer(const void *l);
 static host_event_fn s_emit;
 static bool s_synced;
 static bool s_window;
@@ -193,12 +177,9 @@ static int s_adv_mode;           /* 0 off, 1 reconnect, 2 window */
 static int s_adv_itvl;
 static struct ble_npl_callout s_tick;
 
-/* Mouse pacing statistics since the last stats read: how long motion waited on the board before it was sent */
+/* Statistics since the last stats read: mouse reports sent, and the time inside ble_gatts_notify_custom */
 static uint32_t s_mouse_sent;
-static uint32_t s_mouse_merged;   /* Sends that carried motion held back from earlier reports */
-static int64_t s_mouse_wait_sum_us;
-static int64_t s_mouse_wait_max_us;
-static int64_t s_notify_sum_us;   /* Time inside ble_gatts_notify_custom (handing the report to the controller) */
+static int64_t s_notify_sum_us;
 static int64_t s_notify_max_us;
 
 static int host_gap_event(struct ble_gap_event *event, void *arg);
@@ -501,77 +482,10 @@ static void send_consumer(host_link_t *l, const uint16_t *usages, uint8_t count)
     }
 }
 
-static int64_t mouse_itvl_us(const host_link_t *l)
-{
-    return (int64_t)(l->itvl ? l->itvl : ITVL_HOST) * 1250;
-}
-
-static void mouse_schedule(host_link_t *l, int64_t at_us)
-{
-    int64_t wait = at_us - now_us();
-    ble_npl_callout_reset(mouse_timer(l), ble_npl_time_ms_to_ticks32((uint32_t)(wait > 0 ? wait / 1000 : 0) + 1));
-}
-
-/* Send the accumulated mouse motion and buttons once */
-static void flush_mouse(host_link_t *l)
-{
-    if (!l->mouse_pending) {
-        return;
-    }
-    int64_t now = now_us();
-    int64_t waited = l->mouse_since_us ? now - l->mouse_since_us : 0;
-    if (boot_mode(l)) {
-        uint8_t b[HOST_BOOT_MOUSE_LEN];
-        host_boot_mouse_report(&l->motion, l->buttons, b);
-        l->boot_buttons = b[0];
-        notify(l, N_BOOT_MOUSE, b, sizeof(b));
-    } else {
-        uint8_t m[HOST_MOUSE_LEN];
-        host_mouse_report(&l->motion, l->buttons, m);
-        l->sent.buttons = l->buttons;
-        notify(l, N_MOUSE, m, sizeof(m));
-    }
-    int64_t in_notify = now_us() - now;
-    s_notify_sum_us += in_notify;
-    if (in_notify > s_notify_max_us) {
-        s_notify_max_us = in_notify;
-    }
-    s_mouse_sent++;
-    if (waited > 1000) {
-        s_mouse_merged++;
-    }
-    s_mouse_wait_sum_us += waited;
-    if (waited > s_mouse_wait_max_us) {
-        s_mouse_wait_max_us = waited;
-    }
-    int64_t itvl = mouse_itvl_us(l);
-    l->mouse_tat_us = (l->mouse_tat_us > now ? l->mouse_tat_us : now) + itvl / MOUSE_PER_ITVL;
-    l->mouse_pending = !host_motion_empty(&l->motion);   /* If it did not all fit, the rest goes in the next slot */
-    l->mouse_since_us = l->mouse_pending ? now : 0;
-    if (l->mouse_pending) {
-        mouse_schedule(l, l->mouse_tat_us - itvl);
-    }
-}
-
-static struct ble_npl_callout *mouse_timer(const void *l)
-{
-    return &s_mouse_timer[(const host_link_t *)l - s_links];
-}
-
-static void mouse_timer_cb(struct ble_npl_event *ev)
-{
-    host_link_t *l = ble_npl_event_get_arg(ev);
-    if (l && l->used) {
-        flush_mouse(l);
-    }
-}
-
 /*
- * Mouse: each report goes out at once, up to MOUSE_PER_ITVL per connection interval (GCRA pacing, burst
- * tolerance one interval). Only beyond that is motion merged into the next report, so it does not pile up in the
- * per-connection queue and add latency (NimBLE ble_l2cap.c queues when the controller is full). Real hardware (0.6):
- * sending at most once per interval made motion that arrived just after a send wait up to a whole interval.
- * When buttons change, send right away together with the motion accumulated so far.
+ * Mouse: each report goes out at once, as a mouse sends at its next connection event; the stack queues it if the
+ * link is busy. Motion beyond what one report carries (16-bit, or 8-bit in Boot Protocol) follows in more reports.
+ * Button changes go out with the motion so far.
  */
 static void send_mouse(host_link_t *l, const router_out_t *o)
 {
@@ -583,17 +497,26 @@ static void send_mouse(host_link_t *l, const router_out_t *o)
     if (!o->motion && !button_change) {
         return;
     }
-    int64_t now = now_us();
-    if (!l->mouse_pending) {
-        l->mouse_since_us = now;
-    }
-    l->mouse_pending = true;
-    int64_t itvl = mouse_itvl_us(l);
-    if (button_change || now >= l->mouse_tat_us - itvl) {
-        flush_mouse(l);
-    } else {
-        mouse_schedule(l, l->mouse_tat_us - itvl);
-    }
+    do {
+        int64_t t = now_us();
+        if (boot_mode(l)) {
+            uint8_t b[HOST_BOOT_MOUSE_LEN];
+            host_boot_mouse_report(&l->motion, l->buttons, b);
+            l->boot_buttons = b[0];
+            notify(l, N_BOOT_MOUSE, b, sizeof(b));
+        } else {
+            uint8_t m[HOST_MOUSE_LEN];
+            host_mouse_report(&l->motion, l->buttons, m);
+            l->sent.buttons = l->buttons;
+            notify(l, N_MOUSE, m, sizeof(m));
+        }
+        int64_t in_notify = now_us() - t;
+        s_mouse_sent++;
+        s_notify_sum_us += in_notify;
+        if (in_notify > s_notify_max_us) {
+            s_notify_max_us = in_notify;
+        }
+    } while (!host_motion_empty(&l->motion));
 }
 
 /* Zero any report left nonzero on this connection (to the previous host on switch) */
@@ -633,7 +556,6 @@ static void release_all(host_link_t *l)
     }
     memset(&l->motion, 0, sizeof(l->motion));
     l->buttons = 0;
-    l->mouse_pending = false;
 }
 
 void host_send(const router_out_t *out, int switched_from)
@@ -948,7 +870,6 @@ static void on_disconnect(struct ble_gap_event *event)
     if (l->pk_wait) {
         router_passkey_end();
     }
-    ble_npl_callout_stop(mouse_timer(l));
     char extra[48];
     snprintf(extra, sizeof(extra), ",\"reason\":%d", event->disconnect.reason);
     emit_link("host_disconnected", l, extra);
@@ -1303,9 +1224,6 @@ esp_err_t host_init(host_event_fn emit_fn)
     ble_svc_gap_device_name_set(DEVICE_NAME);
     ble_svc_gap_device_appearance_set(APPEARANCE_KEYBOARD);
     ble_npl_callout_init(&s_tick, nimble_port_get_dflt_eventq(), tick_cb, NULL);
-    for (int i = 0; i < HOST_LINK_MAX; i++) {
-        ble_npl_callout_init(&s_mouse_timer[i], nimble_port_get_dflt_eventq(), mouse_timer_cb, &s_links[i]);
-    }
     return ESP_OK;
 }
 
@@ -1321,20 +1239,14 @@ void host_on_reset(void)
 {
     s_synced = false;
     s_adv_mode = 0;
-    for (int i = 0; i < HOST_LINK_MAX; i++) {
-        ble_npl_callout_stop(&s_mouse_timer[i]);
-    }
     memset(s_links, 0, sizeof(s_links));
 }
 
 size_t host_stats_json(char *buf, size_t len)
 {
-    int64_t avg = s_mouse_sent ? s_mouse_wait_sum_us / s_mouse_sent : 0;
     int64_t navg = s_mouse_sent ? s_notify_sum_us / s_mouse_sent : 0;
-    size_t w = snprintf(buf, len, "{\"mouse_sent\":%lu,\"mouse_merged\":%lu,\"mouse_wait_avg_us\":%lld,"
-                        "\"mouse_wait_max_us\":%lld,\"notify_avg_us\":%lld,\"notify_max_us\":%lld,\"hosts\":[",
-                        (unsigned long)s_mouse_sent, (unsigned long)s_mouse_merged, (long long)avg,
-                        (long long)s_mouse_wait_max_us, (long long)navg, (long long)s_notify_max_us);
+    size_t w = snprintf(buf, len, "{\"mouse_sent\":%lu,\"notify_avg_us\":%lld,\"notify_max_us\":%lld,\"hosts\":[",
+                        (unsigned long)s_mouse_sent, (long long)navg, (long long)s_notify_max_us);
     bool first = true;
     for (int i = 0; i < HOST_LINK_MAX && w < len; i++) {
         const host_link_t *l = &s_links[i];
@@ -1349,9 +1261,6 @@ size_t host_stats_json(char *buf, size_t len)
         w += snprintf(buf + w, len - w, "]}");
     }
     s_mouse_sent = 0;
-    s_mouse_merged = 0;
-    s_mouse_wait_sum_us = 0;
-    s_mouse_wait_max_us = 0;
     s_notify_sum_us = 0;
     s_notify_max_us = 0;
     return w < len ? w : len - 1;

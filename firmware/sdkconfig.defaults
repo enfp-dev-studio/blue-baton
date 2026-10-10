@@ -37,8 +37,6 @@ CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
 # Wi-Fi setup is off by default (USB comes first for now; turn it on when switching to the server mode)
 CONFIG_KM_WIFI_ENABLE=n
 
-# NimBLE host on core 1, controller on core 0 (with both on core 0 the notify call took ~1.2 ms)
-CONFIG_BT_NIMBLE_PINNED_TO_CORE_1=y
 # NimBLE logs every notification at INFO (two console lines in the host task, ~1 ms per report)
 CONFIG_BT_NIMBLE_LOG_LEVEL_WARNING=y
 # Speed of the BLE path (measured: each NimBLE layer took ~100 us for a mouse report at -Og/160 MHz/16 KB I-cache)

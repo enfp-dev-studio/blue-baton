@@ -45,7 +45,7 @@ Changes from earlier versions are collected at the end under "0.5 → 0.6 change
 | `hello` | none | Firmware info, whether a switch combo is set, whether the Wi-Fi feature is present |
 | `status` | none | See "status response" below |
 | `monitor` | `on` | Input monitor lease (see "Access and input content"). Reply: `lease_ms` (60000 when on, 0 when off) |
-| `stats` | none | Latency statistics since the last `stats` (`stats`): `mouse_sent`, `mouse_merged` (sends that carried motion held back by pacing), `mouse_wait_avg_us`, `mouse_wait_max_us` (how long motion waited on the board before it was sent), `notify_avg_us`, `notify_max_us` (time inside the notify call that hands a report to the controller), `hosts` (`host`, `itvl`, `latency` of each host link). Reading resets the counters |
+| `stats` | none | Latency statistics since the last `stats` (`stats`): `mouse_sent`, `notify_avg_us`, `notify_max_us` (time inside the notify call that hands a report to the controller), `hosts` (`host`, `itvl`, `latency` of each host link). Reading resets the counters |
 | `pin_set` | `pin` (4 to 8 digits) | Wi-Fi builds only: set the Wi-Fi setup API PIN |
 | `combo_get` | none | The host switch combos actually in effect (`combo`). If nothing is stored or the stored value is malformed, the default applies and `default:true`; if an invalid value is stored, `stored_invalid:true` |
 | `combo_set` | `combo` | Comma-separated list of combos in host order (e.g. `ctrl+alt+1,ctrl+alt+2,ctrl+alt+3`, up to 95 characters). Validated, then applied and saved immediately. If invalid, `code:"bad_combo"` |
@@ -89,7 +89,7 @@ Failure `code`
 ```text
 {"id":9,"ok":true,"scanning":false,"connected":true,"hid_ready":true,"peer":"00:00:5E:00:53:17",
  "peers":[{"addr":"00:00:5E:00:53:17","id_addr":"00:00:5E:00:53:17","state":"ready","hid_ready":true,"itvl":6}],
- "radio":"auto","bonds":1,"bonds_max":8,"active_host":1}
+ "radio":"auto","bonds":1,"bonds_max":8,"active_host":1,"heap_free":228688,"heap_min":224496}
 ```
 
 - `radio`: what the radio is doing right now.
@@ -234,9 +234,9 @@ Only while the window is open does the board present itself as a keyboard (IO ca
   `locked`, `no_pin` and `wrong_pin` codes are gone. `pin_set` remains only in Wi-Fi builds (for the Wi-Fi setup API).
   A PIN stored by earlier firmware is erased at boot in builds without Wi-Fi.
 - Input content (`report`, `route`) goes out only under the new `monitor` lease. New event `activity` (no content).
-- Latency: mouse reports go to the host at once, up to 3 per host interval with a burst tolerance of one interval
-  (was at most 1 per interval, which made motion wait up to an interval). New command `stats`; `status` `peers`
-  entries have `itvl`.
+- Latency: each mouse report goes to the host at once (was at most 1 per host interval, which made motion wait up
+  to an interval). New command `stats`; `status` `peers` entries have `itvl`; `status` has `heap_free` and
+  `heap_min` (lowest free heap since boot, bytes).
 - Build: `-O2`, 240 MHz, 32 KB instruction cache, NimBLE log level WARNING (NimBLE logged every notification at
   INFO). Handing a mouse report to the controller went from 1.13 ms to 0.07 ms on average.
 - Auto-reconnect retries after a failed start (new event `autoconnect_failed`); before, the radio stayed idle.
