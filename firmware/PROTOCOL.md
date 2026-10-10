@@ -227,6 +227,7 @@ Only while the window is open does the board present itself as a keyboard (IO ca
   - Keys held at that moment are not sent to any host until each one is released (the combo does not leak)
   - The previous host receives a "release-all". Pressing the combo of the host already in use swallows the combo without switching
   - When an input device disconnects, the keys it was holding are treated as released
+  - The active host is kept across restarts (power, firmware update)
 
 ## 0.5 → 0.6 changes
 
@@ -250,6 +251,7 @@ Only while the window is open does the board present itself as a keyboard (IO ca
 - Media keys: a report with every array slot empty now releases the key (before, it was ignored and the key stayed
   held on the host); Usages listed one by one are no longer limited to 6, and array values select from such a list.
 - A report the stack could not take is no longer remembered as sent, so the next change carries the full state.
+- The active host is kept across restarts (was always host 1 after a restart).
 
 ## 0.4 → 0.5 changes
 

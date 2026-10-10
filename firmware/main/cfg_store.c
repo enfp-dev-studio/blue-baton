@@ -12,6 +12,7 @@
 #define KEY_WIFI_PASS "wifi_pass"
 #define KEY_AP_PASS "ap_pass"
 #define KEY_COMBO "combo"
+#define KEY_ACTIVE_HOST "active_host"
 
 static const char *TAG = "cfg";
 static nvs_handle_t s_nvs;
@@ -119,6 +120,21 @@ bool cfg_combo_get(char *combo, size_t len)
 esp_err_t cfg_combo_set(const char *combo)
 {
     return set_str(KEY_COMBO, combo);
+}
+
+int cfg_active_host_get(void)
+{
+    uint8_t v = 0;
+    return nvs_get_u8(s_nvs, KEY_ACTIVE_HOST, &v) == ESP_OK ? v : 0;
+}
+
+esp_err_t cfg_active_host_set(int host)
+{
+    esp_err_t err = nvs_set_u8(s_nvs, KEY_ACTIVE_HOST, (uint8_t)host);
+    if (err == ESP_OK) {
+        err = nvs_commit(s_nvs);
+    }
+    return err;
 }
 
 /*

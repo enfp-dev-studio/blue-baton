@@ -37,6 +37,13 @@ bool cfg_combo_get(char *combo, size_t len);
 esp_err_t cfg_combo_set(const char *combo);
 
 /*
+ * Active host (from 0), restored at boot; 0 if none is stored. One byte under one key: NVS marks the old entry
+ * erased and reclaims its page, so rewriting never grows the store. Write only when the active host changes
+ */
+int cfg_active_host_get(void);
+esp_err_t cfg_active_host_set(int host);
+
+/*
  * Extra information (metadata) for paired devices. The NimBLE bond store is the source of truth
  * for keys and addresses; this holds only what the bond store lacks (name, kind, last connection order).
  * The key is the identity address (type 0 public, 1 random + 6 bytes). Holds up to the bond count.

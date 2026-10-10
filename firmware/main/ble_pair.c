@@ -1099,6 +1099,11 @@ static void route_out(const router_out_t *out, int switched_from)
         snprintf(buf, sizeof(buf), "{\"event\":\"host_switch\",\"host\":%d,\"from\":%d}", router_active_host() + 1,
                  switched_from + 1);
         emit(buf);
+        /* Kept across restarts (power, firmware update): input resumes on the host in use */
+        esp_err_t err = cfg_active_host_set(router_active_host());
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "active host save failed: %s", esp_err_to_name(err));
+        }
         /* The previous host gets "release-all". Once the output side exists, it is sent here on the previous host's connection */
     }
     bool monitor = monitor_on();
@@ -2436,6 +2441,7 @@ esp_err_t ble_pair_init(ble_pair_event_fn event)
 
     /* Router: the host task has not started yet, so configuring it directly here is safe */
     router_init();
+    router_set_active_host(cfg_active_host_get());
     char combos[CFG_COMBO_MAX + 1] = "";
     cfg_combo_get(combos, sizeof(combos));
     if (apply_combos(combos) != ESP_OK) {
