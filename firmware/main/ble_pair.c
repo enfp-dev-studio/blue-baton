@@ -135,6 +135,8 @@ typedef struct {
     int64_t activity_us;     /* Last activity event (esp_timer time) */
     bool led_written;        /* led_last reached the device */
     uint8_t led_last;        /* Host LED byte last written to the device's LED output report */
+    bool att_busy;           /* A request (read, write with response) is waiting for its response */
+    bool name_done;          /* Device Name read started (once per connection) */
 } peer_t;
 
 typedef enum { RADIO_IDLE, RADIO_SCAN, RADIO_CONNECT, RADIO_AUTO, RADIO_CANCEL } radio_t;
@@ -1027,6 +1029,9 @@ static void cache_save(const peer_t *p)
  * state to each input device that has an LED output report (HOGP: the Report Host writes Output Reports).
  * Written when the active host's LEDs change, after a host switch, and when a device becomes ready.
  */
+static int on_led_written(uint16_t conn, const struct ble_gatt_error *error, struct ble_gatt_attr *attr, void *arg);
+static void on_name_read(uint16_t conn, const char *name);
+
 static void peer_write_led(peer_t *p, uint8_t host_led)
 {
     if (p->led_written && p->led_last == host_led) {
@@ -1044,11 +1049,13 @@ static void peer_write_led(peer_t *p, uint8_t host_led)
         if (n == 0) {
             return;
         }
-        int rc = (r->props & CHR_PROP_WRITE_NR) ? ble_gattc_write_no_rsp_flat(p->conn, r->val, buf, n)
-                                                 : ble_gattc_write_flat(p->conn, r->val, buf, n, NULL, NULL);
+        bool request = !(r->props & CHR_PROP_WRITE_NR);
+        int rc = request ? ble_gattc_write_flat(p->conn, r->val, buf, n, on_led_written, NULL)
+                         : ble_gattc_write_no_rsp_flat(p->conn, r->val, buf, n);
         if (rc == 0) {
             p->led_written = true;
             p->led_last = host_led;
+            p->att_busy = request;
         } else {
             ESP_LOGW(TAG, "LED write rc=%d", rc);
         }
@@ -1056,13 +1063,42 @@ static void peer_write_led(peer_t *p, uint8_t host_led)
     }
 }
 
+/*
+ * Requests to a ready device go one at a time (a client has one request outstanding: Core Vol 3 Part F 3.3.2):
+ * first the Device Name read, then the active host's LEDs whenever the keyboard has a different value.
+ * Write Without Response is not a request, so it does not wait.
+ */
+static void peer_att_next(peer_t *p)
+{
+    if (!p->used || p->state != PS_READY || p->att_busy) {
+        return;
+    }
+    if (!p->name_done) {
+        p->name_done = true;
+        int rc = gap_name_read(p->conn, on_name_read);
+        if (rc == 0) {
+            p->att_busy = true;
+            return;
+        }
+        ESP_LOGW(TAG, "device name read start failed rc=%d", rc);
+    }
+    peer_write_led(p, router_host_led(router_active_host()));
+}
+
+static int on_led_written(uint16_t conn, const struct ble_gatt_error *error, struct ble_gatt_attr *attr, void *arg)
+{
+    peer_t *p = peer_by_conn(conn);
+    if (p) {
+        p->att_busy = false;
+        peer_att_next(p);
+    }
+    return 0;
+}
+
 void ble_pair_leds_update(void)
 {
-    uint8_t led = router_host_led(router_active_host());
     for (int i = 0; i < PEER_MAX; i++) {
-        if (s_peers[i].used && s_peers[i].state == PS_READY) {
-            peer_write_led(&s_peers[i], led);
-        }
+        peer_att_next(&s_peers[i]);
     }
 }
 
@@ -1193,12 +1229,16 @@ static void on_name_read(uint16_t conn, const char *name)
     if (!p) {
         return;
     }
-    meta_update(p, name, true, false);
-    char esc[48];
-    char buf[160];
-    json_escape(name, esc, sizeof(esc));
-    snprintf(buf, sizeof(buf), "{\"event\":\"device_name\",\"addr\":\"%s\",\"name\":\"%s\"}", p->addr_str, esc);
-    emit(buf);
+    p->att_busy = false;
+    if (name[0]) {
+        meta_update(p, name, true, false);
+        char esc[48];
+        char buf[160];
+        json_escape(name, esc, sizeof(esc));
+        snprintf(buf, sizeof(buf), "{\"event\":\"device_name\",\"addr\":\"%s\",\"name\":\"%s\"}", p->addr_str, esc);
+        emit(buf);
+    }
+    peer_att_next(p);
 }
 
 static void peer_ready(peer_t *p)
@@ -1219,11 +1259,7 @@ static void peer_ready(peer_t *p)
              "\"services\":%u,\"mtu\":%u}",
              p->addr_str, p->id_str, kinds, p->rep_count, p->svc_count, p->mtu);
     emit(buf);
-    int rc = gap_name_read(p->conn, on_name_read);
-    if (rc != 0) {
-        ESP_LOGW(TAG, "device name read start failed rc=%d", rc);
-    }
-    peer_write_led(p, router_host_led(router_active_host()));
+    peer_att_next(p);
 }
 
 static int on_cccd_write(uint16_t conn, const struct ble_gatt_error *error,

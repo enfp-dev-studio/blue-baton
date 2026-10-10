@@ -16,5 +16,5 @@
 
 typedef void (*gap_name_fn)(uint16_t conn, const char *name);
 
-/* 0 means the read started. Calls fn when done (not called on failure or an empty name) */
+/* 0 means the read started. Then fn is always called once: with the name, or an empty string on failure */
 int gap_name_read(uint16_t conn, gap_name_fn fn);

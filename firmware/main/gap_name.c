@@ -45,7 +45,7 @@ static void finish(name_read_t *r)
     char name[GAP_NAME_MAX + 1];
     memcpy(name, r->buf, n + 1);
     r->used = false;
-    if (n > 0 && fn) {
+    if (fn) {
         fn(conn, name);
     }
 }
@@ -71,7 +71,12 @@ static int on_long(uint16_t conn, const struct ble_gatt_error *error, struct ble
     }
     if (error->status == 0 && attr && attr->om) {
         append(r, attr->om, attr->offset);
-        return r->len >= GAP_NAME_MAX ? 1 : 0;   /* Once full, do not read the remaining fragments */
+        if (r->len < GAP_NAME_MAX) {
+            return 0;
+        }
+        /* Full: stop reading. NimBLE ends the procedure without another callback once this returns nonzero */
+        finish(r);
+        return 1;
     }
     /* EDONE or error: use what has been received so far (the head from Read By Type is still there) */
     if (error->status != BLE_HS_EDONE) {

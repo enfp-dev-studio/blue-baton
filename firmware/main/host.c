@@ -779,7 +779,7 @@ static void security_request(host_link_t *l)
 static void on_host_name(uint16_t conn, const char *name)
 {
     host_link_t *l = link_by_conn(conn);
-    if (!l || l->index < 0) {
+    if (!l || l->index < 0 || !name[0]) {
         return;
     }
     cfg_paired_t m;
