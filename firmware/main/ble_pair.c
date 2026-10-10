@@ -1781,6 +1781,27 @@ static int gap_event(struct ble_gap_event *event, void *arg)
         break;
     }
 
+    case BLE_GAP_EVENT_L2CAP_UPDATE_REQ:
+    case BLE_GAP_EVENT_CONN_UPDATE_REQ: {
+        /*
+         * The device asks for other connection parameters. Recorded, then accepted as asked (the controller may
+         * still refuse). Real hardware: the mouse asks for 7.5 ms, latency 48, 3 s right after connecting and,
+         * when refused, 11.25 ms; with two hosts connected the controller refused nearly every update
+         * (HCI 0x12), and after repeated refusals the mouse sometimes disconnected.
+         */
+        peer_t *p = peer_by_conn(event->conn_update_req.conn_handle);
+        const struct ble_gap_upd_params *q = event->conn_update_req.peer_params;
+        if (p && q) {
+            char buf[160];
+            snprintf(buf, sizeof(buf),
+                     "{\"event\":\"conn_params_req\",\"addr\":\"%s\",\"itvl_min\":%u,\"itvl_max\":%u,"
+                     "\"latency\":%u,\"timeout\":%u}",
+                     p->addr_str, q->itvl_min, q->itvl_max, q->latency, q->supervision_timeout);
+            emit(buf);
+        }
+        return 0;
+    }
+
     case BLE_GAP_EVENT_PASSKEY_ACTION:
         on_passkey_action(event);
         break;
