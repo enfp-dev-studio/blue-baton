@@ -169,6 +169,12 @@ typedef struct {
     int64_t param_retry_us;      /* If nonzero, re-request connection parameters at this time */
     int64_t sec_req_us;          /* If nonzero, send a Security Request at this time */
     uint8_t param_retries;
+    /* Diagnostics: reports the stack could not take (no buffer), and when the last mouse reports went out */
+    uint16_t nobuf_mouse;
+    uint16_t nobuf_other;
+    uint32_t mouse_reports;      /* Mouse reports the stack took for this host since the last stats */
+    int64_t mouse_sent_us[16];
+    uint8_t mouse_sent_i;
 } host_link_t;
 
 static host_link_t s_links[HOST_LINK_MAX];
@@ -445,20 +451,51 @@ static int ref_access(uint16_t conn, uint16_t attr, struct ble_gatt_access_ctxt 
 
 /* ---------- Sending ---------- */
 
+static int s_msys_free_min = 1 << 30;   /* Fewest free mbufs seen at a notify since the last stats */
+
+/* Mouse reports handed to the stack for this host within the last 100 ms */
+static int mouse_recent(const host_link_t *l, int64_t now)
+{
+    int c = 0;
+    for (int i = 0; i < 16; i++) {
+        if (l->mouse_sent_us[i] && now - l->mouse_sent_us[i] < 100000) {
+            c++;
+        }
+    }
+    return c;
+}
+
 /* true once the stack has taken the report (it then goes out at the next connection event) */
 static bool notify(host_link_t *l, int n, const uint8_t *data, uint16_t len)
 {
     if (!(l->sub & (1u << n)) || l->state != HL_READY) {
         return false;
     }
+    bool mouse = n == N_MOUSE || n == N_BOOT_MOUSE;
     struct os_mbuf *om = ble_hs_mbuf_from_flat(data, len);
+    int free_now = os_msys_num_free();
+    if (free_now < s_msys_free_min) {
+        s_msys_free_min = free_now;
+    }
     if (!om) {
-        ESP_LOGW(TAG, "notify: no buffer");
+        static const char *const NAME[N_COUNT] = {"keyboard", "mouse", "consumer", "system", "boot keyboard",
+                                                  "boot mouse"};
+        if (mouse) {
+            l->nobuf_mouse++;
+        } else {
+            l->nobuf_other++;
+        }
+        ESP_LOGW(TAG, "notify: no buffer (%s to host %d, free mbufs %d, mouse reports to it in the last 100 ms %d)",
+                 NAME[n], l->index + 1, free_now, mouse_recent(l, now_us()));
         return false;
     }
     int rc = ble_gatts_notify_custom(l->conn, s_notify_handle[n], om);
     if (rc != 0) {
         ESP_LOGW(TAG, "notify failed rc=%d", rc);
+    } else if (mouse) {
+        l->mouse_reports++;
+        l->mouse_sent_us[l->mouse_sent_i] = now_us();
+        l->mouse_sent_i = (uint8_t)((l->mouse_sent_i + 1) % 16);
     }
     return rc == 0;
 }
@@ -1260,8 +1297,12 @@ void host_on_reset(void)
 size_t host_stats_json(char *buf, size_t len)
 {
     int64_t navg = s_mouse_sent ? s_notify_sum_us / s_mouse_sent : 0;
-    size_t w = snprintf(buf, len, "{\"mouse_sent\":%lu,\"notify_avg_us\":%lld,\"notify_max_us\":%lld,\"hosts\":[",
-                        (unsigned long)s_mouse_sent, (long long)navg, (long long)s_notify_max_us);
+    size_t w = snprintf(buf, len,
+                        "{\"mouse_sent\":%lu,\"notify_avg_us\":%lld,\"notify_max_us\":%lld,\"mbufs\":%d,"
+                        "\"mbufs_free_min\":%d,\"hosts\":[",
+                        (unsigned long)s_mouse_sent, (long long)navg, (long long)s_notify_max_us, os_msys_count(),
+                        s_msys_free_min == (1 << 30) ? os_msys_num_free() : s_msys_free_min);
+    s_msys_free_min = 1 << 30;
     bool first = true;
     for (int i = 0; i < HOST_LINK_MAX && w < len; i++) {
         const host_link_t *l = &s_links[i];
@@ -1272,8 +1313,14 @@ size_t host_stats_json(char *buf, size_t len)
         if (l->state == HL_READY && ble_gap_conn_rssi(l->conn, &rssi) != 0) {
             rssi = 0;
         }
-        w += snprintf(buf + w, len - w, "%s{\"host\":%d,\"itvl\":%u,\"latency\":%u,\"rssi\":%d}",
-                      first ? "" : ",", l->index + 1, l->itvl, l->latency, rssi);
+        w += snprintf(buf + w, len - w,
+                      "%s{\"host\":%d,\"itvl\":%u,\"latency\":%u,\"rssi\":%d,\"mouse_reports\":%lu,"
+                      "\"nobuf_mouse\":%u,\"nobuf_other\":%u}",
+                      first ? "" : ",", l->index + 1, l->itvl, l->latency, rssi, (unsigned long)l->mouse_reports,
+                      l->nobuf_mouse, l->nobuf_other);
+        s_links[i].mouse_reports = 0;
+        s_links[i].nobuf_mouse = 0;
+        s_links[i].nobuf_other = 0;
         first = false;
     }
     if (w < len) {

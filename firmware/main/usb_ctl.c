@@ -341,9 +341,9 @@ static void cmd_paired_list(int id)
 
 static void cmd_stats(int id)
 {
-    char stats[360];
+    char stats[640];
     ble_pair_stats_json(stats, sizeof(stats));
-    char buf[420];
+    char buf[700];
     snprintf(buf, sizeof(buf), "{\"id\":%d,\"ok\":true,\"stats\":%s}", id, stats);
     usb_ctl_emit(buf);
 }
