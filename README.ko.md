@@ -24,7 +24,7 @@ BLE 마우스 ─┴─→ ESP32-S3 (NimBLE) ─┼─ BLE HID → 호스트 2
 | [firmware/PROTOCOL.md](firmware/PROTOCOL.md) | USB 제어 프로토콜 (한 줄에 JSON 하나, 영어) |
 | [app/](app/) | 메뉴 막대 / 트레이 앱 (Tauri): 보드 USB 포트를 맡고, 호스트를 빠르게 바꾸고, 설정 창을 띄운다 |
 | [ui/](ui/) | 설정 화면 (React, Tailwind CSS, shadcn/ui. 브라우저에서도 Web Serial이나 개발용 브리지로 열린다). 브라우저 언어가 한국어면 한국어로 나온다 |
-| [firmware/tools/](firmware/tools/) | 개발용 브리지 `bridge.py`, 플래시 `flash.sh` |
+| [firmware/tools/](firmware/tools/) | 개발용 브리지 `bridge.py`, 플래시 `flash.sh`, 보드 관찰 `watch.py` (연결, 지연 통계) |
 | [firmware/test/](firmware/test/) | 보드 없이 도는 시험 (C + JS) |
 
 ## 빌드, 플래시, 시험

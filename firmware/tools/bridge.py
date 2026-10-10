@@ -4,7 +4,7 @@ Local bridge: this one program holds the board's USB serial port and shares it w
 
   - The settings UI (browser), a dev monitor, and a log writer can attach at the same time without fighting over the port.
   - To flash, /release frees the port and /acquire takes it back afterwards (tools/flash.sh).
-  - Also serves the settings UI files (firmware/ui). Same origin, so no browser security restrictions get in the way.
+  - Also serves the settings UI files (ui/dist). Same origin, so no browser security restrictions get in the way.
 
 HTTP (listens on 127.0.0.1 only)
   GET  /events        Lines from the board as server-sent events (text/event-stream). One line = one data field
@@ -12,7 +12,7 @@ HTTP (listens on 127.0.0.1 only)
   POST /release       Frees the port (before flashing)
   POST /acquire       Takes the port back
   GET  /status        {"port", "open", "released", "clients"}
-  GET  anything else  Static files from firmware/ui. "/" redirects to "/?bridge"
+  GET  anything else  Static files from ui/dist. "/" redirects to "/?bridge"
 
 Security: keystrokes pass through this board, so arbitrary web pages must not be able to send commands.
   - Binds to 127.0.0.1 only.
