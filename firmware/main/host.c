@@ -1268,8 +1268,12 @@ size_t host_stats_json(char *buf, size_t len)
         if (!l->used || l->index < 0) {
             continue;
         }
-        w += snprintf(buf + w, len - w, "%s{\"host\":%d,\"itvl\":%u,\"latency\":%u}", first ? "" : ",",
-                      l->index + 1, l->itvl, l->latency);
+        int8_t rssi = 0;
+        if (l->state == HL_READY && ble_gap_conn_rssi(l->conn, &rssi) != 0) {
+            rssi = 0;
+        }
+        w += snprintf(buf + w, len - w, "%s{\"host\":%d,\"itvl\":%u,\"latency\":%u,\"rssi\":%d}",
+                      first ? "" : ",", l->index + 1, l->itvl, l->latency, rssi);
         first = false;
     }
     if (w < len) {
