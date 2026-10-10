@@ -94,7 +94,7 @@ impl Board {
         rx
     }
 
-    /// Keep a copy of every line in a file (developer API only: lines include typed passkeys)
+    /// Keep a copy of every line in a file (developer API only). Pairing codes and PINs are masked (`redact`)
     pub fn set_log(&self, file: Option<File>) {
         *self.log.lock().unwrap() = file;
     }
@@ -108,7 +108,7 @@ impl Board {
 
     fn write_log(&self, text: &str) {
         if let Some(f) = self.log.lock().unwrap().as_mut() {
-            let _ = writeln!(f, "{:.3} {}", now(), text);
+            let _ = writeln!(f, "{:.3} {}", now(), redact(text));
         }
     }
 
@@ -212,5 +212,43 @@ impl Board {
                 Err(_) => return,
             }
         }
+    }
+}
+
+/// Mask all-digit `code` and `pin` values (passkeys typed or shown, numeric comparison codes, PINs).
+/// Failure codes such as `"code":"hosts_full"` stay readable
+fn redact(text: &str) -> String {
+    let mut s = text.to_string();
+    for key in ["\"code\":\"", "\"pin\":\""] {
+        let mut from = 0;
+        while let Some(i) = s[from..].find(key) {
+            let start = from + i + key.len();
+            let Some(len) = s[start..].find('"') else { break };
+            if len > 0 && s[start..start + len].bytes().all(|b| b.is_ascii_digit()) {
+                s.replace_range(start..start + len, "******");
+                from = start + 6;
+            } else {
+                from = start + len;
+            }
+        }
+    }
+    s
+}
+
+#[cfg(test)]
+mod tests {
+    use super::redact;
+
+    #[test]
+    fn masks_codes_but_not_error_names() {
+        assert_eq!(
+            redact(r#">> {"id":1,"cmd":"host_passkey","code":"012345"}"#),
+            r#">> {"id":1,"cmd":"host_passkey","code":"******"}"#
+        );
+        assert_eq!(redact(r#"KM< {"event":"numcmp","code":"482910"}"#), r#"KM< {"event":"numcmp","code":"******"}"#);
+        assert_eq!(redact(r#">> {"cmd":"pin_set","pin":"1234"}"#), r#">> {"cmd":"pin_set","pin":"******"}"#);
+        let err = r#"KM< {"id":2,"ok":false,"code":"hosts_full"}"#;
+        assert_eq!(redact(err), err);
+        assert_eq!(redact(r#"{"code":""}"#), r#"{"code":""}"#);
     }
 }
