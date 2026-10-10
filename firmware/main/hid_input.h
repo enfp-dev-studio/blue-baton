@@ -12,6 +12,7 @@
 
 #define HID_PAGE_DESKTOP 0x01
 #define HID_PAGE_KEYBOARD 0x07
+#define HID_PAGE_LED 0x08
 #define HID_PAGE_BUTTON 0x09
 #define HID_PAGE_CONSUMER 0x0C
 
@@ -40,12 +41,25 @@ typedef struct {
     uint16_t bits;
 } hid_report_info_t;
 
+/*
+ * Keyboard LED output report (Output items on the LED page): where the host's LED bits go.
+ * bit[]: bit offset of Num Lock, Caps Lock, Scroll Lock, Compose, Kana (LED Usages 1-5) within the report, -1 if absent.
+ */
+#define HID_LED_COUNT 5
+typedef struct {
+    bool present;
+    uint8_t report_id;
+    uint8_t bytes;          /* Output report length (excluding the report ID byte) */
+    int16_t bit[HID_LED_COUNT];
+} hid_led_t;
+
 typedef struct {
     hid_field_t fields[HID_FIELD_MAX];
     uint8_t field_count;
     hid_report_info_t reports[HID_REPORT_MAX];
     uint8_t report_count;
     bool truncated;         /* Ran out of slots and dropped some */
+    hid_led_t led;          /* First LED output report, if any */
 } hid_layout_t;
 
 /* Result of decoding one report */
@@ -63,6 +77,12 @@ typedef struct {
 
 /* Build a layout from a Report Map. On a malformed item, keep what was read up to that point */
 void hid_layout_parse(const uint8_t *map, size_t len, hid_layout_t *out);
+
+/*
+ * Build the device's LED output report from the host's LED byte (bit n = LED Usage n + 1, as in the boot keyboard
+ * report). out must hold layout->led.bytes bytes. Returns the length, 0 if the device has no LED output report.
+ */
+size_t hid_led_report(const hid_layout_t *layout, uint8_t host_led, uint8_t *out, size_t out_len);
 
 /* Length (bits) of a report ID. 0 if absent */
 uint16_t hid_layout_report_bits(const hid_layout_t *layout, uint8_t report_id);

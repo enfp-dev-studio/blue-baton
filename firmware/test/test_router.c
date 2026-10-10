@@ -76,6 +76,27 @@ static void test_input(void)
     CHECK(hid_layout_report_bits(&s_kb, 4) == 120, "kb NKRO report is 120 bits");
     CHECK(hid_layout_report_bits(&s_kb, 3) == 64, "kb 6KRO report is 64 bits");
 
+    /* LED output report (real keyboard: ID 3, 5 LED bits + 3 padding bits) */
+    CHECK(s_kb.led.present && s_kb.led.report_id == 3 && s_kb.led.bytes == 1, "kb LED report id=%u bytes=%u",
+          s_kb.led.report_id, s_kb.led.bytes);
+    CHECK(s_kb.led.bit[0] == 0 && s_kb.led.bit[1] == 1 && s_kb.led.bit[4] == 4, "kb LED bits in boot order");
+    CHECK(!s_mouse.led.present, "mouse has no LED report");
+    uint8_t led[4];
+    CHECK(hid_led_report(&s_kb, 0x02, led, sizeof(led)) == 1 && led[0] == 0x02, "caps lock goes to bit 1");
+    CHECK(hid_led_report(&s_mouse, 0x02, led, sizeof(led)) == 0, "no LED report, nothing to write");
+    {
+        /* LEDs listed one by one in another order: Caps Lock first, then Num Lock, after 4 constant bits */
+        static const uint8_t map[] = {0x05, 0x01, 0x09, 0x06, 0xA1, 0x01, 0x85, 0x07,
+                                      0x75, 0x04, 0x95, 0x01, 0x91, 0x01,
+                                      0x05, 0x08, 0x09, 0x02, 0x09, 0x01, 0x75, 0x01, 0x95, 0x02, 0x91, 0x02,
+                                      0x75, 0x02, 0x95, 0x01, 0x91, 0x01, 0xC0};
+        hid_layout_t l;
+        hid_layout_parse(map, sizeof(map), &l);
+        CHECK(l.led.present && l.led.report_id == 7 && l.led.bytes == 1 && l.led.bit[1] == 4 && l.led.bit[0] == 5 &&
+              l.led.bit[2] == -1, "listed LEDs: caps=%d num=%d", l.led.bit[1], l.led.bit[0]);
+        CHECK(hid_led_report(&l, 0x03, led, sizeof(led)) == 1 && led[0] == 0x30, "num+caps map to bits 5 and 4");
+    }
+
     /* Real-hardware mouse: left button, X +5, Y -5, wheel +1 */
     CHECK(decode_hex(&s_mouse, 1, "010500FBFF01", &in), "mouse decodes");
     CHECK(in.buttons == 0x01 && in.dx == 5 && in.dy == -5 && in.wheel == 1, "mouse fields b=%u dx=%d dy=%d w=%d",

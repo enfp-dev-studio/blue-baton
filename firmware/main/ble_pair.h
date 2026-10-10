@@ -80,6 +80,9 @@ int ble_pair_active_host(void);
  */
 uint32_t ble_pair_monitor(bool on);
 
+/* Write the active host's LED state (Caps Lock, ...) to the connected keyboards. Host task only (called by host.c) */
+void ble_pair_leds_update(void);
+
 /* ---- Hosts (output side, host.c) ---- */
 
 /* Host pairing window (up to 180 seconds). While open, a new host can pair */

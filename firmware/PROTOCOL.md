@@ -240,6 +240,9 @@ Only while the window is open does the board present itself as a keyboard (IO ca
 - Build: `-O2`, 240 MHz, 32 KB instruction cache, NimBLE log level WARNING (NimBLE logged every notification at
   INFO). Handing a mouse report to the controller went from 1.13 ms to 0.07 ms on average.
 - Auto-reconnect retries after a failed start (new event `autoconnect_failed`); before, the radio stayed idle.
+- Keyboard LEDs (Num Lock, Caps Lock, ...) follow the active host: the board writes the host's LED state to the
+  keyboard's LED output report when it changes, after a host switch, and when the keyboard connects. `report_ref`
+  events now also list output reports (`type` 2).
 - Input devices are asked for 8.75 ms (was 7.5–15 ms, where the controller picked 15 ms). With a host connected
   the controller refuses a fixed 7.5 ms (HCI 0x0D).
 

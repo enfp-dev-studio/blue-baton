@@ -7,6 +7,7 @@
 #define TYPE_GLOBAL 1
 #define TYPE_LOCAL 2
 #define TAG_INPUT 0x8
+#define TAG_OUTPUT 0x9
 #define TAG_USAGE_PAGE 0x0
 #define TAG_LOGICAL_MIN 0x1
 #define TAG_REPORT_SIZE 0x7
@@ -67,6 +68,10 @@ void hid_layout_parse(const uint8_t *map, size_t len, hid_layout_t *out)
     bool have_min = false;
     uint16_t usage_min = 0;
     uint16_t usage_min_page = 0;
+    /* Output report lengths so far, per report ID (separate from input reports) */
+    uint8_t out_ids[HID_REPORT_MAX];
+    uint16_t out_bits[HID_REPORT_MAX];
+    int out_n = 0;
 
     size_t i = 0;
     while (i < len) {
@@ -175,11 +180,63 @@ void hid_layout_parse(const uint8_t *map, size_t len, hid_layout_t *out)
                     r->bits = (uint16_t)(r->bits + total);
                 }
             }
+            if (tag == TAG_OUTPUT) {
+                int k = 0;
+                while (k < out_n && out_ids[k] != g.report_id) {
+                    k++;
+                }
+                if (k == out_n && out_n < HID_REPORT_MAX) {
+                    out_ids[out_n] = g.report_id;
+                    out_bits[out_n++] = 0;
+                }
+                if (k < out_n) {
+                    uint16_t page = usage_count > 0 ? usage_pages[0] : (have_min ? usage_min_page : g.page);
+                    bool led = page == HID_PAGE_LED && !(data & INPUT_CONSTANT) && (data & INPUT_VARIABLE) &&
+                               g.report_size == 1 && (usage_count > 0 || have_min);
+                    if (led && (!out->led.present || out->led.report_id == g.report_id)) {
+                        if (!out->led.present) {
+                            out->led.present = true;
+                            out->led.report_id = g.report_id;
+                            for (int n = 0; n < HID_LED_COUNT; n++) {
+                                out->led.bit[n] = -1;
+                            }
+                        }
+                        for (uint32_t n = 0; n < g.report_count; n++) {
+                            uint16_t usage = have_min ? (uint16_t)(usage_min + n)
+                                                      : usages[n < usage_count ? n : usage_count - 1];
+                            if (usage >= 1 && usage <= HID_LED_COUNT) {
+                                out->led.bit[usage - 1] = (int16_t)(out_bits[k] + n);
+                            }
+                        }
+                    }
+                    out_bits[k] = (uint16_t)(out_bits[k] + g.report_size * g.report_count);
+                }
+            }
             /* Local items are reset at every Main item (HID 1.11 6.2.2.8) */
             usage_count = 0;
             have_min = false;
         }
     }
+    for (int k = 0; k < out_n && out->led.present; k++) {
+        if (out_ids[k] == out->led.report_id) {
+            out->led.bytes = (uint8_t)((out_bits[k] + 7) / 8);
+        }
+    }
+}
+
+size_t hid_led_report(const hid_layout_t *layout, uint8_t host_led, uint8_t *out, size_t out_len)
+{
+    const hid_led_t *led = &layout->led;
+    if (!led->present || led->bytes == 0 || led->bytes > out_len) {
+        return 0;
+    }
+    memset(out, 0, led->bytes);
+    for (int n = 0; n < HID_LED_COUNT; n++) {
+        if (led->bit[n] >= 0 && led->bit[n] < led->bytes * 8 && ((host_led >> n) & 1)) {
+            out[led->bit[n] >> 3] |= (uint8_t)(1u << (led->bit[n] & 7));
+        }
+    }
+    return led->bytes;
 }
 
 uint16_t hid_layout_report_bits(const hid_layout_t *layout, uint8_t report_id)

@@ -41,7 +41,11 @@
 /* Treat it as an input device if the advertised appearance is in the HID category (0x03C0-0x03FF) */
 #define HID_APPEARANCE_MASK 0xFFC0
 #define HID_APPEARANCE_BASE 0x03C0
+#define CHR_PROP_WRITE_NR 0x04
+#define CHR_PROP_WRITE 0x08
 #define CHR_PROP_NOTIFY 0x10
+#define REPORT_TYPE_INPUT 1
+#define REPORT_TYPE_OUTPUT 2
 
 #define FOUND_MAX 16
 #define PEER_MAX 2           /* Concurrent input connections (design value: 2 input + 3 host) */
@@ -96,11 +100,13 @@ typedef struct {
 } hid_svc_t;
 
 typedef struct {
-    uint16_t val;            /* Value handle of the input report (0x2A4D, notify) */
+    uint16_t val;            /* Value handle of the Report characteristic (0x2A4D): input (notify) or output (write) */
     uint16_t cccd;           /* 0 if absent */
     uint16_t ref;            /* Report Reference descriptor, 0 if absent */
     uint8_t svc;
     uint8_t report_id;       /* ID from the Report Reference. 0 if there is no descriptor (a device with a single report) */
+    uint8_t type;            /* From the Report Reference: 1 input, 2 output, 3 feature; 0 if unknown */
+    uint8_t props;           /* Characteristic properties */
 } report_t;
 
 typedef struct {
@@ -126,6 +132,8 @@ typedef struct {
     uint8_t rep_count;
     uint8_t kinds;
     int64_t activity_us;     /* Last activity event (esp_timer time) */
+    bool led_written;        /* led_last reached the device */
+    uint8_t led_last;        /* Host LED byte last written to the device's LED output report */
 } peer_t;
 
 typedef enum { RADIO_IDLE, RADIO_SCAN, RADIO_CONNECT, RADIO_AUTO, RADIO_CANCEL } radio_t;
@@ -1013,6 +1021,50 @@ static void cache_save(const peer_t *p)
     }
 }
 
+/* ---------- Keyboard LEDs ----------
+ * A host writes its LED state (Num Lock, Caps Lock, ...) to the board's keyboard; the board writes the active host's
+ * state to each input device that has an LED output report (HOGP: the Report Host writes Output Reports).
+ * Written when the active host's LEDs change, after a host switch, and when a device becomes ready.
+ */
+static void peer_write_led(peer_t *p, uint8_t host_led)
+{
+    if (p->led_written && p->led_last == host_led) {
+        return;
+    }
+    for (int i = 0; i < p->rep_count; i++) {
+        const report_t *r = &p->rep[i];
+        const hid_svc_t *s = r->svc < p->svc_count ? &p->svc[r->svc] : NULL;
+        if (r->type != REPORT_TYPE_OUTPUT || !s || !s->layout_ok || !s->layout.led.present ||
+            r->report_id != s->layout.led.report_id) {
+            continue;
+        }
+        uint8_t buf[8];
+        size_t n = hid_led_report(&s->layout, host_led, buf, sizeof(buf));
+        if (n == 0) {
+            return;
+        }
+        int rc = (r->props & CHR_PROP_WRITE_NR) ? ble_gattc_write_no_rsp_flat(p->conn, r->val, buf, n)
+                                                 : ble_gattc_write_flat(p->conn, r->val, buf, n, NULL, NULL);
+        if (rc == 0) {
+            p->led_written = true;
+            p->led_last = host_led;
+        } else {
+            ESP_LOGW(TAG, "LED write rc=%d", rc);
+        }
+        return;
+    }
+}
+
+void ble_pair_leds_update(void)
+{
+    uint8_t led = router_host_led(router_active_host());
+    for (int i = 0; i < PEER_MAX; i++) {
+        if (s_peers[i].used && s_peers[i].state == PS_READY) {
+            peer_write_led(&s_peers[i], led);
+        }
+    }
+}
+
 /* ---------- Routing (input device -> active host) ---------- */
 
 /*
@@ -1064,6 +1116,9 @@ static void route_out(const router_out_t *out, int switched_from)
         host_passkey_event(out);   /* Host pairing: passkey typed on the keyboard */
     }
     host_send(out, switched_from);
+    if (switched_from >= 0) {
+        ble_pair_leds_update();   /* The keyboard shows the new host's Caps Lock etc. */
+    }
 }
 
 static void route_report(peer_t *p, uint16_t handle, const uint8_t *data, uint16_t len)
@@ -1162,6 +1217,7 @@ static void peer_ready(peer_t *p)
     if (rc != 0) {
         ESP_LOGW(TAG, "device name read start failed rc=%d", rc);
     }
+    peer_write_led(p, router_host_led(router_active_host()));
 }
 
 static int on_cccd_write(uint16_t conn, const struct ble_gatt_error *error,
@@ -1196,6 +1252,7 @@ static int on_ref_read(uint16_t conn, const struct ble_gatt_error *error,
         uint16_t n = OS_MBUF_PKTLEN(attr->om);
         os_mbuf_copydata(attr->om, 0, n < 2 ? n : 2, ref);
         p->rep[p->idx].report_id = ref[0];
+        p->rep[p->idx].type = ref[1];
         char buf[200];
         snprintf(buf, sizeof(buf),
                  "{\"event\":\"report_ref\",\"addr\":\"%s\",\"val\":%u,\"id\":%u,\"type\":%u,\"svc\":%u}",
@@ -1352,11 +1409,14 @@ static int on_chr(uint16_t conn, const struct ble_gatt_error *error,
         if (p->chr_count < CHR_MAX) {
             p->chr_def[p->chr_count++] = chr->def_handle;
         }
-        if (uuid == UUID_REPORT && (chr->properties & CHR_PROP_NOTIFY) && p->rep_count < REPORT_MAX) {
+        /* Input reports (notify) are subscribed; output reports (write) are kept for the keyboard LEDs */
+        if (uuid == UUID_REPORT && (chr->properties & (CHR_PROP_NOTIFY | CHR_PROP_WRITE | CHR_PROP_WRITE_NR)) &&
+            p->rep_count < REPORT_MAX) {
             report_t *r = &p->rep[p->rep_count++];
             memset(r, 0, sizeof(*r));
             r->val = chr->val_handle;
             r->svc = p->idx;
+            r->props = chr->properties;
         } else if (uuid == UUID_REPORT_MAP) {
             s->map_handle = chr->val_handle;
         } else if (uuid == UUID_HID_INFO) {

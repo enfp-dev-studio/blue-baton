@@ -18,6 +18,7 @@
 
 #include "cfg_store.h"
 #include "gap_name.h"
+#include "ble_pair.h"
 #include "host.h"
 #include "host_report.h"
 #include "json_mini.h"
@@ -345,6 +346,9 @@ static void set_led(host_link_t *l, uint8_t led)
     l->led = led;
     if (l->index >= 0) {
         router_set_host_led(l->index, led);
+        if (l->index == router_active_host()) {
+            ble_pair_leds_update();
+        }
     }
 }
 
