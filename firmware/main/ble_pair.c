@@ -706,18 +706,26 @@ static radio_t radio_wanted(void)
  *   spreads those collisions instead of bunching them while the timings pass each other.
  * - With a host connected the controller refuses 7.5 ms (HCI 0x0D, every time on real hardware).
  * If the device later requests other values, they are accepted as asked (the controller may refuse them).
- * Connection-attempt scan: user connections scan continuously (to find it fast); auto-reconnect shares the
- * radio at 30 ms/60 ms (50%).
+ * Connection-attempt scan: user connections scan continuously (to find it fast). Auto-reconnect follows HOGP 1.0
+ * 5.2.3 Table 5.5: 30 ms every 60 ms for AUTO_FAST_MS after a device drops (or at start), then 11.25 ms every
+ * 1.28 s for as long as it takes. Listening half the time indefinitely (as before) took radio time from every
+ * connection whenever a keyboard or mouse slept.
  * Units: interval 1.25 ms, scan 0.625 ms, supervision 10 ms.
  */
 static const struct ble_gap_conn_params s_conn_user = {
     .scan_itvl = 0x0010, .scan_window = 0x0010, .itvl_min = 7, .itvl_max = 7,
     .latency = 0, .supervision_timeout = 400, .min_ce_len = 0, .max_ce_len = 0,
 };
-static const struct ble_gap_conn_params s_conn_auto = {
+static const struct ble_gap_conn_params s_conn_auto_fast = {
     .scan_itvl = 0x0060, .scan_window = 0x0030, .itvl_min = 7, .itvl_max = 7,
     .latency = 0, .supervision_timeout = 400, .min_ce_len = 0, .max_ce_len = 0,
 };
+static const struct ble_gap_conn_params s_conn_auto_slow = {
+    .scan_itvl = 0x0800, .scan_window = 0x0012, .itvl_min = 7, .itvl_max = 7,
+    .latency = 0, .supervision_timeout = 400, .min_ce_len = 0, .max_ce_len = 0,
+};
+#define AUTO_FAST_MS 30000
+static int64_t s_auto_fast_until_us;   /* Auto-reconnect listens fast until then */
 
 static void radio_start_scan(void)
 {
@@ -766,10 +774,17 @@ static void radio_start_connect(void)
 #define AUTO_RETRY_MS 2000
 static struct ble_npl_callout s_auto_retry;
 
+/* Also fires when the fast phase ends: the attempt restarts with the slow scan */
 static void auto_retry_cb(struct ble_npl_event *ev)
 {
     s_auto_dirty = true;
     radio_update();
+}
+
+/* A device dropped (or the board started): listen fast for AUTO_FAST_MS */
+static void auto_fast(void)
+{
+    s_auto_fast_until_us = esp_timer_get_time() + (int64_t)AUTO_FAST_MS * 1000;
 }
 
 /* Put bonded devices in the accept list and wait. Connects to whichever listed device advertises first (any advertising type) */
@@ -780,9 +795,12 @@ static void radio_start_auto(void)
     if (n == 0) {
         return;
     }
+    int64_t fast_left_us = s_auto_fast_until_us - esp_timer_get_time();
+    bool fast = fast_left_us > 0;
     int rc = ble_gap_wl_set(list, n);
     if (rc == 0) {
-        rc = ble_gap_connect(s_own_addr_type, NULL, BLE_HS_FOREVER, &s_conn_auto, gap_event, NULL);
+        rc = ble_gap_connect(s_own_addr_type, NULL, BLE_HS_FOREVER, fast ? &s_conn_auto_fast : &s_conn_auto_slow,
+                             gap_event, NULL);
     }
     if (rc != 0) {
         ESP_LOGE(TAG, "autoconnect start failed rc=%d", rc);
@@ -794,8 +812,11 @@ static void radio_start_auto(void)
     }
     s_radio = RADIO_AUTO;
     s_auto_dirty = false;
-    char buf[64];
-    snprintf(buf, sizeof(buf), "{\"event\":\"autoconnect\",\"devices\":%d}", n);
+    if (fast) {
+        ble_npl_callout_reset(&s_auto_retry, ble_npl_time_ms_to_ticks32((uint32_t)(fast_left_us / 1000) + 1));
+    }
+    char buf[80];
+    snprintf(buf, sizeof(buf), "{\"event\":\"autoconnect\",\"devices\":%d,\"fast\":%s}", n, fast ? "true" : "false");
     emit(buf);
 }
 
@@ -1770,6 +1791,7 @@ static void on_disconnect(struct ble_gap_event *event)
         router_device_gone((uint8_t)(p - s_peers), &out);
         route_out(&out, -1);
         p->used = false;
+        auto_fast();
     }
     s_auto_dirty = true;
     sec_pump();
@@ -1986,6 +2008,7 @@ static void on_sync(void)
              bond_count_local(), CONFIG_BT_NIMBLE_MAX_BONDS);
     emit(buf);
     ESP_LOGI(TAG, "BLE ready, bonds=%d", bond_count_local());
+    auto_fast();
     radio_update();   /* Start auto-reconnect if there are bonded devices */
     host_on_sync();   /* Advertising for disconnected bonded hosts */
 }

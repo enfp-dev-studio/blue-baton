@@ -8,3 +8,6 @@ endif()
 idf_component_register(SRCS ${KM_SRCS}
                        INCLUDE_DIRS "."
                        REQUIRES nvs_flash bt esp_wifi esp_netif esp_event esp_http_server esp_timer esp_hw_support)
+
+# Measurement (temporary): host.c times Number Of Completed Packets per connection by wrapping NimBLE's HCI event entry
+target_link_libraries(${COMPONENT_LIB} INTERFACE "-Wl,--wrap=ble_hs_hci_evt_process")

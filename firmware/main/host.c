@@ -146,6 +146,19 @@ static const struct ble_gatt_svc_def s_svcs[] = {
 
 typedef enum { HL_CANDIDATE, HL_CONNECTED, HL_SECURED, HL_READY } hl_state_t;
 
+/*
+ * Report delivery (see "Sending"). TX_PIPELINE reports per host may wait for the host's acknowledgement; changes
+ * beyond that wait in a queue of CHANGE_Q.
+ */
+#define TX_PIPELINE 2
+#define TX_RING 8
+#define CHANGE_Q 8
+
+typedef struct {
+    uint8_t n;                   /* N_*: which report */
+    uint8_t data[HOST_KB_LEN];   /* The report (mouse: buttons only; motion is added when it goes out) */
+} change_t;
+
 typedef struct {
     bool used;
     uint16_t conn;
@@ -157,11 +170,20 @@ typedef struct {
     uint8_t protocol_mode;       /* 1 Report, 0 Boot. Every connection starts in Report (HIDS 1.0 2.4.1.1) */
     bool suspended;
     uint8_t led;
+    /* Report delivery (see "Sending"): what the host has received, what it will have once the queue drains */
     host_sent_t sent;
     uint8_t boot_kb[HOST_KB_LEN];
     uint8_t boot_buttons;
-    host_motion_t motion;
-    uint8_t buttons;
+    host_sent_t want;
+    uint8_t want_boot_kb[HOST_KB_LEN];
+    uint8_t want_boot_buttons;
+    change_t q[CHANGE_Q];        /* State changes not yet handed to the stack, oldest first */
+    uint8_t q_head;
+    uint8_t q_len;
+    host_motion_t motion;        /* Mouse motion not yet sent */
+    int64_t tx_t[TX_RING];       /* Reports handed to the stack and not yet completed: submit times, oldest first */
+    uint8_t tx_head;
+    uint8_t tx_count;
     uint16_t itvl;               /* Connection interval (units of 1.25 ms) */
     uint16_t latency;
     bool pk_wait;                /* Waiting for passkey entry */
@@ -169,12 +191,12 @@ typedef struct {
     int64_t param_retry_us;      /* If nonzero, re-request connection parameters at this time */
     int64_t sec_req_us;          /* If nonzero, send a Security Request at this time */
     uint8_t param_retries;
-    /* Diagnostics: reports the stack could not take (no buffer), and when the last mouse reports went out */
+    /* Diagnostics (stats): reports the stack could not take, mouse reports sent, time until completed */
     uint16_t nobuf_mouse;
     uint16_t nobuf_other;
-    uint32_t mouse_reports;      /* Mouse reports the stack took for this host since the last stats */
-    int64_t mouse_sent_us[16];
-    uint8_t mouse_sent_i;
+    uint32_t mouse_reports;
+    uint32_t ack_hist[8];        /* <15, 15-30, 30-45, 45-60, 60-90, 90-150, 150-300, >=300 ms */
+    uint32_t ack_max_ms;
 } host_link_t;
 
 static host_link_t s_links[HOST_LINK_MAX];
@@ -451,167 +473,272 @@ static int ref_access(uint16_t conn, uint16_t attr, struct ble_gatt_access_ctxt 
 
 /* ---------- Sending ---------- */
 
+/*
+ * Report delivery, as HID devices do it on a slow link (Apple Accessory Design Guidelines R31 20.4.3-20.4.4: queue a
+ * new report only after the previous one is acknowledged, then send the most recent data; Nordic nRF Desktop keeps 2
+ * reports in flight per host).
+ * - At most TX_PIPELINE reports per host wait for the host's acknowledgement. The controller reports each one as
+ *   completed (Number Of Completed Packets) when the host acknowledges it, and the next one goes out then. Two, not
+ *   one, because the last packet of a connection event is acknowledged only in the next event.
+ * - Every press and release goes out (ADG 55.1: one report per user action): state changes wait in a queue, in
+ *   order. Only if the queue fills does an older change give way to a later one of the same report.
+ * - Mouse motion adds up and goes out with the next mouse report: the cursor goes to where the mouse is instead of
+ *   replaying old motion.
+ * So a host that is slow to take reports delays only its own input, a key-up is never lost, and it holds at most
+ * TX_PIPELINE of the controller's 12 shared buffers.
+ */
+static void pump(host_link_t *l);
+
+/*
+ * NimBLE passes every HCI event through ble_hs_hci_evt_process(); the linker wraps it (CMakeLists.txt) to see
+ * Number Of Completed Packets per connection (NimBLE has no public "sent" event; NOTIFY_TX fires when a notification
+ * is queued). The ESP32-S3 controller sends one per packet. Other ATT packets on a host link complete through the
+ * same event, so the count may run slightly ahead, never behind.
+ */
+int __real_ble_hs_hci_evt_process(struct ble_hci_ev *ev);
+int __wrap_ble_hs_hci_evt_process(struct ble_hci_ev *ev)
+{
+    uint16_t done[HOST_LINK_MAX] = {0};
+    uint8_t ndone = 0;
+    if (ev->opcode == BLE_HCI_EVCODE_NUM_COMP_PKTS && ev->length >= 1) {
+        int64_t now = esp_timer_get_time();
+        uint8_t count = ev->data[0];
+        for (int i = 0; i < count && 1 + i * 4 + 4 <= ev->length; i++) {
+            const uint8_t *p = &ev->data[1 + i * 4];
+            uint16_t handle = (uint16_t)(p[0] | (p[1] << 8));
+            uint16_t pkts = (uint16_t)(p[2] | (p[3] << 8));
+            host_link_t *l = link_by_conn(handle);
+            if (l && l->tx_count > 0 && ndone < HOST_LINK_MAX) {
+                done[ndone++] = handle;
+            }
+            for (; l && pkts > 0 && l->tx_count > 0; pkts--) {
+                int64_t ms = (now - l->tx_t[l->tx_head]) / 1000;
+                l->tx_head = (uint8_t)((l->tx_head + 1) % TX_RING);
+                l->tx_count--;
+                static const int EDGE[7] = {15, 30, 45, 60, 90, 150, 300};
+                int b = 0;
+                while (b < 7 && ms >= EDGE[b]) {
+                    b++;
+                }
+                l->ack_hist[b]++;
+                if (ms > l->ack_max_ms) {
+                    l->ack_max_ms = (uint32_t)ms;
+                }
+            }
+        }
+    }
+    int rc = __real_ble_hs_hci_evt_process(ev);   /* Returns the controller buffers to NimBLE first */
+    for (int i = 0; i < ndone; i++) {
+        host_link_t *l = link_by_conn(done[i]);
+        if (l) {
+            pump(l);
+        }
+    }
+    return rc;
+}
+
 static int s_msys_free_min = 1 << 30;   /* Fewest free mbufs seen at a notify since the last stats */
-
-/* Mouse reports handed to the stack for this host within the last 100 ms */
-static int mouse_recent(const host_link_t *l, int64_t now)
-{
-    int c = 0;
-    for (int i = 0; i < 16; i++) {
-        if (l->mouse_sent_us[i] && now - l->mouse_sent_us[i] < 100000) {
-            c++;
-        }
-    }
-    return c;
-}
-
-/* true once the stack has taken the report (it then goes out at the next connection event) */
-static bool notify(host_link_t *l, int n, const uint8_t *data, uint16_t len)
-{
-    if (!(l->sub & (1u << n)) || l->state != HL_READY) {
-        return false;
-    }
-    bool mouse = n == N_MOUSE || n == N_BOOT_MOUSE;
-    struct os_mbuf *om = ble_hs_mbuf_from_flat(data, len);
-    int free_now = os_msys_num_free();
-    if (free_now < s_msys_free_min) {
-        s_msys_free_min = free_now;
-    }
-    if (!om) {
-        static const char *const NAME[N_COUNT] = {"keyboard", "mouse", "consumer", "system", "boot keyboard",
-                                                  "boot mouse"};
-        if (mouse) {
-            l->nobuf_mouse++;
-        } else {
-            l->nobuf_other++;
-        }
-        ESP_LOGW(TAG, "notify: no buffer (%s to host %d, free mbufs %d, mouse reports to it in the last 100 ms %d)",
-                 NAME[n], l->index + 1, free_now, mouse_recent(l, now_us()));
-        return false;
-    }
-    int rc = ble_gatts_notify_custom(l->conn, s_notify_handle[n], om);
-    if (rc != 0) {
-        ESP_LOGW(TAG, "notify failed rc=%d", rc);
-    } else if (mouse) {
-        l->mouse_reports++;
-        l->mouse_sent_us[l->mouse_sent_i] = now_us();
-        l->mouse_sent_i = (uint8_t)((l->mouse_sent_i + 1) % 16);
-    }
-    return rc == 0;
-}
-
-/* Send a report if it differs from what this host last received. last changes only when the stack took it, so a failed report goes out with the next change */
-static void send_changed(host_link_t *l, int n, uint8_t *last, const uint8_t *now, uint16_t len)
-{
-    if (memcmp(last, now, len) != 0 && notify(l, n, now, len)) {
-        memcpy(last, now, len);
-    }
-}
 
 static bool boot_mode(const host_link_t *l)
 {
     return l->protocol_mode == 0;
 }
 
-static void send_keyboard(host_link_t *l, const uint8_t keys[32])
+/* true once the stack has taken the report; it then counts as in flight until completed */
+static bool notify(host_link_t *l, int n, const uint8_t *data, uint16_t len)
 {
-    uint8_t kb[HOST_KB_LEN];
-    host_kb_report(keys, kb);
-    if (boot_mode(l)) {
-        send_changed(l, N_BOOT_KB, l->boot_kb, kb, HOST_KB_LEN);
-    } else {
-        send_changed(l, N_KB, l->sent.kb, kb, HOST_KB_LEN);
+    bool mouse = n == N_MOUSE || n == N_BOOT_MOUSE;
+    int64_t t = now_us();
+    struct os_mbuf *om = ble_hs_mbuf_from_flat(data, len);
+    int free_now = os_msys_num_free();
+    if (free_now < s_msys_free_min) {
+        s_msys_free_min = free_now;
     }
-}
-
-static void send_consumer(host_link_t *l, const uint16_t *usages, uint8_t count)
-{
-    if (boot_mode(l)) {
-        return;   /* A Boot host ignores Report Protocol reports */
-    }
-    uint8_t c[HOST_CONSUMER_LEN];
-    host_consumer_report(usages, count, c);
-    send_changed(l, N_CONSUMER, l->sent.consumer, c, HOST_CONSUMER_LEN);
-}
-
-/* System Control: power down, sleep, wake up (same bit order as router_out_t.system) */
-static void send_system(host_link_t *l, uint8_t bits)
-{
-    if (boot_mode(l)) {
-        return;
-    }
-    uint8_t v = bits & 0x07;
-    send_changed(l, N_SYSTEM, &l->sent.system, &v, HOST_SYSTEM_LEN);
-}
-
-/*
- * Mouse: each report goes out at once, as a mouse sends at its next connection event; the stack queues it if the
- * link is busy. Motion beyond what one report carries (16-bit, or 8-bit in Boot Protocol) follows in more reports.
- * Button changes go out with the motion so far.
- */
-static void send_mouse(host_link_t *l, const router_out_t *o)
-{
-    if (o->motion) {
-        host_motion_add(&l->motion, o->dx, o->dy, o->wheel, o->pan);
-    }
-    bool button_change = o->buttons != l->buttons;
-    l->buttons = o->buttons;
-    if (!o->motion && !button_change) {
-        return;
-    }
-    do {
-        int64_t t = now_us();
-        if (boot_mode(l)) {
-            uint8_t b[HOST_BOOT_MOUSE_LEN];
-            host_boot_mouse_report(&l->motion, l->buttons, b);
-            if (notify(l, N_BOOT_MOUSE, b, sizeof(b))) {
-                l->boot_buttons = b[0];
-            }
+    if (!om) {
+        if (mouse) {
+            l->nobuf_mouse++;
         } else {
-            uint8_t m[HOST_MOUSE_LEN];
-            host_mouse_report(&l->motion, l->buttons, m);
-            if (notify(l, N_MOUSE, m, sizeof(m))) {
-                l->sent.buttons = l->buttons;
-            }
+            l->nobuf_other++;
         }
+        ESP_LOGW(TAG, "notify: no buffer (host %d, free mbufs %d)", l->index + 1, free_now);
+        return false;
+    }
+    int rc = ble_gatts_notify_custom(l->conn, s_notify_handle[n], om);
+    if (rc != 0) {
+        ESP_LOGW(TAG, "notify failed rc=%d", rc);
+        return false;
+    }
+    if (l->tx_count < TX_RING) {
+        l->tx_t[(l->tx_head + l->tx_count) % TX_RING] = t;
+        l->tx_count++;
+    }
+    if (mouse) {
         int64_t in_notify = now_us() - t;
+        l->mouse_reports++;
         s_mouse_sent++;
         s_notify_sum_us += in_notify;
         if (in_notify > s_notify_max_us) {
             s_notify_max_us = in_notify;
         }
-    } while (!host_motion_empty(&l->motion));
+    }
+    return true;
 }
 
-/* Zero any report left nonzero on this connection (to the previous host on switch) */
+/* What the host has once this report is delivered */
+static void delivered(host_link_t *l, int n, const uint8_t *data)
+{
+    switch (n) {
+    case N_KB:
+        memcpy(l->sent.kb, data, HOST_KB_LEN);
+        break;
+    case N_BOOT_KB:
+        memcpy(l->boot_kb, data, HOST_KB_LEN);
+        break;
+    case N_CONSUMER:
+        memcpy(l->sent.consumer, data, HOST_CONSUMER_LEN);
+        break;
+    case N_SYSTEM:
+        l->sent.system = data[0];
+        break;
+    case N_MOUSE:
+        l->sent.buttons = data[0];
+        break;
+    case N_BOOT_MOUSE:
+        l->boot_buttons = data[0] & 0x07;
+        break;
+    default:
+        break;
+    }
+}
+
+/* Hand reports to the stack while fewer than TX_PIPELINE wait for acknowledgement: queued changes first, then motion */
+static void pump(host_link_t *l)
+{
+    while (l->state == HL_READY && l->tx_count < TX_PIPELINE) {
+        uint8_t buf[HOST_KB_LEN];
+        int n;
+        uint16_t len;
+        change_t *c = l->q_len ? &l->q[l->q_head] : NULL;
+        if (c) {
+            n = c->n;
+            if (!(l->sub & (1u << n))) {   /* The host does not take this report */
+                l->q_head = (uint8_t)((l->q_head + 1) % CHANGE_Q);
+                l->q_len--;
+                continue;
+            }
+        } else if (!host_motion_empty(&l->motion)) {
+            n = boot_mode(l) ? N_BOOT_MOUSE : N_MOUSE;
+            if (!(l->sub & (1u << n))) {
+                memset(&l->motion, 0, sizeof(l->motion));
+                return;
+            }
+        } else {
+            return;
+        }
+        host_motion_t motion = l->motion;
+        if (n == N_MOUSE) {
+            host_mouse_report(&motion, c ? c->data[0] : l->want.buttons, buf);
+            len = HOST_MOUSE_LEN;
+        } else if (n == N_BOOT_MOUSE) {
+            host_boot_mouse_report(&motion, c ? c->data[0] : l->want_boot_buttons, buf);
+            len = HOST_BOOT_MOUSE_LEN;
+        } else {
+            memcpy(buf, c->data, sizeof(buf));
+            len = n == N_CONSUMER ? HOST_CONSUMER_LEN : n == N_SYSTEM ? HOST_SYSTEM_LEN : HOST_KB_LEN;
+        }
+        if (!notify(l, n, buf, len)) {
+            return;   /* No buffer: tried again at the next completion or tick */
+        }
+        if (n == N_MOUSE || n == N_BOOT_MOUSE) {
+            l->motion = motion;   /* What did not fit in one report stays for the next */
+        }
+        delivered(l, n, buf);
+        if (c) {
+            l->q_head = (uint8_t)((l->q_head + 1) % CHANGE_Q);
+            l->q_len--;
+        }
+    }
+}
+
+/* Queue a state change. A full queue makes room by dropping the oldest change that a later one of the same report supersedes */
+static void enqueue(host_link_t *l, int n, const uint8_t *data, uint8_t len)
+{
+    if (l->q_len == CHANGE_Q) {
+        for (int i = 0; i < l->q_len; i++) {
+            int a = (l->q_head + i) % CHANGE_Q;
+            bool superseded = false;
+            for (int j = i + 1; j < l->q_len && !superseded; j++) {
+                superseded = l->q[(l->q_head + j) % CHANGE_Q].n == l->q[a].n;
+            }
+            if (superseded) {
+                for (int j = i; j < l->q_len - 1; j++) {
+                    l->q[(l->q_head + j) % CHANGE_Q] = l->q[(l->q_head + j + 1) % CHANGE_Q];
+                }
+                l->q_len--;
+                break;
+            }
+        }
+    }
+    change_t *c = &l->q[(l->q_head + l->q_len) % CHANGE_Q];
+    l->q_len++;
+    c->n = (uint8_t)n;
+    memset(c->data, 0, sizeof(c->data));
+    memcpy(c->data, data, len);
+}
+
+/* Queue a report if it changes what the host will have */
+static void queue_state(host_link_t *l, int n, uint8_t *want, const uint8_t *now, uint8_t len)
+{
+    if (memcmp(want, now, len) != 0) {
+        memcpy(want, now, len);
+        enqueue(l, n, now, len);
+    }
+}
+
+/* Everything released on this connection (the previous host on a switch); changes still queued for it are dropped */
 static void release_all(host_link_t *l)
 {
     if (!l || l->state != HL_READY) {
         return;
     }
-    uint8_t zeros[HOST_KB_LEN > HOST_MOUSE_LEN ? HOST_KB_LEN : HOST_MOUSE_LEN] = {0};
-    if (boot_mode(l)) {
-        send_changed(l, N_BOOT_KB, l->boot_kb, zeros, HOST_KB_LEN);
-        if (l->boot_buttons && notify(l, N_BOOT_MOUSE, zeros, HOST_BOOT_MOUSE_LEN)) {
-            l->boot_buttons = 0;
-        }
-    } else {
-        send_changed(l, N_KB, l->sent.kb, zeros, HOST_KB_LEN);
-        if (l->sent.buttons && notify(l, N_MOUSE, zeros, HOST_MOUSE_LEN)) {
-            l->sent.buttons = 0;
-        }
-        send_changed(l, N_CONSUMER, l->sent.consumer, zeros, HOST_CONSUMER_LEN);
-        send_changed(l, N_SYSTEM, &l->sent.system, zeros, HOST_SYSTEM_LEN);
-    }
+    static const uint8_t zeros[HOST_KB_LEN] = {0};
+    l->q_len = 0;
+    l->want = l->sent;
+    memcpy(l->want_boot_kb, l->boot_kb, HOST_KB_LEN);
+    l->want_boot_buttons = l->boot_buttons;
     memset(&l->motion, 0, sizeof(l->motion));
-    l->buttons = 0;
+    if (boot_mode(l)) {
+        queue_state(l, N_BOOT_KB, l->want_boot_kb, zeros, HOST_KB_LEN);
+        queue_state(l, N_BOOT_MOUSE, &l->want_boot_buttons, zeros, 1);
+    } else {
+        queue_state(l, N_KB, l->want.kb, zeros, HOST_KB_LEN);
+        queue_state(l, N_MOUSE, &l->want.buttons, zeros, 1);
+        queue_state(l, N_CONSUMER, l->want.consumer, zeros, HOST_CONSUMER_LEN);
+        queue_state(l, N_SYSTEM, &l->want.system, zeros, HOST_SYSTEM_LEN);
+    }
+    pump(l);
+}
+
+static void queue_keyboard(host_link_t *l, const uint8_t keys[32])
+{
+    uint8_t kb[HOST_KB_LEN];
+    host_kb_report(keys, kb);
+    if (boot_mode(l)) {
+        queue_state(l, N_BOOT_KB, l->want_boot_kb, kb, HOST_KB_LEN);
+    } else {
+        queue_state(l, N_KB, l->want.kb, kb, HOST_KB_LEN);
+    }
 }
 
 void host_send(const router_out_t *out, int switched_from)
 {
     if (switched_from >= 0) {
-        /* Send the release directly on the previous host's connection (regardless of the active value. ZMK sends it after switching, so it never reaches the previous host: zmk issue #2202) */
+        /* Release on the previous host's own connection (ZMK sends it after switching, so it never reaches the previous host: zmk issue #2202) */
         release_all(link_by_index(switched_from));
+        host_link_t *old = link_by_index(switched_from);
+        if (old) {
+            request_conn_params(old);   /* Now idle: long peripheral latency */
+        }
         char buf[96];
         snprintf(buf, sizeof(buf), "{\"event\":\"host_online\",\"host\":%d,\"online\":%s}",
                  router_active_host() + 1, host_online(router_active_host()) ? "true" : "false");
@@ -622,23 +749,39 @@ void host_send(const router_out_t *out, int switched_from)
         return;   /* Drop input for a disconnected host (key input replayed later is dangerous) */
     }
     if (switched_from >= 0) {
-        release_all(l);   /* Zero anything left over on the new host */
+        release_all(l);           /* Zero anything left over on the new host */
+        request_conn_params(l);   /* Now active: short peripheral latency */
     }
     if (out->pre_valid) {
-        send_keyboard(l, out->pre_keys);
+        queue_keyboard(l, out->pre_keys);
     }
     if (out->keys_changed || out->pre_valid) {
-        send_keyboard(l, out->keys);
+        queue_keyboard(l, out->keys);
     }
-    if (out->consumer_changed) {
-        send_consumer(l, out->consumer, out->consumer_count);
+    if (!boot_mode(l)) {   /* A Boot host ignores Report Protocol reports */
+        if (out->consumer_changed) {
+            uint8_t c[HOST_CONSUMER_LEN];
+            host_consumer_report(out->consumer, out->consumer_count, c);
+            queue_state(l, N_CONSUMER, l->want.consumer, c, HOST_CONSUMER_LEN);
+        }
+        if (out->system_changed) {
+            uint8_t v = out->system & 0x07;
+            queue_state(l, N_SYSTEM, &l->want.system, &v, HOST_SYSTEM_LEN);
+        }
     }
-    if (out->system_changed) {
-        send_system(l, out->system);
+    if (out->buttons_changed) {
+        uint8_t b = out->buttons;
+        if (boot_mode(l)) {
+            b &= 0x07;
+            queue_state(l, N_BOOT_MOUSE, &l->want_boot_buttons, &b, 1);
+        } else {
+            queue_state(l, N_MOUSE, &l->want.buttons, &b, 1);
+        }
     }
-    if (out->buttons_changed || out->motion) {
-        send_mouse(l, out);
+    if (out->motion) {
+        host_motion_add(&l->motion, out->dx, out->dy, out->wheel, out->pan);
     }
+    pump(l);
 }
 
 /* ---------- Advertising ---------- */
@@ -738,6 +881,14 @@ static void tick_cb(struct ble_npl_event *ev)
         if (l->used && l->sec_req_us && now >= l->sec_req_us) {
             security_request(l);
         }
+        if (l->used && l->state == HL_READY) {
+            if (l->tx_count > 0 && now - l->tx_t[l->tx_head] > 2000000) {
+                /* A completion never came (the link drops long before this in practice): stop waiting for it */
+                ESP_LOGW(TAG, "host %d: %u reports never completed", l->index + 1, l->tx_count);
+                l->tx_count = 0;
+            }
+            pump(l);   /* Anything left after a notify found no buffer */
+        }
     }
     adv_update();
     ble_npl_callout_reset(&s_tick, ble_npl_time_ms_to_ticks32(1000));
@@ -767,12 +918,24 @@ static void emit_link(const char *event, const host_link_t *l, const char *extra
     emit(buf);
 }
 
+/*
+ * Peripheral latency: how many connection events the board may skip on a host link while it has nothing to send. It
+ * never delays a report (the board answers at the next event whenever it has data). Idle hosts only need to stay
+ * connected, so they get Apple's maximum and leave the board's radio to the active host and the input devices; the
+ * active host gets 4, so its LED writes wait at most 75 ms. Switching is decided on the board, which re-requests both.
+ * Apple ADG R31 58.6: latency <= 30, interval x (latency + 1) <= 6 s (15 ms x 31 = 465 ms), supervision timeout
+ * > 3 x that (6 s).
+ */
+#define LATENCY_ACTIVE 4
+#define LATENCY_IDLE 30
+
 static void request_conn_params(host_link_t *l)
 {
-    /* 15 ms, Latency 4, supervision 6 s (Apple ADG R31 58.6; Microsoft Bluetooth Accessory Guidelines 4.4) */
+    /* 15 ms, Latency 4 or 30, supervision 6 s (Apple ADG R31 58.6; Microsoft Bluetooth Accessory Guidelines 4.4) */
+    bool active = l->index == router_active_host();
     struct ble_gap_upd_params p = {
-        .itvl_min = ITVL_HOST_MIN, .itvl_max = ITVL_HOST_MAX, .latency = 4, .supervision_timeout = 600,
-        .min_ce_len = 0, .max_ce_len = 0,
+        .itvl_min = ITVL_HOST_MIN, .itvl_max = ITVL_HOST_MAX, .latency = active ? LATENCY_ACTIVE : LATENCY_IDLE,
+        .supervision_timeout = 600, .min_ce_len = 0, .max_ce_len = 0,
     };
     int rc = ble_gap_update_params(l->conn, &p);
     if (rc != 0) {
@@ -1315,9 +1478,14 @@ size_t host_stats_json(char *buf, size_t len)
         }
         w += snprintf(buf + w, len - w,
                       "%s{\"host\":%d,\"itvl\":%u,\"latency\":%u,\"rssi\":%d,\"mouse_reports\":%lu,"
-                      "\"nobuf_mouse\":%u,\"nobuf_other\":%u}",
+                      "\"nobuf_mouse\":%u,\"nobuf_other\":%u,\"ack_ms\":[%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu],\"ack_max_ms\":%lu}",
                       first ? "" : ",", l->index + 1, l->itvl, l->latency, rssi, (unsigned long)l->mouse_reports,
-                      l->nobuf_mouse, l->nobuf_other);
+                      l->nobuf_mouse, l->nobuf_other, (unsigned long)l->ack_hist[0], (unsigned long)l->ack_hist[1],
+                      (unsigned long)l->ack_hist[2], (unsigned long)l->ack_hist[3], (unsigned long)l->ack_hist[4],
+                      (unsigned long)l->ack_hist[5], (unsigned long)l->ack_hist[6], (unsigned long)l->ack_hist[7],
+                      (unsigned long)l->ack_max_ms);
+        memset(s_links[i].ack_hist, 0, sizeof(s_links[i].ack_hist));
+        s_links[i].ack_max_ms = 0;
         s_links[i].mouse_reports = 0;
         s_links[i].nobuf_mouse = 0;
         s_links[i].nobuf_other = 0;
