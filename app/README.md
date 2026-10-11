@@ -1,12 +1,14 @@
 # Blue Baton menu bar app (app/)
 
-A small menu bar (macOS) / tray (Windows) app built with [Tauri 2](https://tauri.app). About 5 MB.
+A small menu bar app built with [Tauri 2](https://tauri.app). Only the macOS build has been made; the code also has a Windows tray path, not built yet.
 
 - Lives in the menu bar only, never in the Dock (LSUIElement), like Google Drive.
 - Left click on the icon opens a panel under it: the three hosts (click to switch, the baton slides), the
-  connected input devices, Add Host…, Settings…, Quit. It closes when you click anywhere else.
+  connected input devices, Add Host… (while a host slot is free), Settings…, Quit. It closes when you click
+  anywhere else.
 - Right click opens a menu: the hosts, input devices, Open Blue Baton…, Add Host…, Launch at Login,
-  Developer API, Quit. The icon shows the active host number.
+  Developer API, Quit. On macOS the icon shows the active host number (with `?` while that host is not
+  connected).
 - The settings window is the full UI (`../ui`); the panel is the same UI with `?view=panel`. Closing the window keeps the app running.
 - The app owns the board's USB serial port (`src-tauri/src/board.rs`), finds it by USB ID (0x303A:0x1001),
   and reconnects after an unplug.
@@ -19,10 +21,14 @@ A small menu bar (macOS) / tray (Windows) app built with [Tauri 2](https://tauri
 
 ## Build
 
-Needs Rust (rustup) and Node.
+Needs Rust (rustup) and Node. `npm run build` also builds the UI, so install the packages here and in `../ui`.
 
 ```bash
 npm install
+```
+
+```bash
+npm --prefix ../ui install
 ```
 
 ```bash

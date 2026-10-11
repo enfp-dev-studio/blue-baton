@@ -42,24 +42,24 @@ function catalog() {
       role: 'nkro', wakeAfter: 3500, lastSeq: 2,
     },
     {
-      addr: 'C0:FF:EE:00:00:01', name: 'Mock keyboard (numeric comparison)', appearance: 961, io: 'numcmp',
+      addr: '00:00:5E:00:53:41', name: 'Mock keyboard (numeric comparison)', appearance: 961, io: 'numcmp',
       map: SIMPLE_KB_MAP, kinds: ['keyboard'], reports: [{ val: 20, id: 1 }], role: 'simple', foundAfter: 1200,
     },
     {
-      addr: 'C0:FF:EE:00:00:02', name: 'Mock keyboard (passkey entry)', appearance: 961, io: 'passkey_request',
+      addr: '00:00:5E:00:53:42', name: 'Mock keyboard (passkey entry)', appearance: 961, io: 'passkey_request',
       map: SIMPLE_KB_MAP, kinds: ['keyboard'], reports: [{ val: 20, id: 1 }], role: 'simple', foundAfter: 2000,
       shownCode: '123456',
     },
     {
-      addr: 'C0:FF:EE:00:00:03', name: 'Mock keyboard (passkey display)', appearance: 961, io: 'passkey_display',
+      addr: '00:00:5E:00:53:43', name: 'Mock keyboard (passkey display)', appearance: 961, io: 'passkey_display',
       map: SIMPLE_KB_MAP, kinds: ['keyboard'], reports: [{ val: 20, id: 1 }], role: 'simple', foundAfter: 2800,
     },
     {
-      addr: 'C0:FF:EE:00:00:04', name: 'Mock mouse (name only in scan response)', appearance: 962, io: 'none',
+      addr: '00:00:5E:00:53:44', name: 'Mock mouse (name only in scan response)', appearance: 962, io: 'none',
       map: MOUSE_MAP, kinds: ['mouse'], reports: [{ val: 25, id: 1 }], role: 'mouse', foundAfter: 3500,
       nameLate: true,
     },
-    { addr: 'AA:00:00:00:00:01', name: 'Galaxy Buds', appearance: 0, hid: false, foundAfter: 900 },
+    { addr: '00:00:5E:00:53:51', name: 'Mock earbuds (not HID)', appearance: 0, hid: false, foundAfter: 900 },
   ];
 }
 
@@ -85,7 +85,7 @@ class MockBoard {
     this.timers = new Set();
     this.seq = 3;
     /* Hosts: number -> {addr, name, connected, state}. Host 1 is a bonded mock Mac */
-    this.hosts = new Map([[1, { addr: '3C:22:FB:00:00:01', name: 'Mock MacBook Pro', connected: false, state: 'offline' }]]);
+    this.hosts = new Map([[1, { addr: '00:00:5E:00:53:31', name: 'Mock MacBook Pro', connected: false, state: 'offline' }]]);
     this.hostWindow = null;   /* timer that closes the window */
     this.candidate = null;    /* {addr, code} mock PC that connected through the window */
     this.boot();

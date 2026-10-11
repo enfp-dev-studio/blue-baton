@@ -148,8 +148,8 @@ static const struct ble_gatt_svc_def s_svcs[] = {
 typedef enum { HL_CANDIDATE, HL_CONNECTED, HL_SECURED, HL_READY } hl_state_t;
 
 /*
- * Report delivery (see "Sending"). TX_PIPELINE reports per host may wait for the host's acknowledgement; changes
- * beyond that wait in a queue of CHANGE_Q.
+ * Report delivery (see "Sending"). TX_PIPELINE reports per host may be in the controller, not yet reported completed;
+ * changes beyond that wait in a queue of CHANGE_Q.
  */
 #define TX_PIPELINE 2
 #define TX_RING 8
@@ -161,7 +161,7 @@ typedef struct {
     uint16_t nobuf_mouse;        /* Reports the stack could not take */
     uint16_t nobuf_other;
     uint32_t mouse_reports;      /* Mouse reports handed to the stack */
-    uint32_t ack_hist[8];        /* Time until the host acknowledged: <15, 15-30, 30-45, 45-60, 60-90, 90-150, 150-300, >=300 ms */
+    uint32_t ack_hist[8];        /* Time until the controller reported it completed: <15, 15-30, 30-45, 45-60, 60-90, 90-150, 150-300, >=300 ms */
     uint32_t ack_max_ms;
 } link_diag_t;
 #endif
@@ -562,9 +562,10 @@ static inline size_t diag_link_json(host_link_t *l, char *buf, size_t len) { (vo
  * Report delivery, as HID devices do it on a slow link (Apple Accessory Design Guidelines R31 20.4.3-20.4.4: queue a
  * new report only after the previous one is acknowledged, then send the most recent data; Nordic nRF Desktop keeps 2
  * reports in flight per host).
- * - At most TX_PIPELINE reports per host wait for the host's acknowledgement. The controller reports each one as
- *   completed (Number Of Completed Packets) when the host acknowledges it, and the next one goes out then. Two, not
- *   one, because the last packet of a connection event is acknowledged only in the next event.
+ * - At most TX_PIPELINE reports per host are in the controller at once. When the controller reports one as
+ *   completed (HCI Number Of Completed Packets), the next one goes out. Two, as nRF Desktop does: if completion
+ *   waits for the peer's link-layer acknowledgement, the last packet of a connection event completes only in the
+ *   next event.
  * - Every press and release goes out (ADG 55.1: one report per user action): state changes wait in a queue, in
  *   order. Only if the queue fills does an older change give way to a later one of the same report.
  * - Mouse motion adds up and goes out with the next mouse report: the cursor goes to where the mouse is instead of
@@ -678,7 +679,7 @@ static void delivered(host_link_t *l, int n, const uint8_t *data)
     }
 }
 
-/* Hand reports to the stack while fewer than TX_PIPELINE wait for acknowledgement: queued changes first, then motion */
+/* Hand reports to the stack while fewer than TX_PIPELINE are not yet completed: queued changes first, then motion */
 static void pump(host_link_t *l)
 {
     while (l->state == HL_READY && l->tx_count < TX_PIPELINE) {

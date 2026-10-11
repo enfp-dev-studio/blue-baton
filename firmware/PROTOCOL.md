@@ -45,33 +45,33 @@ Changes from earlier versions are collected at the end under "0.5 → 0.6 change
 | `hello` | none | Firmware info, whether a switch combo is set, whether the Wi-Fi feature is present |
 | `status` | none | See "status response" below |
 | `monitor` | `on` | Input monitor lease (see "Access and input content"). Reply: `lease_ms` (60000 when on, 0 when off) |
-| `stats` | none | Latency statistics since the last `stats` (`stats`): `mouse_sent`, `notify_avg_us`, `notify_max_us` (time inside the notify call that hands a report to the controller), `hosts` (`host`, `itvl`, `latency` of each host link). Developer builds (`CONFIG_KM_DIAG`, on by default; off for releases) add `mbufs` and `mbufs_free_min` (the stack's buffer count, and the fewest free at a notify), `hosts` (`host`, `itvl`, `latency`, `rssi` in dBm as the board receives it, `mouse_reports` handed to the stack, `nobuf_mouse`/`nobuf_other` reports the stack could not take, `ack_ms` how long reports took until the host acknowledged them: counts for <15, 15–30, 30–45, 45–60, 60–90, 90–150, 150–300, ≥300 ms, `ack_max_ms`, of each host link). Reading resets the counters |
+| `stats` | none | Latency statistics since the last `stats` (`stats`): `mouse_sent`, `notify_avg_us`, `notify_max_us` (time inside the notify call that hands a report to the controller), `hosts` (`host`, `itvl`, `latency` of each host link). Developer builds (`CONFIG_KM_DIAG`, on by default; off for releases) add `mbufs` and `mbufs_free_min` (the stack's buffer count, and the fewest free at a notify), `hosts` (`host`, `itvl`, `latency`, `rssi` in dBm as the board receives it, `mouse_reports` handed to the stack, `nobuf_mouse`/`nobuf_other` reports the stack could not take, `ack_ms` how long reports took until the controller reported them completed (HCI Number Of Completed Packets): counts for <15, 15–30, 30–45, 45–60, 60–90, 90–150, 150–300, ≥300 ms, `ack_max_ms`, of each host link). Reading resets the counters |
 | `selftest` | `host` (1–3, 0 stops), `minutes` (default 30) | Developer builds only. Sends mouse reports to that host every 8.75 ms (16 counts right, then 16 left: the cursor stays within a few pixels) through the normal delivery path, so `stats` measures delivery without anyone moving the mouse. The host must not be the active one; it stops when that host becomes active, when its link drops, or when time is up. Events `selftest_started` (`host`, `minutes`), `selftest_stopped` (`host`, `reason`: `done`/`active`/`link`/`stopped`/`restarted`, `reports`) |
 | `pin_set` | `pin` (4 to 8 digits) | Wi-Fi builds only: set the Wi-Fi setup API PIN |
 | `combo_get` | none | The host switch combos actually in effect (`combo`). If nothing is stored or the stored value is malformed, the default applies and `default:true`; if an invalid value is stored, `stored_invalid:true` |
 | `combo_set` | `combo` | Comma-separated list of combos in host order (e.g. `ctrl+alt+1,ctrl+alt+2,ctrl+alt+3`, up to 95 characters). Validated, then applied and saved immediately. If invalid, `code:"bad_combo"` |
 | `host_select` | `host` (1–3) | Select the active host directly. Same handling as a combo switch (release-all to the previous host) |
-| `host_pair` | `on` | Open or close the host pairing window. When opened, it accepts connections and pairing from new hosts for 180 seconds. It closes by itself once one host attaches. If 3 hosts are already paired, `code:"hosts_full"`. While it is open, input device scanning and user connection attempts are paused |
+| `host_pair` | `on` | Open or close the host pairing window. When opened, it accepts connections and pairing from new hosts for 180 seconds. It closes by itself once one host pairs. If 3 hosts are already paired, `code:"hosts_full"`. Opening it stops input device scanning and user connection attempts |
 | `host_list` | none | List of paired hosts (`hosts`). See "host_list entries" below |
 | `host_remove` | `host` (1–3) | Delete the bond of the host at that number. Disconnects it if connected. "Blue Baton" must also be removed on that computer before it can be added again |
 | `host_passkey` | `code` (6-digit string) | Answer `host_passkey_request` from the GUI (instead of typing on a keyboard attached to the router) |
 | `pair_scan` | `on` | Turn new-device scanning on/off. Once on, it stops by itself after 60 seconds (`scan_stopped` `reason:"timeout"`). Auto-reconnect pauses while scanning. If a user connection attempt is in progress, it is abandoned (`connect_failed` `status:"cancelled"`) and the scan starts right away |
 | `pair_list` | `all` (optional, default false) | Found devices list (`devices`). HID devices only by default; with `all:true`, every connectable device. Currently connected devices are excluded |
-| `pair_connect` | `addr` | Newly found device: connect and pair (10-second attempt). Paired device: not connected directly, but put back on the auto-connect list (auto-connect is re-enabled if it was off). It connects when the device wakes and advertises. Stops the scan if one is running |
+| `pair_connect` | `addr` | Newly found device: connect and pair (10-second attempt). A running scan pauses for the attempt and then resumes. Paired device: not connected directly, but put back on the auto-connect list (auto-connect is re-enabled if it was off). It connects when the device wakes and advertises. A running scan stops |
 | `disconnect` | `addr` | Disconnect a connected device. The pairing is kept, and the device is not auto-reconnected until the next `pair_connect` |
 | `pair_accept` | `accept` | Accept/reject a numeric comparison (`numcmp`) request |
 | `passkey` | `code` (6-digit string) | Answer `passkey_request` |
-| `pair_cancel` | none | Stop scanning and user connection attempts, and reject any pending pairing input. **Devices that are already connected are not disconnected** |
+| `pair_cancel` | none | Stop scanning and user connection attempts, and reject any pending pairing input. **Devices that are already connected are not disconnected**, except a device whose pairing input was pending: its pairing does not finish and the connection is dropped (passkey entry cannot be rejected, so that one is disconnected directly) |
 | `paired_list` | none | List of paired input devices (`paired`). The source is the NimBLE bond store. Bonds recorded as hosts are excluded |
 | `paired_remove` | `addr` (identity) | Delete one pairing (bond keys, resolving list, name, etc.). Disconnects it if connected |
-| `paired_clear` | none | Delete all pairings |
+| `paired_clear` | none | Delete all pairings, hosts included |
 
 Failure `code`
 
 | code | Meaning |
 |---|---|
 | `busy` | Not possible right now (BLE not ready, already connected, or another connection attempt in progress) |
-| `not_found` | No device with that address (in neither the found list nor the paired list) |
+| `not_found` | No device with that address (in neither the found list nor the paired list), or no host at that number (`host_remove`) |
 | `no_slot` | All input device slots (2 concurrent) are in use |
 | `bad_addr` | Address missing or malformed |
 | `no_request` | No pending pairing input request to answer |
@@ -81,7 +81,7 @@ Failure `code`
 | `bad_code` | Passkey is not 6 digits |
 | `bad_pin` | `pin_set` (Wi-Fi builds): PIN is not 4–8 digits |
 | `bad_combo` | Switch combo missing or malformed |
-| `bad_request` | Missing or malformed argument (`cmd`, `on`, `accept`, `pin`) |
+| `bad_request` | Missing or malformed argument (`cmd`, `on`, `accept`) |
 | `unknown_cmd` | Unknown command |
 | `failed` | Any other failure (including NVS write errors) |
 
@@ -89,7 +89,7 @@ Failure `code`
 
 ```text
 {"id":9,"ok":true,"scanning":false,"connected":true,"hid_ready":true,"peer":"00:00:5E:00:53:17",
- "peers":[{"addr":"00:00:5E:00:53:17","id_addr":"00:00:5E:00:53:17","state":"ready","hid_ready":true,"itvl":6}],
+ "peers":[{"addr":"00:00:5E:00:53:17","id_addr":"00:00:5E:00:53:17","state":"ready","hid_ready":true,"itvl":7}],
  "radio":"auto","bonds":1,"bonds_max":8,"active_host":1,"heap_free":228688,"heap_min":224496}
 ```
 
@@ -119,11 +119,11 @@ paired:  [{"addr":"00:00:5E:00:53:17","type":1,"name":"Xiaoxin Mplus 5.0","kinds
 ### host_list entries
 
 ```text
-hosts: [{"host":1,"addr":"AA:BB:CC:DD:EE:FF","name":"MacBook Pro","connected":true,"state":"ready","active":true}]
+hosts: [{"host":1,"addr":"00:00:5E:00:53:30","name":"Example’s MacBook Pro","connected":true,"state":"ready","active":true}]
 ```
 
-- `addr`: the host's identity address (even when a Mac connects with an RPA, the controller resolves it, so the identity address is shown)
-- `name`: the host's GAP Device Name (the computer name on a Mac). Read when the host first becomes ready
+- `addr`: the host's identity address, saved at pairing (shown even when the host connects with an RPA, as Macs do)
+- `name`: the host's GAP Device Name (the computer name on a Mac). Read each time the host connects and becomes ready
 - `state`: `offline`, `connected` (before encryption), `secured` (before subscription), `ready` (reports can be sent)
 
 ## Events (sent by the board on its own)
@@ -133,13 +133,13 @@ hosts: [{"host":1,"addr":"AA:BB:CC:DD:EE:FF","name":"MacBook Pro","connected":tr
 | `ble_ready` | `bonds`, `max` | BLE is ready (at boot, after a BLE host reset) |
 | `ble_reset` | none | BLE host reset. All connections are gone |
 | `scan_started` | none | New-device scan started |
-| `scan_stopped` | `reason` | Scan stopped. `timeout` (60 seconds), `radio` (switched to another task), `preempted` (briefly interrupted by the stack; restarts soon), `error` |
+| `scan_stopped` | `reason` | Scan stopped. `timeout` (60 seconds), `radio` (turned off, or the radio switched to another task), `preempted` (briefly interrupted by the stack; restarts soon), `error` (with `status`) |
 | `device_found` | `addr`, `name`, `rssi`, `paired`, `appearance` | Found an HID device. If the name etc. is filled in later (scan response), it is sent again with the same `addr` |
 | `autoconnect` | `devices`, `fast` | Put N paired devices on the accept list and started waiting for auto-connect. `fast`: listening 30 ms every 60 ms (for 30 s after a device drops, or at start); otherwise 11.25 ms every 1.28 s (HOGP 1.0 Table 5.5) |
 | `autoconnect_paused` | `id_addr`, `fails` | The device repeatedly disconnected before becoming ready, so its auto-reconnect was stopped |
 | `autoconnect_failed` | `rc`, `retry_ms` | Starting auto-reconnect failed (for example `rc` 525 = HCI 0x0D, the controller refused for lack of resources). The board tries again after `retry_ms` |
 | `connecting` | `addr` | Connection attempt to a user-chosen device in progress |
-| `connect_failed` | `addr`, `status` | User connection failed (`status`: HCI/NimBLE code or `"no_slot"`) |
+| `connect_failed` | `addr`, `status` | User connection failed (`status`: HCI/NimBLE code, `"no_slot"`, or `"cancelled"` when `pair_scan` replaced the attempt) |
 | `connected` | `addr`, `id_addr`, `bonded`, `user`, `itvl`, `latency`, `timeout` | Connected. `bonded`: an already paired device, `user`: a connection the user chose. Connection parameters: `itvl` in units of 1.25 ms, `timeout` in units of 10 ms. The board requests 8.75 ms, latency 0, supervision timeout 4 s |
 | `conn_params` | `addr`, `status`, `itvl`, `latency`, `timeout` | The device changed the connection parameters |
 | `conn_params_req` | `addr`, `itvl_min`, `itvl_max`, `latency`, `timeout` | The device asked for other connection parameters. The board accepts as asked; the controller may still refuse (then no `conn_params` follows) |
@@ -173,10 +173,10 @@ hosts: [{"host":1,"addr":"AA:BB:CC:DD:EE:FF","name":"MacBook Pro","connected":tr
 | `host_passkey_sent` | `host`, `addr`, `ok` | The passkey was handed to the security procedure (SMP) |
 | `host_paired` | `host`, `addr` | Saved the new host under that number. The window closes |
 | `host_pair_failed` | `host`, `addr`, `status`, `authenticated` | Host pairing (or key restore) failed. A new bond that is not authenticated is deleted and the connection dropped |
-| `host_repair_blocked` | `host`, `addr` | A bonded host tried to pair again (the board was removed on that computer). Outside the window, so it was rejected and disconnected. If it reconnects after the window is opened, it is accepted (number and name are kept) |
+| `host_repair_blocked` | `host`, `addr` | A bonded host tried to pair again (the board was removed on that computer). Outside the window (or the new pairing was not authenticated), so it was rejected and disconnected. If it reconnects while the window is open, it is accepted (number and name are kept). With all 3 host slots in use the window does not open (`hosts_full`); remove that host and add it again |
 | `host_ready` | `host`, `addr` | The host enabled notifications and can receive reports |
 | `host_name` | `host`, `addr`, `name` | The host's GAP Device Name |
-| `host_conn_params` | `host`, `addr`, `status`, `itvl`, `latency`, `timeout` | The host connection parameters changed. The board requests 15 ms, latency 4, supervision timeout 6 s; the host has the final say. (An 11.25 ms request, allowed for HID by Apple QA1931, was tried: macOS 26 kept 30 ms and then moved to 15 ms itself) |
+| `host_conn_params` | `host`, `addr`, `status`, `itvl`, `latency`, `timeout` | The host connection parameters changed. The board requests 15 ms, latency 4 for the active host and 30 for idle hosts, supervision timeout 6 s; the host has the final say. (An 11.25 ms request, allowed for HID by Apple QA1931, was tried: macOS 26 kept 30 ms and then moved to 15 ms itself) |
 | `host_sec_request` | `host`, `addr`, `rc` | A bonded host did not start encryption within 1 s, so the board sent a Security Request (`rc` 0 = sent). A fallback; normally the host encrypts by itself |
 | `host_disconnected` | `host`, `addr`, `reason` | A host disconnected. The board advertises fast (20 ms) for 30 seconds, then at 152.5 ms |
 | `host_removed` | `host` | One host was removed |
@@ -186,7 +186,7 @@ hosts: [{"host":1,"addr":"AA:BB:CC:DD:EE:FF","name":"MacBook Pro","connected":tr
 ### Adding a new device
 
 1. `pair_scan` `{"on":true}` → watch for `device_found`
-2. `pair_connect` `{"addr":"..."}` (the board stops the scan on its own)
+2. `pair_connect` `{"addr":"..."}` (the board pauses the scan for the attempt, then resumes it; `pair_scan` `{"on":false}` stops it)
 3. Answer according to the events
    - No request at all: Just Works (most mice, some keyboards)
    - `numcmp` → `pair_accept` `{"accept":true}`
@@ -208,19 +208,20 @@ Only while the window is open does the board present itself as a keyboard (IO ca
 
 - At boot, or when a device disconnects, the board automatically waits for it to reconnect (`autoconnect`).
 - The device connects when it advertises. The sequence is `connected` `bonded:true` → `encrypted` `bond:"restored"` → `paired` → `hid_ready`. No user action is needed.
-- If the device has lost its own keys, the stack pairs again automatically. In that case `bond:"new"` arrives (this behavior cannot be turned off).
+- If the device has lost its own keys, the stack pairs again automatically. In that case `bond:"new"` arrives (NimBLE `BLE_RESTART_PAIR`, on by default).
 
 ## Known limitations
 
 - Up to 2 concurrent input connections and 8 bonds (4 input + 3 host + 1 in progress).
-- The security procedure (pairing, key restore) runs one at a time across the whole board. If two devices attach at the same time, one waits briefly.
+- Input devices start the security procedure (pairing, key restore) one at a time. If two input devices attach at the same time, one waits briefly.
 - Some devices create a new address (identity) every time they enter pairing mode. They then show up as a new device, and the user deletes the old record by looking at `last_seq`.
 - The found list holds at most 16 devices; when it overflows, the device seen longest ago is pushed out. Names are at most 23 bytes.
 - Wi-Fi settings commands (`/api/*`) exist only in builds with `KM_WIFI_ENABLE=y` (off by default).
 
 ## Host switch combos
 
-- Format: one or more modifiers (`ctrl`/`control`, `shift`, `alt`/`option`/`opt`, `cmd`/`gui`/`win`/`meta`/`super`) + one non-modifier key. Non-modifier keys: `a`–`z`, `0`–`9`, `f1`–`f24`, `space`, `enter`, `esc`, `tab`, `backspace`, `home`, `end`, `pageup`, `pagedown`, `insert`, `delete`, arrow keys (`left` etc.), `scrolllock`, `pause`, `printscreen`, `capslock`, or a Usage value such as `0x3a`
+- Format: one or more modifiers (`ctrl`/`control`, `shift`, `alt`/`option`/`opt`, `cmd`/`command`/`gui`/`win`/`meta`/`super`) + one non-modifier key. Non-modifier keys: `a`–`z`, `0`–`9`, `f1`–`f24`, `space`, `enter`/`return`, `esc`/`escape`, `tab`, `backspace`, `minus`, `equal`, `grave`/`backquote`, `home`, `end`, `pageup`, `pagedown`, `insert`, `delete`, arrow keys (`left` etc.), `scrolllock`, `pause`, `printscreen`, `capslock`, or a Usage value such as `0x3a`
+- An empty entry in the list leaves that host without a combo (e.g. `ctrl+alt+1,,ctrl+alt+3`)
 - A single key without a modifier is not accepted (it would steal normal input)
 - Default: `ctrl+alt+1,ctrl+alt+2,ctrl+alt+3`
 - Behavior (same as a typical KVM)
@@ -236,9 +237,9 @@ Only while the window is open does the board present itself as a keyboard (IO ca
   `locked`, `no_pin` and `wrong_pin` codes are gone. `pin_set` remains only in Wi-Fi builds (for the Wi-Fi setup API).
   A PIN stored by earlier firmware is erased at boot in builds without Wi-Fi.
 - Input content (`report`, `route`) goes out only under the new `monitor` lease. New event `activity` (no content).
-- Latency: each mouse report goes to the host at once (was at most 1 per host interval, which made motion wait up
-  to an interval). New command `stats`; `status` `peers` entries have `itvl`; `status` has `heap_free` and
-  `heap_min` (lowest free heap since boot, bytes).
+- Latency: a mouse report no longer waits for the next host interval (was at most 1 per host interval, which made
+  motion wait up to an interval); see report delivery below. New command `stats`; `status` `peers` entries have
+  `itvl`; `status` has `heap_free` and `heap_min` (lowest free heap since boot, bytes).
 - Build: `-O2`, 240 MHz, 32 KB instruction cache, NimBLE log level WARNING (NimBLE logged every notification at
   INFO). Handing a mouse report to the controller went from 1.13 ms to 0.07 ms on average.
 - Auto-reconnect retries after a failed start (new event `autoconnect_failed`); before, the radio stayed idle.
@@ -255,10 +256,10 @@ Only while the window is open does the board present itself as a keyboard (IO ca
 - The active host is kept across restarts (was always host 1 after a restart).
 - Developer diagnostics are one build option, `CONFIG_KM_DIAG` (on by default): the detailed `stats` fields and the
   new `selftest` command. Release builds turn it off.
-- Report delivery to hosts: at most 2 reports per host wait for the host's acknowledgement; further key, button,
-  media and system changes wait in order (none is dropped), and mouse motion adds up into the next mouse report.
-  Before, every report was queued in the stack; with a host slow to take them, motion arrived late and reports were
-  dropped once the stack's buffers ran out (a key-up could have been among them).
+- Report delivery to hosts: at most 2 reports per host are in the controller at once (counted by its completion reports); further key, button,
+  media and system changes wait in order (if 8 are already waiting, an older change gives way to a later one of the
+  same report), and mouse motion adds up into the next mouse report. Before, every report was queued in the stack,
+  and reports were dropped when the stack's buffers ran out (a key-up could have been among them).
 - Idle hosts are asked for peripheral latency 30 and the active host for 4; a switch re-requests both.
 - Auto-reconnect listens 30 ms every 60 ms only for 30 s after a device drops, then 11.25 ms every 1.28 s (it
   listened half the time indefinitely). A sleeping device may take up to about 1.3 s longer to come back.

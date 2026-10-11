@@ -7,14 +7,14 @@ Watch the board through the menu bar app's developer API or tools/bridge.py (sam
   watch.py stats [N]     Reset the board's latency statistics, wait for N activity events (default 40, about
                          10 s of use; idle gaps don't count), then print the stats reply.
   watch.py soak FILE     Every 60 s, append one CSV row per host link with traffic: reports, reports the stack
-                         could not take, acknowledgement-time counts (developer builds, CONFIG_KM_DIAG). Runs until
+                         could not take, completion-time counts (developer builds, CONFIG_KM_DIAG). Runs until
                          stopped; minutes without traffic leave no row.
-  watch.py alerts [FILE] Print a line when something goes wrong: a host's report took over 150 ms to be
-                         acknowledged or was dropped, a link dropped, or the board restarted. With FILE (the CSV a
+  watch.py alerts [FILE] Print a line when something goes wrong: a host's report took over 150 ms to
+                         complete or was dropped, a link dropped, or the board restarted. With FILE (the CSV a
                          running soak writes), it reads that instead of polling stats, since every stats read
                          resets the counters and two pollers would split them.
-  watch.py report FILE   Per host, from a soak CSV: share acknowledged within 45 ms (a healthy 15 ms link stays
-                         under that), minutes with a report over 150 ms, dropped reports.
+  watch.py report FILE   Per host, from a soak CSV: share completed within 45 ms (target: 99%),
+                         minutes with a report over 150 ms, dropped reports.
 
   --url URL              Default http://127.0.0.1:8766
 
@@ -211,7 +211,7 @@ def report(path):
             t['max'] = max(t['max'], int(row['ack_max_ms'] or 0))
     for host, t in sorted(tot.items()):
         share = 100 * t['within45'] / t['acks'] if t['acks'] else 0
-        print(f"host {host}: {t['minutes']} min with traffic, {t['mouse']} mouse reports, {share:.1f}% acknowledged "
+        print(f"host {host}: {t['minutes']} min with traffic, {t['mouse']} mouse reports, {share:.1f}% completed "
               f"within 45 ms, {t['stall_min']} min with a report over 150 ms (max {t['max']} ms), "
               f"{t['dropped']} dropped")
 
