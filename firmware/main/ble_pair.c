@@ -2038,7 +2038,7 @@ typedef enum {
     OP_SCAN, OP_CONNECT, OP_DISCONNECT, OP_ACCEPT, OP_PASSKEY, OP_CANCEL,
     OP_REMOVE, OP_CLEAR, OP_LIST, OP_PEERS, OP_PAIRED, OP_STATUS, OP_RADIO, OP_BONDS,
     OP_COMBOS, OP_HOST_SELECT, OP_HOST_GET,
-    OP_HOST_PAIR, OP_HOST_LIST, OP_HOST_REMOVE, OP_HOST_PASSKEY, OP_STATS,
+    OP_HOST_PAIR, OP_HOST_LIST, OP_HOST_REMOVE, OP_HOST_PASSKEY, OP_STATS, OP_SELFTEST,
 } op_t;
 
 typedef struct {
@@ -2435,6 +2435,12 @@ static esp_err_t op_dispatch(req_t *r)
         return host_remove((int)r->num);
     case OP_HOST_PASSKEY:
         return host_passkey(r->num);
+    case OP_SELFTEST:
+#if CONFIG_KM_DIAG
+        return host_selftest((int)r->num - 1, (int)r->count);
+#else
+        return ESP_ERR_NOT_SUPPORTED;
+#endif
     case OP_STATS:
         r->out_len = host_stats_json(r->buf, r->len);
         return ESP_OK;
@@ -2635,6 +2641,12 @@ size_t ble_pair_host_list_json(char *buf, size_t len)
     req_t r = {.op = OP_HOST_LIST, .buf = buf, .len = len};
     host_call(&r);
     return r.out_len;
+}
+
+esp_err_t ble_pair_selftest(int host, int minutes)
+{
+    req_t r = {.op = OP_SELFTEST, .num = (uint32_t)host, .count = minutes};
+    return host_call(&r);
 }
 
 size_t ble_pair_stats_json(char *buf, size_t len)

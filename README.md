@@ -24,7 +24,7 @@ License: not decided yet. Until a license is added, no rights are granted to reu
 | [firmware/PROTOCOL.md](firmware/PROTOCOL.md) | USB control protocol (one JSON object per line) |
 | [app/](app/) | Menu bar / tray app (Tauri): owns the board's USB port, quick host switching, settings window |
 | [ui/](ui/) | Settings UI (React, Tailwind CSS, shadcn/ui; also runs in a browser via Web Serial or the dev bridge) |
-| [firmware/tools/](firmware/tools/) | Dev bridge `bridge.py`, flash helper `flash.sh`, board watcher `watch.py` (connections, latency stats) |
+| [firmware/tools/](firmware/tools/) | Dev bridge `bridge.py`, flash helper `flash.sh`, board watcher `watch.py` (connections, latency stats, soak log, alerts) |
 | [firmware/test/](firmware/test/) | Tests that run without the board (C and JS) |
 
 ## Build, flash, test

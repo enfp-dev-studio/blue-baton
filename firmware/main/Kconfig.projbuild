@@ -8,4 +8,12 @@ menu "Blue Baton settings"
             Keep it off when the board is plugged into the main device over USB.
             If the main device joins the board's Wi-Fi, that device loses its internet connection.
 
+    config KM_DIAG
+        bool "Developer diagnostics (stats details, self-test)"
+        default y
+        help
+            Per-host delivery statistics in the stats command (acknowledgement times, signal strength, reports the
+            stack could not take, buffer use) and the selftest command. Turn off for release builds: the code is
+            compiled out and stats keeps only the basic fields.
+
 endmenu

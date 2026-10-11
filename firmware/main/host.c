@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "esp_check.h"
 #include "esp_log.h"
 #include "esp_timer.h"
 
@@ -154,6 +155,17 @@ typedef enum { HL_CANDIDATE, HL_CONNECTED, HL_SECURED, HL_READY } hl_state_t;
 #define TX_RING 8
 #define CHANGE_Q 8
 
+#if CONFIG_KM_DIAG
+/* Developer builds: per host link, since the last stats */
+typedef struct {
+    uint16_t nobuf_mouse;        /* Reports the stack could not take */
+    uint16_t nobuf_other;
+    uint32_t mouse_reports;      /* Mouse reports handed to the stack */
+    uint32_t ack_hist[8];        /* Time until the host acknowledged: <15, 15-30, 30-45, 45-60, 60-90, 90-150, 150-300, >=300 ms */
+    uint32_t ack_max_ms;
+} link_diag_t;
+#endif
+
 typedef struct {
     uint8_t n;                   /* N_*: which report */
     uint8_t data[HOST_KB_LEN];   /* The report (mouse: buttons only; motion is added when it goes out) */
@@ -191,12 +203,9 @@ typedef struct {
     int64_t param_retry_us;      /* If nonzero, re-request connection parameters at this time */
     int64_t sec_req_us;          /* If nonzero, send a Security Request at this time */
     uint8_t param_retries;
-    /* Diagnostics (stats): reports the stack could not take, mouse reports sent, time until completed */
-    uint16_t nobuf_mouse;
-    uint16_t nobuf_other;
-    uint32_t mouse_reports;
-    uint32_t ack_hist[8];        /* <15, 15-30, 30-45, 45-60, 60-90, 90-150, 150-300, >=300 ms */
-    uint32_t ack_max_ms;
+#if CONFIG_KM_DIAG
+    link_diag_t diag;
+#endif
 } host_link_t;
 
 static host_link_t s_links[HOST_LINK_MAX];
@@ -471,6 +480,82 @@ static int ref_access(uint16_t conn, uint16_t attr, struct ble_gatt_access_ctxt 
     return append(ctxt, ref, sizeof(ref));
 }
 
+/* ---------- Diagnostics (developer builds: CONFIG_KM_DIAG; compiled out otherwise) ---------- */
+
+#if CONFIG_KM_DIAG
+static int s_msys_free_min = 1 << 30;   /* Fewest free mbufs seen at a notify since the last stats */
+
+static void diag_ack(host_link_t *l, int64_t ms)
+{
+    static const int EDGE[7] = {15, 30, 45, 60, 90, 150, 300};
+    int b = 0;
+    while (b < 7 && ms >= EDGE[b]) {
+        b++;
+    }
+    l->diag.ack_hist[b]++;
+    if (ms > l->diag.ack_max_ms) {
+        l->diag.ack_max_ms = (uint32_t)ms;
+    }
+}
+
+static void diag_msys(void)
+{
+    int free_now = os_msys_num_free();
+    if (free_now < s_msys_free_min) {
+        s_msys_free_min = free_now;
+    }
+}
+
+static void diag_nobuf(host_link_t *l, bool mouse)
+{
+    if (mouse) {
+        l->diag.nobuf_mouse++;
+    } else {
+        l->diag.nobuf_other++;
+    }
+}
+
+static void diag_mouse(host_link_t *l)
+{
+    l->diag.mouse_reports++;
+}
+
+/* Global fields of stats, then reset */
+static size_t diag_stats_json(char *buf, size_t len)
+{
+    size_t w = snprintf(buf, len, ",\"mbufs\":%d,\"mbufs_free_min\":%d", os_msys_count(),
+                        s_msys_free_min == (1 << 30) ? os_msys_num_free() : s_msys_free_min);
+    s_msys_free_min = 1 << 30;
+    return w < len ? w : len;
+}
+
+/* Per-link fields of stats, then reset */
+static size_t diag_link_json(host_link_t *l, char *buf, size_t len)
+{
+    int8_t rssi = 0;
+    if (l->state == HL_READY && ble_gap_conn_rssi(l->conn, &rssi) != 0) {
+        rssi = 0;
+    }
+    const link_diag_t *d = &l->diag;
+    size_t w = snprintf(buf, len,
+                        ",\"rssi\":%d,\"mouse_reports\":%lu,\"nobuf_mouse\":%u,\"nobuf_other\":%u,"
+                        "\"ack_ms\":[%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu],\"ack_max_ms\":%lu",
+                        rssi, (unsigned long)d->mouse_reports, d->nobuf_mouse, d->nobuf_other,
+                        (unsigned long)d->ack_hist[0], (unsigned long)d->ack_hist[1], (unsigned long)d->ack_hist[2],
+                        (unsigned long)d->ack_hist[3], (unsigned long)d->ack_hist[4], (unsigned long)d->ack_hist[5],
+                        (unsigned long)d->ack_hist[6], (unsigned long)d->ack_hist[7], (unsigned long)d->ack_max_ms);
+    memset(&l->diag, 0, sizeof(l->diag));
+    return w < len ? w : len;
+}
+#else
+static inline void diag_ack(host_link_t *l, int64_t ms) { (void)l; (void)ms; }
+static inline void diag_msys(void) {}
+static inline void diag_nobuf(host_link_t *l, bool mouse) { (void)l; (void)mouse; }
+static inline void diag_mouse(host_link_t *l) { (void)l; }
+static inline size_t diag_stats_json(char *buf, size_t len) { (void)buf; (void)len; return 0; }
+static inline size_t diag_link_json(host_link_t *l, char *buf, size_t len) { (void)l; (void)buf; (void)len; return 0; }
+#endif
+
 /* ---------- Sending ---------- */
 
 /*
@@ -512,18 +597,9 @@ int __wrap_ble_hs_hci_evt_process(struct ble_hci_ev *ev)
                 done[ndone++] = handle;
             }
             for (; l && pkts > 0 && l->tx_count > 0; pkts--) {
-                int64_t ms = (now - l->tx_t[l->tx_head]) / 1000;
+                diag_ack(l, (now - l->tx_t[l->tx_head]) / 1000);
                 l->tx_head = (uint8_t)((l->tx_head + 1) % TX_RING);
                 l->tx_count--;
-                static const int EDGE[7] = {15, 30, 45, 60, 90, 150, 300};
-                int b = 0;
-                while (b < 7 && ms >= EDGE[b]) {
-                    b++;
-                }
-                l->ack_hist[b]++;
-                if (ms > l->ack_max_ms) {
-                    l->ack_max_ms = (uint32_t)ms;
-                }
             }
         }
     }
@@ -537,8 +613,6 @@ int __wrap_ble_hs_hci_evt_process(struct ble_hci_ev *ev)
     return rc;
 }
 
-static int s_msys_free_min = 1 << 30;   /* Fewest free mbufs seen at a notify since the last stats */
-
 static bool boot_mode(const host_link_t *l)
 {
     return l->protocol_mode == 0;
@@ -550,17 +624,10 @@ static bool notify(host_link_t *l, int n, const uint8_t *data, uint16_t len)
     bool mouse = n == N_MOUSE || n == N_BOOT_MOUSE;
     int64_t t = now_us();
     struct os_mbuf *om = ble_hs_mbuf_from_flat(data, len);
-    int free_now = os_msys_num_free();
-    if (free_now < s_msys_free_min) {
-        s_msys_free_min = free_now;
-    }
+    diag_msys();
     if (!om) {
-        if (mouse) {
-            l->nobuf_mouse++;
-        } else {
-            l->nobuf_other++;
-        }
-        ESP_LOGW(TAG, "notify: no buffer (host %d, free mbufs %d)", l->index + 1, free_now);
+        diag_nobuf(l, mouse);
+        ESP_LOGW(TAG, "notify: no buffer (host %d)", l->index + 1);
         return false;
     }
     int rc = ble_gatts_notify_custom(l->conn, s_notify_handle[n], om);
@@ -574,7 +641,7 @@ static bool notify(host_link_t *l, int n, const uint8_t *data, uint16_t len)
     }
     if (mouse) {
         int64_t in_notify = now_us() - t;
-        l->mouse_reports++;
+        diag_mouse(l);
         s_mouse_sent++;
         s_notify_sum_us += in_notify;
         if (in_notify > s_notify_max_us) {
@@ -783,6 +850,83 @@ void host_send(const router_out_t *out, int switched_from)
     }
     pump(l);
 }
+
+#if CONFIG_KM_DIAG
+/*
+ * Self-test (developer builds): mouse reports to one host at the input interval (every 8.75 ms), 16 counts right
+ * then 16 left so the cursor stays within a few pixels, through the same delivery path as real input, while stats
+ * measure it. Meant for a host not in use: it stops when that host becomes the active one, when its link drops, or
+ * when the time is up.
+ */
+#define SELFTEST_PERIOD_US 8750
+static int s_selftest_host = -1;
+static int64_t s_selftest_until_us;
+static uint32_t s_selftest_n;
+static esp_timer_handle_t s_selftest_timer;
+static struct ble_npl_event s_selftest_ev;
+
+static void selftest_stop(const char *why)
+{
+    if (s_selftest_host < 0) {
+        return;
+    }
+    esp_timer_stop(s_selftest_timer);
+    char buf[96];
+    snprintf(buf, sizeof(buf), "{\"event\":\"selftest_stopped\",\"host\":%d,\"reason\":\"%s\",\"reports\":%lu}",
+             s_selftest_host + 1, why, (unsigned long)s_selftest_n);
+    emit(buf);
+    s_selftest_host = -1;
+}
+
+static void selftest_ev_cb(struct ble_npl_event *ev)
+{
+    if (s_selftest_host < 0) {
+        return;
+    }
+    host_link_t *l = link_by_index(s_selftest_host);
+    if (!l || l->state != HL_READY) {
+        selftest_stop("link");
+    } else if (s_selftest_host == router_active_host()) {
+        selftest_stop("active");
+    } else if (now_us() >= s_selftest_until_us) {
+        selftest_stop("done");
+    } else {
+        host_motion_add(&l->motion, (s_selftest_n++ / 16) % 2 ? -1 : 1, 0, 0, 0);
+        pump(l);
+    }
+}
+
+static void selftest_timer_cb(void *arg)
+{
+    ble_npl_eventq_put(nimble_port_get_dflt_eventq(), &s_selftest_ev);
+}
+
+esp_err_t host_selftest(int host, int minutes)
+{
+    if (host < 0) {
+        selftest_stop("stopped");
+        return ESP_OK;
+    }
+    host_link_t *l = link_by_index(host);
+    if (!l || l->state != HL_READY || host == router_active_host() || minutes <= 0) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    if (!s_selftest_timer) {
+        ble_npl_event_init(&s_selftest_ev, selftest_ev_cb, NULL);
+        const esp_timer_create_args_t args = {.callback = selftest_timer_cb, .name = "selftest"};
+        ESP_RETURN_ON_ERROR(esp_timer_create(&args, &s_selftest_timer), TAG, "selftest timer");
+    }
+    selftest_stop("restarted");
+    s_selftest_host = host;
+    s_selftest_n = 0;
+    s_selftest_until_us = now_us() + (int64_t)minutes * 60 * 1000000;
+    esp_timer_start_periodic(s_selftest_timer, SELFTEST_PERIOD_US);
+    char buf[80];
+    snprintf(buf, sizeof(buf), "{\"event\":\"selftest_started\",\"host\":%d,\"minutes\":%d}", host + 1, minutes);
+    emit(buf);
+    return ESP_OK;
+}
+#endif
 
 /* ---------- Advertising ---------- */
 
@@ -1460,35 +1604,28 @@ void host_on_reset(void)
 size_t host_stats_json(char *buf, size_t len)
 {
     int64_t navg = s_mouse_sent ? s_notify_sum_us / s_mouse_sent : 0;
-    size_t w = snprintf(buf, len,
-                        "{\"mouse_sent\":%lu,\"notify_avg_us\":%lld,\"notify_max_us\":%lld,\"mbufs\":%d,"
-                        "\"mbufs_free_min\":%d,\"hosts\":[",
-                        (unsigned long)s_mouse_sent, (long long)navg, (long long)s_notify_max_us, os_msys_count(),
-                        s_msys_free_min == (1 << 30) ? os_msys_num_free() : s_msys_free_min);
-    s_msys_free_min = 1 << 30;
+    size_t w = snprintf(buf, len, "{\"mouse_sent\":%lu,\"notify_avg_us\":%lld,\"notify_max_us\":%lld",
+                        (unsigned long)s_mouse_sent, (long long)navg, (long long)s_notify_max_us);
+    if (w < len) {
+        w += diag_stats_json(buf + w, len - w);
+    }
+    if (w < len) {
+        w += snprintf(buf + w, len - w, ",\"hosts\":[");
+    }
     bool first = true;
     for (int i = 0; i < HOST_LINK_MAX && w < len; i++) {
-        const host_link_t *l = &s_links[i];
+        host_link_t *l = &s_links[i];
         if (!l->used || l->index < 0) {
             continue;
         }
-        int8_t rssi = 0;
-        if (l->state == HL_READY && ble_gap_conn_rssi(l->conn, &rssi) != 0) {
-            rssi = 0;
+        w += snprintf(buf + w, len - w, "%s{\"host\":%d,\"itvl\":%u,\"latency\":%u", first ? "" : ",",
+                      l->index + 1, l->itvl, l->latency);
+        if (w < len) {
+            w += diag_link_json(l, buf + w, len - w);
         }
-        w += snprintf(buf + w, len - w,
-                      "%s{\"host\":%d,\"itvl\":%u,\"latency\":%u,\"rssi\":%d,\"mouse_reports\":%lu,"
-                      "\"nobuf_mouse\":%u,\"nobuf_other\":%u,\"ack_ms\":[%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu],\"ack_max_ms\":%lu}",
-                      first ? "" : ",", l->index + 1, l->itvl, l->latency, rssi, (unsigned long)l->mouse_reports,
-                      l->nobuf_mouse, l->nobuf_other, (unsigned long)l->ack_hist[0], (unsigned long)l->ack_hist[1],
-                      (unsigned long)l->ack_hist[2], (unsigned long)l->ack_hist[3], (unsigned long)l->ack_hist[4],
-                      (unsigned long)l->ack_hist[5], (unsigned long)l->ack_hist[6], (unsigned long)l->ack_hist[7],
-                      (unsigned long)l->ack_max_ms);
-        memset(s_links[i].ack_hist, 0, sizeof(s_links[i].ack_hist));
-        s_links[i].ack_max_ms = 0;
-        s_links[i].mouse_reports = 0;
-        s_links[i].nobuf_mouse = 0;
-        s_links[i].nobuf_other = 0;
+        if (w < len) {
+            w += snprintf(buf + w, len - w, "}");
+        }
         first = false;
     }
     if (w < len) {

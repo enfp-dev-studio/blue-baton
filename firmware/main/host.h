@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 #include "esp_err.h"
+#include "sdkconfig.h"
 #include "router.h"
 
 /*
@@ -45,6 +46,11 @@ size_t host_list_json(char *buf, size_t len);
 
 /* Host link intervals and mouse pacing statistics as a JSON object. Resets the statistics. Host task only */
 size_t host_stats_json(char *buf, size_t len);
+
+#if CONFIG_KM_DIAG
+/* Developer builds: mouse self-test traffic to host (from 0) for minutes; host < 0 stops it. Host task only */
+esp_err_t host_selftest(int host, int minutes);
+#endif
 
 /* Deleting a bond (ble_gap_unpair) returns EBUSY while advertising. Stop advertising during the delete, then restore it */
 void host_adv_hold(bool hold);

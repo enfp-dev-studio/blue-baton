@@ -371,6 +371,13 @@ static void handle_line(const char *line)
         cmd_monitor(id, line);
     } else if (strcmp(cmd, "stats") == 0) {
         cmd_stats(id);
+#if CONFIG_KM_DIAG
+    } else if (strcmp(cmd, "selftest") == 0) {
+        int host = 0, minutes = 30;
+        json_get_int(line, "host", &host);
+        json_get_int(line, "minutes", &minutes);
+        reply_ble(id, ble_pair_selftest(host, minutes));
+#endif
     } else if (strcmp(cmd, "combo_get") == 0) {
         cmd_combo_get(id);
     } else if (strcmp(cmd, "combo_set") == 0) {
