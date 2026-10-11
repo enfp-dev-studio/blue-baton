@@ -1,6 +1,9 @@
+import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
-import { Group, Keycaps, RowMenu, StateTag } from '@/components/parts';
+import { Group, Keycaps, RowMenu, StateTag, comboLabel } from '@/components/parts';
+import { DEFAULT_COMBOS, comboFromEvent, modifiers, sameCombo } from '@/lib/board/combo.js';
 import { hostStateText, hostStateTone, t, tParts } from '@/lib/board/i18n.js';
 import type { Actions, BoardState, Host, Tone } from '@/lib/board/types';
 import { cn } from '@/lib/utils';
@@ -23,7 +26,19 @@ export function HostsPanel({ s, a, confirm }: { s: BoardState; a: Actions; confi
           ? tParts('hosts.sendingTo', { name: <b key="n" className="font-medium text-foreground">{active.name || t('hosts.unnamed')}</b> })
           : s.hosts.size ? undefined : t('hosts.noneActive')
       }
-      footer={t('hosts.hint')}
+      footer={
+        <span>
+          {t('hosts.hint')}
+          {!s.combosDefault && (
+            <>
+              {' · '}
+              <button type="button" className="text-primary hover:underline" onClick={() => a.setCombos(DEFAULT_COMBOS)}>
+                {t('combo.reset')}
+              </button>
+            </>
+          )}
+        </span>
+      }
     >
       <ul
         role="radiogroup"
@@ -78,8 +93,8 @@ function HostRow({ n, s, a, host, confirm }: { n: number; s: BoardState; a: Acti
           </span>
           {host && <StateTag tone={hostStateTone(host.state) as Tone}>{hostStateText(host.state)}</StateTag>}
         </span>
-        <Keycaps combo={s.combos[n - 1]} className="pr-1" />
       </button>
+      <ComboButton n={n} s={s} a={a} />
       {host ? (
         <RowMenu label={t('common.more')}>
           <DropdownMenuItem
@@ -101,5 +116,76 @@ function HostRow({ n, s, a, host, confirm }: { n: number; s: BoardState; a: Acti
         </Button>
       )}
     </li>
+  );
+}
+
+/*
+ * The host's switch combo; click it to record a new one. While recording, key presses in this window are taken
+ * (not typed anywhere): Esc cancels, Backspace alone clears. A combo another host already uses is refused here; the
+ * board refuses invalid ones (bad_combo). Pressing an existing combo on a keyboard attached to the board switches
+ * hosts instead (the board takes it), so it never reaches this window.
+ */
+function ComboButton({ n, s, a }: { n: number; s: BoardState; a: Actions }) {
+  const [rec, setRec] = useState(false);
+  const [held, setHeld] = useState<string[]>([]);
+  useEffect(() => {
+    if (!rec) return;
+    const save = (combo: string) => {
+      setRec(false);
+      a.setCombos([0, 1, 2].map((i) => (i === n - 1 ? combo : s.combos[i] ?? DEFAULT_COMBOS[i])));
+    };
+    const down = (e: KeyboardEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const plain = !e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey;
+      if (plain && e.code === 'Escape') return setRec(false);
+      if (plain && (e.code === 'Backspace' || e.code === 'Delete')) return save('');
+      const r = comboFromEvent(e);
+      if (!r.combo) {
+        setHeld(modifiers(e));
+        if (r.error) toast(t(r.error === 'key' ? 'combo.badKey' : 'combo.needModifier'), { id: 'combo' });
+        return;
+      }
+      const other = s.combos.findIndex((c, i) => i !== n - 1 && sameCombo(c, r.combo));
+      if (other >= 0) {
+        toast(t('combo.taken', { n: other + 1 }), { id: 'combo' });
+        return;
+      }
+      save(r.combo);
+    };
+    const up = (e: KeyboardEvent) => setHeld(modifiers(e));
+    window.addEventListener('keydown', down, true);
+    window.addEventListener('keyup', up, true);
+    return () => {
+      window.removeEventListener('keydown', down, true);
+      window.removeEventListener('keyup', up, true);
+    };
+  }, [rec, n, s.combos, a]);
+  if (rec) {
+    return (
+      <button
+        type="button"
+        autoFocus
+        onBlur={() => setRec(false)}
+        onClick={() => setRec(false)}
+        title={t('combo.recordHint')}
+        className="h-7 rounded-md bg-primary/10 px-2 text-xs font-medium text-primary outline-none ring-[1.5px] ring-primary"
+      >
+        {held.length ? `${comboLabel(held)}…` : t('combo.record')}
+      </button>
+    );
+  }
+  return (
+    <button
+      type="button"
+      title={t('combo.change')}
+      onClick={() => {
+        setHeld([]);
+        setRec(true);
+      }}
+      className="h-7 rounded-md px-2 outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      <Keycaps combo={s.combos[n - 1]} />
+    </button>
   );
 }

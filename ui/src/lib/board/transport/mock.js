@@ -343,7 +343,7 @@ class MockBoard {
       /* time the user takes to pick "Blue Baton" on the computer */
       this.later(2000, () => {
         if (!this.hostWindow || this.candidate) return;
-        this.candidate = { addr: '00:1A:7D:00:00:0' + this.freeHost(), code: String(100000 + Math.floor(Math.random() * 900000)) };
+        this.candidate = { addr: '00:00:5E:00:53:6' + this.freeHost(), code: String(100000 + Math.floor(Math.random() * 900000)) };
         this.ev({ event: 'host_connected', host: 0, addr: this.candidate.addr, bonded: false, itvl: 24 });
         this.later(500, () => {
           if (!this.candidate) return;

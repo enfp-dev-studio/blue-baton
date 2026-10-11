@@ -26,9 +26,18 @@ function Steps({ items }: { items: string[] }) {
   );
 }
 
-function CodeInput({ value, onChange, label }: { value: string; onChange: (v: string) => void; label: string }) {
+/* Focused as soon as it appears, so the code can be typed right away; sends itself at the sixth digit */
+function CodeInput({ value, onChange, onComplete, label }: { value: string; onChange: (v: string) => void; onComplete: (v: string) => void; label: string }) {
   return (
-    <InputOTP maxLength={6} pattern={REGEXP_ONLY_DIGITS} value={value} onChange={onChange} aria-label={label}>
+    <InputOTP
+      autoFocus
+      maxLength={6}
+      pattern={REGEXP_ONLY_DIGITS}
+      value={value}
+      onChange={onChange}
+      onComplete={onComplete}
+      aria-label={label}
+    >
       <InputOTPGroup>
         {[0, 1, 2, 3, 4, 5].map((i) => (
           <InputOTPSlot key={i} index={i} className="size-11 text-lg" />
@@ -82,7 +91,7 @@ export function HostPairingDialog({ s, a }: { s: BoardState; a: Actions }) {
             </div>
             <p className="text-sm text-muted-foreground">{t('hosts.passkeyFallback')}</p>
             <div className="flex flex-wrap items-center gap-2">
-              <CodeInput value={code} onChange={setCode} label={t('hosts.passkeyLabel')} />
+              <CodeInput value={code} onChange={setCode} onComplete={(v) => a.hostPasskey(v)} label={t('hosts.passkeyLabel')} />
               <Button type="submit" disabled={code.length !== 6}>
                 {t('common.send')}
               </Button>
@@ -123,7 +132,7 @@ function Prompt({ s, a }: { s: BoardState; a: Actions }) {
       <form className={box} onSubmit={(e) => { e.preventDefault(); if (code.length === 6) a.passkey(code); }}>
         <p className="text-sm">{t('prompt.passkeyRequest')}</p>
         <div className="flex flex-wrap items-center gap-2">
-          <CodeInput value={code} onChange={setCode} label={t('prompt.passkeyLabel')} />
+          <CodeInput value={code} onChange={setCode} onComplete={(v) => a.passkey(v)} label={t('prompt.passkeyLabel')} />
           <Button type="submit" disabled={code.length !== 6}>{t('common.send')}</Button>
         </div>
       </form>

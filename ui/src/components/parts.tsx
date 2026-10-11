@@ -86,13 +86,28 @@ const KEY_LABEL: Record<string, string> = IS_MAC
   ? { ctrl: '⌃', control: '⌃', alt: '⌥', option: '⌥', opt: '⌥', cmd: '⌘', gui: '⌘', win: '⌘', meta: '⌘', super: '⌘', shift: '⇧' }
   : { ctrl: 'Ctrl', control: 'Ctrl', alt: 'Alt', option: 'Alt', opt: 'Alt', cmd: 'Win', gui: 'Win', win: 'Win', meta: 'Win', super: 'Win', shift: 'Shift' };
 
+const KEY_NAME: Record<string, string> = {
+  left: '←', right: '→', up: '↑', down: '↓', enter: '↩', return: '↩', esc: 'Esc', escape: 'Esc', tab: '⇥',
+  backspace: '⌫', delete: '⌦', space: 'Space', minus: '-', equal: '=', grave: '`', backquote: '`',
+  pageup: 'PgUp', pagedown: 'PgDn', home: 'Home', end: 'End', insert: 'Ins', capslock: '⇪',
+  printscreen: 'PrtSc', scrolllock: 'ScrLk', pause: 'Pause',
+};
+
+/* "ctrl+alt+1" → "⌃⌥1" on a Mac, "Ctrl+Alt+1" elsewhere */
+export function comboLabel(keys: string[]) {
+  const label = keys.map((k) => {
+    const l = k.toLowerCase();
+    return KEY_LABEL[l] || KEY_NAME[l] || (/^f\d+$/.test(l) ? l.toUpperCase() : k.length === 1 ? k.toUpperCase() : k);
+  });
+  return IS_MAC ? label.join('') : label.join('+');
+}
+
 export function Keycaps({ combo, className }: { combo?: string; className?: string }) {
   if (!combo) return <span className={cn('text-xs text-muted-foreground', className)}>{t('hosts.noCombo')}</span>;
   const keys = combo.split('+').map((k) => k.trim()).filter(Boolean);
-  const label = keys.map((k) => KEY_LABEL[k.toLowerCase()] || (k.length === 1 ? k.toUpperCase() : k));
   return (
     <kbd className={cn('whitespace-nowrap font-sans text-xs tracking-[0.12em] text-muted-foreground', className)} title={combo}>
-      {IS_MAC ? label.join('') : label.join('+')}
+      {comboLabel(keys)}
     </kbd>
   );
 }

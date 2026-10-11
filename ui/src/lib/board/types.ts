@@ -63,6 +63,7 @@ export interface BoardState {
   hostCandidate: { addr: string; state: string } | null;
   hostPrompt: { addr: string; len: number } | null;
   combos: string[];
+  combosDefault: boolean;
   devices: Map<string, Device>;
   found: Map<string, Found>;
   showAll: boolean;
@@ -85,6 +86,7 @@ export interface Actions {
   selectHost(n: number): Promise<void>;
   openHostWindow(): Promise<void>;
   closeHostWindow(): Promise<void>;
+  setCombos(list: string[]): Promise<boolean>;
   hostPasskey(code: string): Promise<void>;
   removeHost(n: number): Promise<void>;
   disconnectDevice(addr: string): Promise<void>;

@@ -260,6 +260,12 @@ export function createController(params = new URLSearchParams(location.search), 
     async closeHostWindow() {
       await run(() => client.request('host_pair', { on: false }));
     },
+    /* One combo per host, in host order ('' leaves that host without one). The board validates and saves */
+    async setCombos(list) {
+      const ok = await run(() => client.request('combo_set', { combo: list.join(',') }));
+      if (ok) await run(loadCombos);
+      return !!ok;
+    },
     async hostPasskey(code) {
       await run(() => client.request('host_passkey', { code }));
     },
