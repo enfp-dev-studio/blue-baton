@@ -1,6 +1,8 @@
 #include <string.h>
 
 #include "esp_log.h"
+#include "esp_timer.h"
+#include "freertos/FreeRTOS.h"
 #include "nvs.h"
 #include "sdkconfig.h"
 
@@ -16,6 +18,39 @@
 
 static const char *TAG = "cfg";
 static nvs_handle_t s_nvs;
+
+/*
+ * Developer builds: how long writes take. A flash write stops code running from flash on both cores, so a write on
+ * the NimBLE host task holds up reports for that long; this measures it before anything is moved.
+ */
+#if CONFIG_KM_DIAG
+static portMUX_TYPE s_diag_lock = portMUX_INITIALIZER_UNLOCKED;
+static uint32_t s_diag_writes;
+static uint32_t s_diag_max_us;
+
+static void write_done(int64_t t0)
+{
+    uint32_t us = (uint32_t)(esp_timer_get_time() - t0);
+    taskENTER_CRITICAL(&s_diag_lock);
+    s_diag_writes++;
+    if (us > s_diag_max_us) {
+        s_diag_max_us = us;
+    }
+    taskEXIT_CRITICAL(&s_diag_lock);
+}
+
+void cfg_diag_take(uint32_t *writes, uint32_t *max_us)
+{
+    taskENTER_CRITICAL(&s_diag_lock);
+    *writes = s_diag_writes;
+    *max_us = s_diag_max_us;
+    s_diag_writes = 0;
+    s_diag_max_us = 0;
+    taskEXIT_CRITICAL(&s_diag_lock);
+}
+#else
+static inline void write_done(int64_t t0) { (void)t0; }
+#endif
 
 esp_err_t cfg_init(void)
 {
@@ -51,10 +86,12 @@ static bool get_str(const char *key, char *out, size_t len)
 
 static esp_err_t set_str(const char *key, const char *value)
 {
+    int64_t t0 = esp_timer_get_time();
     esp_err_t err = nvs_set_str(s_nvs, key, value);
     if (err == ESP_OK) {
         err = nvs_commit(s_nvs);
     }
+    write_done(t0);
     return err;
 }
 
@@ -130,10 +167,12 @@ int cfg_active_host_get(void)
 
 esp_err_t cfg_active_host_set(int host)
 {
+    int64_t t0 = esp_timer_get_time();
     esp_err_t err = nvs_set_u8(s_nvs, KEY_ACTIVE_HOST, (uint8_t)host);
     if (err == ESP_OK) {
         err = nvs_commit(s_nvs);
     }
+    write_done(t0);
     return err;
 }
 
@@ -212,10 +251,12 @@ static void paired_load(paired_blob_t *b)
 
 static esp_err_t paired_save(const paired_blob_t *b)
 {
+    int64_t t0 = esp_timer_get_time();
     esp_err_t err = nvs_set_blob(s_nvs, KEY_PAIRED, b, sizeof(*b));
     if (err == ESP_OK) {
         err = nvs_commit(s_nvs);
     }
+    write_done(t0);
     return err;
 }
 

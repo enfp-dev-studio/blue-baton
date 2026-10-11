@@ -26,6 +26,9 @@ CONFIG_BT_NIMBLE_NVS_PERSIST=y
 # Bond count: 4 input + 3 host + 1 in progress.
 # NimBLE accepts a new pairing only when "stored count + in-progress security procedures < MAX_BONDS" (host/src/ble_sm.c)
 CONFIG_BT_NIMBLE_MAX_BONDS=8
+# No silent re-attempts inside the stack: a Peripheral link that fails before CONNECT then reaches the app as a
+# failed CONNECT (host.c frees its state); the input side has its own reconnect (ble_pair.c)
+# CONFIG_BT_NIMBLE_ENABLE_CONN_REATTEMPT is not set
 
 # 4MB flash (confirmed with esptool flash-id)
 CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y

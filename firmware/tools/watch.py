@@ -7,7 +7,8 @@ Watch the board through the menu bar app's developer API or tools/bridge.py (sam
   watch.py stats [N]     Reset the board's latency statistics, wait for N activity events (default 40, about
                          10 s of use; idle gaps don't count), then print the stats reply.
   watch.py soak FILE     Every 60 s, append one CSV row per host link with traffic: reports, reports the stack
-                         could not take, completion-time counts (developer builds, CONFIG_KM_DIAG). Runs until
+                         could not take, counts of the time from input to completion, queued changes dropped for a
+                         later one, the longest flash write (developer builds, CONFIG_KM_DIAG). Runs until
                          stopped; minutes without traffic leave no row.
   watch.py alerts [FILE] Print a line when something goes wrong: a host's report took over 150 ms to
                          complete or was dropped, a link dropped, or the board restarted. With FILE (the CSV a
@@ -146,31 +147,32 @@ def soak(path):
         w = csv.writer(fh)
         if new:
             w.writerow(['time', 'host', 'latency', 'rssi', 'mouse', 'dropped'] + ['ack_' + b for b in ACK_EDGES] +
-                       ['ack_max_ms'])
+                       ['ack_max_ms', 'superseded', 'nvs_max_us'])
         for st in stats_replies(60):
             for h in st.get('hosts', []):
                 a = h.get('ack_ms')
                 if not a or (not sum(a) and not h.get('mouse_reports')):
                     continue
                 w.writerow([int(time.time()), h['host'], h.get('latency'), h.get('rssi'), h.get('mouse_reports'),
-                            h.get('nobuf_mouse', 0) + h.get('nobuf_other', 0)] + a + [h.get('ack_max_ms')])
+                            h.get('nobuf_mouse', 0) + h.get('nobuf_other', 0)] + a +
+                           [h.get('ack_max_ms'), h.get('superseded', 0), st.get('nvs_max_us', 0)])
             fh.flush()
 
 
 def alerts(path=None):
     import threading
 
-    def warn(host, over150, ack_max, dropped, mouse):
-        if dropped or over150:
+    def warn(host, over150, ack_max, dropped, mouse, superseded=0):
+        if dropped or over150 or superseded:
             print(f"{time.strftime('%H:%M')} host {host}: {over150} reports over 150 ms (max {ack_max} ms), "
-                  f"{dropped} dropped, of {mouse} mouse", flush=True)
+                  f"{dropped} dropped, {superseded} superseded, of {mouse} mouse", flush=True)
 
     def poll():
         for st in stats_replies(60):
             for h in st.get('hosts', []):
                 a = h.get('ack_ms') or [0] * 8
                 warn(h['host'], a[6] + a[7], h.get('ack_max_ms'), h.get('nobuf_mouse', 0) + h.get('nobuf_other', 0),
-                     h.get('mouse_reports'))
+                     h.get('mouse_reports'), h.get('superseded', 0))
 
     def tail():
         with open(path) as fh:
@@ -182,7 +184,7 @@ def alerts(path=None):
                     continue
                 r = line.strip().split(',')
                 if len(r) >= 15 and r[0].isdigit():
-                    warn(r[1], int(r[12]) + int(r[13]), r[14], int(r[5]), r[4])
+                    warn(r[1], int(r[12]) + int(r[13]), r[14], int(r[5]), r[4], int(r[15]) if len(r) >= 17 else 0)
 
     threading.Thread(target=tail if path else poll, daemon=True).start()
     for line in events():
@@ -200,7 +202,7 @@ def report(path):
     with open(path) as fh:
         for row in csv.DictReader(fh):
             t = tot.setdefault(row['host'], {'minutes': 0, 'acks': 0, 'within45': 0, 'stall_min': 0, 'dropped': 0,
-                                             'mouse': 0, 'max': 0})
+                                             'mouse': 0, 'max': 0, 'superseded': 0, 'nvs_max_us': 0})
             a = [int(row['ack_' + b]) for b in ACK_EDGES]
             t['minutes'] += 1
             t['acks'] += sum(a)
@@ -209,11 +211,13 @@ def report(path):
             t['dropped'] += int(row['dropped'])
             t['mouse'] += int(row['mouse'] or 0)
             t['max'] = max(t['max'], int(row['ack_max_ms'] or 0))
+            t['superseded'] += int(row.get('superseded') or 0)
+            t['nvs_max_us'] = max(t['nvs_max_us'], int(row.get('nvs_max_us') or 0))
     for host, t in sorted(tot.items()):
         share = 100 * t['within45'] / t['acks'] if t['acks'] else 0
         print(f"host {host}: {t['minutes']} min with traffic, {t['mouse']} mouse reports, {share:.1f}% completed "
               f"within 45 ms, {t['stall_min']} min with a report over 150 ms (max {t['max']} ms), "
-              f"{t['dropped']} dropped")
+              f"{t['dropped']} dropped, {t['superseded']} superseded (longest flash write {t['nvs_max_us']} µs)")
 
 
 def main(args):

@@ -161,14 +161,16 @@ typedef struct {
     uint16_t nobuf_mouse;        /* Reports the stack could not take */
     uint16_t nobuf_other;
     uint32_t mouse_reports;      /* Mouse reports handed to the stack */
-    uint32_t ack_hist[8];        /* Time until the controller reported it completed: <15, 15-30, 30-45, 45-60, 60-90, 90-150, 150-300, >=300 ms */
+    uint32_t ack_hist[8];        /* From the input reaching the board to the controller reporting the report completed: <15, 15-30, 30-45, 45-60, 60-90, 90-150, 150-300, >=300 ms */
     uint32_t ack_max_ms;
+    uint16_t superseded;         /* Queued changes dropped for a later one of the same report (queue full) */
 } link_diag_t;
 #endif
 
 typedef struct {
     uint8_t n;                   /* N_*: which report */
     uint8_t data[HOST_KB_LEN];   /* The report (mouse: buttons only; motion is added when it goes out) */
+    int64_t t;                   /* When it was queued: when the board got the input */
 } change_t;
 
 typedef struct {
@@ -193,9 +195,11 @@ typedef struct {
     uint8_t q_head;
     uint8_t q_len;
     host_motion_t motion;        /* Mouse motion not yet sent */
-    int64_t tx_t[TX_RING];       /* Reports handed to the stack and not yet completed: submit times, oldest first */
+    int64_t motion_t;            /* When the oldest unsent motion came in (0: none) */
+    int64_t tx_t[TX_RING];       /* Reports handed to the stack and not yet completed: when their oldest input came in, oldest first */
     uint8_t tx_head;
     uint8_t tx_count;
+    int64_t tx_progress_us;      /* Last submit or completion on this link */
     uint16_t itvl;               /* Connection interval (units of 1.25 ms) */
     uint16_t latency;
     bool pk_wait;                /* Waiting for passkey entry */
@@ -203,6 +207,7 @@ typedef struct {
     int64_t param_retry_us;      /* If nonzero, re-request connection parameters at this time */
     int64_t sec_req_us;          /* If nonzero, send a Security Request at this time */
     uint8_t param_retries;
+    bool repaired;               /* A bonded host is pairing again inside the window */
 #if CONFIG_KM_DIAG
     link_diag_t diag;
 #endif
@@ -218,6 +223,7 @@ static int s_adv_hold;
 static int s_adv_mode;           /* 0 off, 1 reconnect, 2 window */
 static int s_adv_itvl;
 static struct ble_npl_callout s_tick;
+static struct ble_npl_callout s_retry;   /* Pumps again shortly after a notify found no buffer and nothing is in flight */
 
 /* Statistics since the last stats read: mouse reports sent, and the time inside ble_gatts_notify_custom */
 static uint32_t s_mouse_sent;
@@ -520,11 +526,19 @@ static void diag_mouse(host_link_t *l)
     l->diag.mouse_reports++;
 }
 
+static void diag_superseded(host_link_t *l)
+{
+    l->diag.superseded++;
+}
+
 /* Global fields of stats, then reset */
 static size_t diag_stats_json(char *buf, size_t len)
 {
-    size_t w = snprintf(buf, len, ",\"mbufs\":%d,\"mbufs_free_min\":%d", os_msys_count(),
-                        s_msys_free_min == (1 << 30) ? os_msys_num_free() : s_msys_free_min);
+    uint32_t nvs_writes, nvs_max_us;
+    cfg_diag_take(&nvs_writes, &nvs_max_us);
+    size_t w = snprintf(buf, len, ",\"mbufs\":%d,\"mbufs_free_min\":%d,\"nvs_writes\":%lu,\"nvs_max_us\":%lu", os_msys_count(),
+                        s_msys_free_min == (1 << 30) ? os_msys_num_free() : s_msys_free_min,
+                        (unsigned long)nvs_writes, (unsigned long)nvs_max_us);
     s_msys_free_min = 1 << 30;
     return w < len ? w : len;
 }
@@ -538,9 +552,9 @@ static size_t diag_link_json(host_link_t *l, char *buf, size_t len)
     }
     const link_diag_t *d = &l->diag;
     size_t w = snprintf(buf, len,
-                        ",\"rssi\":%d,\"mouse_reports\":%lu,\"nobuf_mouse\":%u,\"nobuf_other\":%u,"
+                        ",\"rssi\":%d,\"mouse_reports\":%lu,\"nobuf_mouse\":%u,\"nobuf_other\":%u,\"superseded\":%u,"
                         "\"ack_ms\":[%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu],\"ack_max_ms\":%lu",
-                        rssi, (unsigned long)d->mouse_reports, d->nobuf_mouse, d->nobuf_other,
+                        rssi, (unsigned long)d->mouse_reports, d->nobuf_mouse, d->nobuf_other, d->superseded,
                         (unsigned long)d->ack_hist[0], (unsigned long)d->ack_hist[1], (unsigned long)d->ack_hist[2],
                         (unsigned long)d->ack_hist[3], (unsigned long)d->ack_hist[4], (unsigned long)d->ack_hist[5],
                         (unsigned long)d->ack_hist[6], (unsigned long)d->ack_hist[7], (unsigned long)d->ack_max_ms);
@@ -552,6 +566,7 @@ static inline void diag_ack(host_link_t *l, int64_t ms) { (void)l; (void)ms; }
 static inline void diag_msys(void) {}
 static inline void diag_nobuf(host_link_t *l, bool mouse) { (void)l; (void)mouse; }
 static inline void diag_mouse(host_link_t *l) { (void)l; }
+static inline void diag_superseded(host_link_t *l) { (void)l; }
 static inline size_t diag_stats_json(char *buf, size_t len) { (void)buf; (void)len; return 0; }
 static inline size_t diag_link_json(host_link_t *l, char *buf, size_t len) { (void)l; (void)buf; (void)len; return 0; }
 #endif
@@ -597,6 +612,9 @@ int __wrap_ble_hs_hci_evt_process(struct ble_hci_ev *ev)
             if (l && l->tx_count > 0 && ndone < HOST_LINK_MAX) {
                 done[ndone++] = handle;
             }
+            if (l && pkts > 0) {
+                l->tx_progress_us = now;
+            }
             for (; l && pkts > 0 && l->tx_count > 0; pkts--) {
                 diag_ack(l, (now - l->tx_t[l->tx_head]) / 1000);
                 l->tx_head = (uint8_t)((l->tx_head + 1) % TX_RING);
@@ -619,8 +637,8 @@ static bool boot_mode(const host_link_t *l)
     return l->protocol_mode == 0;
 }
 
-/* true once the stack has taken the report; it then counts as in flight until completed */
-static bool notify(host_link_t *l, int n, const uint8_t *data, uint16_t len)
+/* true once the stack has taken the report; it then counts as in flight until completed. since: when its oldest input came in */
+static bool notify(host_link_t *l, int n, const uint8_t *data, uint16_t len, int64_t since)
 {
     bool mouse = n == N_MOUSE || n == N_BOOT_MOUSE;
     int64_t t = now_us();
@@ -637,8 +655,9 @@ static bool notify(host_link_t *l, int n, const uint8_t *data, uint16_t len)
         return false;
     }
     if (l->tx_count < TX_RING) {
-        l->tx_t[(l->tx_head + l->tx_count) % TX_RING] = t;
+        l->tx_t[(l->tx_head + l->tx_count) % TX_RING] = since ? since : t;
         l->tx_count++;
+        l->tx_progress_us = t;
     }
     if (mouse) {
         int64_t in_notify = now_us() - t;
@@ -704,6 +723,11 @@ static void pump(host_link_t *l)
             return;
         }
         host_motion_t motion = l->motion;
+        bool mouse = n == N_MOUSE || n == N_BOOT_MOUSE;
+        int64_t since = c ? c->t : 0;
+        if (mouse && l->motion_t && (!since || l->motion_t < since)) {
+            since = l->motion_t;
+        }
         if (n == N_MOUSE) {
             host_mouse_report(&motion, c ? c->data[0] : l->want.buttons, buf);
             len = HOST_MOUSE_LEN;
@@ -714,11 +738,18 @@ static void pump(host_link_t *l)
             memcpy(buf, c->data, sizeof(buf));
             len = n == N_CONSUMER ? HOST_CONSUMER_LEN : n == N_SYSTEM ? HOST_SYSTEM_LEN : HOST_KB_LEN;
         }
-        if (!notify(l, n, buf, len)) {
-            return;   /* No buffer: tried again at the next completion or tick */
+        if (!notify(l, n, buf, len, since)) {
+            /* No buffer: tried again at the next completion, or after one tick (10 ms) if none is in flight */
+            if (l->tx_count == 0 && !ble_npl_callout_is_active(&s_retry)) {
+                ble_npl_callout_reset(&s_retry, 1);
+            }
+            return;
         }
-        if (n == N_MOUSE || n == N_BOOT_MOUSE) {
+        if (mouse) {
             l->motion = motion;   /* What did not fit in one report stays for the next */
+            if (host_motion_empty(&l->motion)) {
+                l->motion_t = 0;
+            }
         }
         delivered(l, n, buf);
         if (c) {
@@ -739,6 +770,7 @@ static void enqueue(host_link_t *l, int n, const uint8_t *data, uint8_t len)
                 superseded = l->q[(l->q_head + j) % CHANGE_Q].n == l->q[a].n;
             }
             if (superseded) {
+                diag_superseded(l);
                 for (int j = i; j < l->q_len - 1; j++) {
                     l->q[(l->q_head + j) % CHANGE_Q] = l->q[(l->q_head + j + 1) % CHANGE_Q];
                 }
@@ -750,8 +782,17 @@ static void enqueue(host_link_t *l, int n, const uint8_t *data, uint8_t len)
     change_t *c = &l->q[(l->q_head + l->q_len) % CHANGE_Q];
     l->q_len++;
     c->n = (uint8_t)n;
+    c->t = now_us();
     memset(c->data, 0, sizeof(c->data));
     memcpy(c->data, data, len);
+}
+
+static void add_motion(host_link_t *l, int dx, int dy, int wheel, int pan)
+{
+    if (host_motion_empty(&l->motion)) {
+        l->motion_t = now_us();
+    }
+    host_motion_add(&l->motion, dx, dy, wheel, pan);
 }
 
 /* Queue a report if it changes what the host will have */
@@ -775,6 +816,7 @@ static void release_all(host_link_t *l)
     memcpy(l->want_boot_kb, l->boot_kb, HOST_KB_LEN);
     l->want_boot_buttons = l->boot_buttons;
     memset(&l->motion, 0, sizeof(l->motion));
+    l->motion_t = 0;
     if (boot_mode(l)) {
         queue_state(l, N_BOOT_KB, l->want_boot_kb, zeros, HOST_KB_LEN);
         queue_state(l, N_BOOT_MOUSE, &l->want_boot_buttons, zeros, 1);
@@ -805,6 +847,7 @@ void host_send(const router_out_t *out, int switched_from)
         release_all(link_by_index(switched_from));
         host_link_t *old = link_by_index(switched_from);
         if (old) {
+            old->param_retries = 0;
             request_conn_params(old);   /* Now idle: long peripheral latency */
         }
         char buf[96];
@@ -818,6 +861,7 @@ void host_send(const router_out_t *out, int switched_from)
     }
     if (switched_from >= 0) {
         release_all(l);           /* Zero anything left over on the new host */
+        l->param_retries = 0;
         request_conn_params(l);   /* Now active: short peripheral latency */
     }
     if (out->pre_valid) {
@@ -847,7 +891,7 @@ void host_send(const router_out_t *out, int switched_from)
         }
     }
     if (out->motion) {
-        host_motion_add(&l->motion, out->dx, out->dy, out->wheel, out->pan);
+        add_motion(l, out->dx, out->dy, out->wheel, out->pan);
     }
     pump(l);
 }
@@ -892,7 +936,7 @@ static void selftest_ev_cb(struct ble_npl_event *ev)
     } else if (now_us() >= s_selftest_until_us) {
         selftest_stop("done");
     } else {
-        host_motion_add(&l->motion, (s_selftest_n++ / 16) % 2 ? -1 : 1, 0, 0, 0);
+        add_motion(l, (s_selftest_n++ / 16) % 2 ? -1 : 1, 0, 0, 0);
         pump(l);
     }
 }
@@ -1010,6 +1054,16 @@ static void adv_update(void)
     }
 }
 
+static void retry_cb(struct ble_npl_event *ev)
+{
+    (void)ev;
+    for (int i = 0; i < HOST_LINK_MAX; i++) {
+        if (s_links[i].used && s_links[i].state == HL_READY) {
+            pump(&s_links[i]);
+        }
+    }
+}
+
 /* Every second: check the window time, fast advertising time and candidate connection time */
 static void tick_cb(struct ble_npl_event *ev)
 {
@@ -1027,7 +1081,7 @@ static void tick_cb(struct ble_npl_event *ev)
             security_request(l);
         }
         if (l->used && l->state == HL_READY) {
-            if (l->tx_count > 0 && now - l->tx_t[l->tx_head] > 2000000) {
+            if (l->tx_count > 0 && now - l->tx_progress_us > 2000000) {
                 /* A completion never came (the link drops long before this in practice): stop waiting for it */
                 ESP_LOGW(TAG, "host %d: %u reports never completed", l->index + 1, l->tx_count);
                 l->tx_count = 0;
@@ -1208,16 +1262,41 @@ static host_link_t *link_ensure(uint16_t conn)
     return l;
 }
 
+static void link_drop(host_link_t *l, int reason);
+
 static void on_connect(struct ble_gap_event *event)
 {
     if (event->connect.status != 0) {
+        /*
+         * NimBLE reports a Peripheral connection that drops before its CONNECT event as a failed CONNECT
+         * (status BLE_HS_EAGAIN, ble_gap.c ble_gap_rx_disconn_complete), not as DISCONNECT. An earlier event (a
+         * bonded host encrypting first) may already have created the link, so free it here too.
+         */
         s_adv_mode = 0;
-        adv_update();
+        host_link_t *l = link_by_conn(event->connect.conn_handle);
+        if (l) {
+            link_drop(l, event->connect.status);
+        } else {
+            adv_update();
+        }
         return;
     }
     if (!link_ensure(event->connect.conn_handle)) {
         adv_update();
     }
+}
+
+static void link_drop(host_link_t *l, int reason)
+{
+    if (l->pk_wait) {
+        router_passkey_end();
+    }
+    char extra[48];
+    snprintf(extra, sizeof(extra), ",\"reason\":%d", reason);
+    emit_link("host_disconnected", l, extra);
+    l->used = false;
+    fast_adv();   /* Advertise fast right after a disconnect so the host reconnects (HOGP Table 5.2) */
+    adv_update();
 }
 
 static void on_disconnect(struct ble_gap_event *event)
@@ -1227,15 +1306,7 @@ static void on_disconnect(struct ble_gap_event *event)
         adv_update();
         return;
     }
-    if (l->pk_wait) {
-        router_passkey_end();
-    }
-    char extra[48];
-    snprintf(extra, sizeof(extra), ",\"reason\":%d", event->disconnect.reason);
-    emit_link("host_disconnected", l, extra);
-    l->used = false;
-    fast_adv();   /* Advertise fast right after a disconnect so the host reconnects (HOGP Table 5.2) */
-    adv_update();
+    link_drop(l, event->disconnect.reason);
 }
 
 static void on_enc_change(struct ble_gap_event *event)
@@ -1293,6 +1364,10 @@ static void on_enc_change(struct ble_gap_event *event)
         l->index = index;
         emit_link("host_paired", l, NULL);
         host_pair_window(false);   /* One host paired, so close the window */
+    } else if (l->repaired) {
+        l->repaired = false;
+        emit_link("host_paired", l, NULL);   /* A known host paired again: same number */
+        host_pair_window(false);
     }
     l->state = HL_SECURED;
     /* A bonded host has its subscriptions (CCCD) restored from the store. If already on, it is ready right away */
@@ -1402,6 +1477,9 @@ static int on_repeat_pairing(struct ble_gap_event *event)
         struct ble_gap_conn_desc d;
         if (ble_gap_conn_find(event->repeat_pairing.conn_handle, &d) == 0) {
             ble_store_util_delete_peer(&d.peer_id_addr);
+            if (l) {
+                l->repaired = true;
+            }
             return BLE_GAP_REPEAT_PAIRING_RETRY;
         }
     }
@@ -1446,6 +1524,9 @@ static int host_gap_event(struct ble_gap_event *event, void *arg)
              * other than collisions are not retried.
              */
             int st = event->conn_update.status;
+            if (st == 0) {
+                l->param_retries = 0;
+            }
             if ((st == BLE_HS_HCI_ERR(BLE_ERR_DIFF_TRANS_COLL) || st == BLE_HS_HCI_ERR(BLE_ERR_LMP_COLLISION)) &&
                 l->param_retries < PARAM_RETRY_MAX) {
                 l->param_retries++;
@@ -1584,6 +1665,7 @@ esp_err_t host_init(host_event_fn emit_fn)
     ble_svc_gap_device_name_set(DEVICE_NAME);
     ble_svc_gap_device_appearance_set(APPEARANCE_KEYBOARD);
     ble_npl_callout_init(&s_tick, nimble_port_get_dflt_eventq(), tick_cb, NULL);
+    ble_npl_callout_init(&s_retry, nimble_port_get_dflt_eventq(), retry_cb, NULL);
     return ESP_OK;
 }
 

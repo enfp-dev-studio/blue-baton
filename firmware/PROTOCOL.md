@@ -45,7 +45,7 @@ Changes from earlier versions are collected at the end under "0.5 → 0.6 change
 | `hello` | none | Firmware info, whether a switch combo is set, whether the Wi-Fi feature is present |
 | `status` | none | See "status response" below |
 | `monitor` | `on` | Input monitor lease (see "Access and input content"). Reply: `lease_ms` (60000 when on, 0 when off) |
-| `stats` | none | Latency statistics since the last `stats` (`stats`): `mouse_sent`, `notify_avg_us`, `notify_max_us` (time inside the notify call that hands a report to the controller), `hosts` (`host`, `itvl`, `latency` of each host link). Developer builds (`CONFIG_KM_DIAG`, on by default; off for releases) add `mbufs` and `mbufs_free_min` (the stack's buffer count, and the fewest free at a notify), `hosts` (`host`, `itvl`, `latency`, `rssi` in dBm as the board receives it, `mouse_reports` handed to the stack, `nobuf_mouse`/`nobuf_other` reports the stack could not take, `ack_ms` how long reports took until the controller reported them completed (HCI Number Of Completed Packets): counts for <15, 15–30, 30–45, 45–60, 60–90, 90–150, 150–300, ≥300 ms, `ack_max_ms`, of each host link). Reading resets the counters |
+| `stats` | none | Latency statistics since the last `stats` (`stats`): `mouse_sent`, `notify_avg_us`, `notify_max_us` (time inside the notify call that hands a report to the controller), `hosts` (`host`, `itvl`, `latency` of each host link). Developer builds (`CONFIG_KM_DIAG`, on by default; off for releases) add `mbufs` and `mbufs_free_min` (the stack's buffer count, and the fewest free at a notify), `nvs_writes` and `nvs_max_us` (settings flash writes and the longest one, µs), `hosts` (`host`, `itvl`, `latency`, `rssi` in dBm as the board receives it, `mouse_reports` handed to the stack, `nobuf_mouse`/`nobuf_other` reports the stack could not take, `superseded` queued changes dropped for a later one of the same report, `ack_ms` how long reports took from the input reaching the board until the controller reported them completed (HCI Number Of Completed Packets): counts for <15, 15–30, 30–45, 45–60, 60–90, 90–150, 150–300, ≥300 ms, `ack_max_ms`, of each host link). Reading resets the counters |
 | `selftest` | `host` (1–3, 0 stops), `minutes` (default 30) | Developer builds only. Sends mouse reports to that host every 8.75 ms (16 counts right, then 16 left: the cursor stays within a few pixels) through the normal delivery path, so `stats` measures delivery without anyone moving the mouse. The host must not be the active one; it stops when that host becomes active, when its link drops, or when time is up. Events `selftest_started` (`host`, `minutes`), `selftest_stopped` (`host`, `reason`: `done`/`active`/`link`/`stopped`/`restarted`, `reports`) |
 | `pin_set` | `pin` (4 to 8 digits) | Wi-Fi builds only: set the Wi-Fi setup API PIN |
 | `combo_get` | none | The host switch combos actually in effect (`combo`). If nothing is stored or the stored value is malformed, the default applies and `default:true`; if an invalid value is stored, `stored_invalid:true` |
@@ -171,14 +171,14 @@ hosts: [{"host":1,"addr":"00:00:5E:00:53:30","name":"Example’s MacBook Pro","c
 | `host_passkey_request` | `host`, `addr` | The 6 digits on the host's screen must be entered. Type them on a keyboard attached to the router and press Enter (meanwhile keystrokes go to no host), or use `host_passkey`. Esc cancels |
 | `host_passkey_progress` | `host`, `addr`, `len` | Number of digits typed on the keyboard (the digits themselves are not included) |
 | `host_passkey_sent` | `host`, `addr`, `ok` | The passkey was handed to the security procedure (SMP) |
-| `host_paired` | `host`, `addr` | Saved the new host under that number. The window closes |
+| `host_paired` | `host`, `addr` | Saved the new host under that number, or a known host paired again (same number). The window closes |
 | `host_pair_failed` | `host`, `addr`, `status`, `authenticated` | Host pairing (or key restore) failed. A new bond that is not authenticated is deleted and the connection dropped |
 | `host_repair_blocked` | `host`, `addr` | A bonded host tried to pair again (the board was removed on that computer). Outside the window (or the new pairing was not authenticated), so it was rejected and disconnected. If it reconnects while the window is open, it is accepted (number and name are kept). With all 3 host slots in use the window does not open (`hosts_full`); remove that host and add it again |
 | `host_ready` | `host`, `addr` | The host enabled notifications and can receive reports |
 | `host_name` | `host`, `addr`, `name` | The host's GAP Device Name |
 | `host_conn_params` | `host`, `addr`, `status`, `itvl`, `latency`, `timeout` | The host connection parameters changed. The board requests 15 ms, latency 4 for the active host and 30 for idle hosts, supervision timeout 6 s; the host has the final say. (An 11.25 ms request, allowed for HID by Apple QA1931, was tried: macOS 26 kept 30 ms and then moved to 15 ms itself) |
 | `host_sec_request` | `host`, `addr`, `rc` | A bonded host did not start encryption within 1 s, so the board sent a Security Request (`rc` 0 = sent). A fallback; normally the host encrypts by itself |
-| `host_disconnected` | `host`, `addr`, `reason` | A host disconnected. The board advertises fast (20 ms) for 30 seconds, then at 152.5 ms |
+| `host_disconnected` | `host`, `addr`, `reason` | A host disconnected (also when its link drops before it is fully connected; `reason` is then a NimBLE status). The board advertises fast (20 ms) for 30 seconds, then at 152.5 ms |
 | `host_removed` | `host` | One host was removed |
 
 ## Flows
@@ -261,6 +261,9 @@ Only while the window is open does the board present itself as a keyboard (IO ca
   same report), and mouse motion adds up into the next mouse report. Before, every report was queued in the stack,
   and reports were dropped when the stack's buffers ran out (a key-up could have been among them).
 - Idle hosts are asked for peripheral latency 30 and the active host for 4; a switch re-requests both.
+- A report that finds no stack buffer is tried again after 10 ms when nothing else is in flight on that host (it
+  waited up to 1 s for the next tick). A known host that pairs again inside the window closes it. The active host is
+  saved to flash after the switch's reports have gone to the stack.
 - Auto-reconnect listens 30 ms every 60 ms only for 30 s after a device drops, then 11.25 ms every 1.28 s (it
   listened half the time indefinitely). A sleeping device may take up to about 1.3 s longer to come back.
 

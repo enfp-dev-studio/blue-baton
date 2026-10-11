@@ -43,6 +43,11 @@ esp_err_t cfg_combo_set(const char *combo);
 int cfg_active_host_get(void);
 esp_err_t cfg_active_host_set(int host);
 
+#if CONFIG_KM_DIAG
+/* Developer builds: writes since the last call and the longest one (µs), then reset */
+void cfg_diag_take(uint32_t *writes, uint32_t *max_us);
+#endif
+
 /*
  * Extra information (metadata) for paired devices. The NimBLE bond store is the source of truth
  * for keys and addresses; this holds only what the bond store lacks (name, kind, last connection order).

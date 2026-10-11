@@ -43,8 +43,8 @@ void app_main(void)
     }
     ESP_ERROR_CHECK(err);
     ESP_ERROR_CHECK(cfg_init());
-    ESP_ERROR_CHECK(usb_ctl_start());
     ESP_ERROR_CHECK(ble_pair_init(usb_ctl_emit));
+    ESP_ERROR_CHECK(usb_ctl_start());   /* After BLE init: commands are posted to the NimBLE event queue */
 
 #if CONFIG_KM_WIFI_ENABLE
     ESP_ERROR_CHECK(net_mgr_start());
