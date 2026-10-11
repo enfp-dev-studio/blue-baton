@@ -257,8 +257,8 @@ Only while the window is open does the board present itself as a keyboard (IO ca
   new `selftest` command. Release builds turn it off.
 - Report delivery to hosts: at most 2 reports per host wait for the host's acknowledgement; further key, button,
   media and system changes wait in order (none is dropped), and mouse motion adds up into the next mouse report.
-  Before, every report was queued in the stack, so a host that was slow to take them got old motion late, then lost
-  reports once the stack's buffers ran out (a key-up included).
+  Before, every report was queued in the stack; with a host slow to take them, motion arrived late and reports were
+  dropped once the stack's buffers ran out (a key-up could have been among them).
 - Idle hosts are asked for peripheral latency 30 and the active host for 4; a switch re-requests both.
 - Auto-reconnect listens 30 ms every 60 ms only for 30 s after a device drops, then 11.25 ms every 1.28 s (it
   listened half the time indefinitely). A sleeping device may take up to about 1.3 s longer to come back.
