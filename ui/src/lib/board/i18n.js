@@ -13,7 +13,6 @@ const en = {
   'app.title': 'Blue Baton Settings',
   'app.name': 'Blue Baton',
   'app.subtitle': 'Settings',
-  'app.tagline': 'One keyboard and mouse, three computers',
   'diag.title': 'Diagnostics',
   'tray.open': 'Open Blue Baton…',
   'tray.addHost': 'Add Host…',
@@ -39,6 +38,10 @@ const en = {
   'common.remove': 'Remove',
   'common.send': 'Send',
   'common.unnamedDevice': 'Unnamed device',
+  'common.more': 'More',
+  'hosts.removeItem': 'Remove Host…',
+  'devices.removeItem': 'Remove Device…',
+  'devices.addItem': 'Add Device…',
 
   /* ---- errors by code (errorText) ---- */
   'error.busy': "Can't do that right now. Already connected, or another connection attempt is in progress.",
@@ -149,7 +152,6 @@ const en = {
   'hosts.secondsLeft': '{seconds}s left',
   'hosts.sendingTo': 'Input goes to {name}',
   'hosts.noneActive': 'No host is connected yet',
-  'hosts.eyebrow': 'Output',
   'hosts.stepMac': 'macOS: System Settings → Bluetooth, click Connect next to “Blue Baton”',
   'hosts.stepWindows': 'Windows: Settings → Bluetooth & devices → Add device → Bluetooth → “Blue Baton”',
   'hosts.stepCode': 'When a 6-digit code appears, enter it as described below',
@@ -162,11 +164,9 @@ const en = {
 
   /* ---- input devices ---- */
   'devices.title': 'Input devices',
-  'devices.eyebrow': 'Input',
   'devices.summary': 'Paired {bonds}/{max} · up to 2 connected at once',
   'devices.empty': 'No paired devices yet',
   'devices.emptyHint': 'Add a keyboard or mouse. The board remembers it and connects to it automatically from then on.',
-  'devices.add': 'Add device',
   'devices.addBlocked': 'Close the host pairing window to add a device',
   'devices.failed': 'Connection failed',
   'devices.restored': 'Reconnected with saved keys',
@@ -276,7 +276,6 @@ const ko = {
   'app.title': 'Blue Baton 설정',
   'app.name': 'Blue Baton',
   'app.subtitle': '설정',
-  'app.tagline': '키보드·마우스 하나로 컴퓨터 세 대',
   'diag.title': '진단',
   'tray.open': 'Blue Baton 열기…',
   'tray.addHost': '호스트 추가…',
@@ -302,6 +301,10 @@ const ko = {
   'common.remove': '삭제',
   'common.send': '보내기',
   'common.unnamedDevice': '이름 없는 기기',
+  'common.more': '더 보기',
+  'hosts.removeItem': '호스트 삭제…',
+  'devices.removeItem': '기기 삭제…',
+  'devices.addItem': '기기 추가…',
 
   /* ---- errors by code (errorText) ---- */
   'error.busy': '지금은 할 수 없어요. 이미 연결됐거나 다른 연결을 시도하는 중이에요.',
@@ -412,7 +415,6 @@ const ko = {
   'hosts.secondsLeft': '{seconds}초 남음',
   'hosts.sendingTo': '지금 입력 받는 곳 {name}',
   'hosts.noneActive': '아직 연결된 호스트가 없어요',
-  'hosts.eyebrow': '출력',
   'hosts.stepMac': 'Mac: 시스템 설정 → Bluetooth에서 근처 기기의 "Blue Baton" 옆 연결',
   'hosts.stepWindows': 'Windows: 설정 → Bluetooth 및 장치 → 장치 추가 → Bluetooth → "Blue Baton"',
   'hosts.stepCode': '숫자 6자리가 나오면 아래 안내대로 입력하세요',
@@ -425,11 +427,9 @@ const ko = {
 
   /* ---- input devices ---- */
   'devices.title': '입력 기기',
-  'devices.eyebrow': '입력',
   'devices.summary': '페어링 {bonds}/{max} · 동시 연결 최대 2대',
   'devices.empty': '아직 페어링된 기기가 없어요',
   'devices.emptyHint': '키보드나 마우스를 추가하면 보드에 저장되고, 다음부터는 자동으로 연결돼요.',
-  'devices.add': '기기 추가',
   'devices.addBlocked': '호스트 추가 창을 닫은 뒤에 추가할 수 있어요',
   'devices.failed': '연결에 실패했어요',
   'devices.restored': '저장된 키로 다시 연결됨',

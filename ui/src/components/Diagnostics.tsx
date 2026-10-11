@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
+import { ChevronRight } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Label } from '@/components/ui/label';
@@ -58,27 +57,27 @@ export function Diagnostics({ s, a, ctl }: { s: BoardState; a: Actions; ctl: Con
         store('bb.diagOpen', v);
       }}
     >
-      <Card className="gap-0 py-0">
-        <CollapsibleTrigger className="flex w-full items-center justify-between rounded-xl px-5 py-4 text-left font-semibold text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring">
+      <div className="overflow-hidden rounded-[10px] border bg-card">
+        <CollapsibleTrigger className="flex h-11 w-full items-center justify-between px-4 text-left text-[13px] font-medium outline-none hover:bg-accent/60 focus-visible:bg-accent">
           {t('diag.title')}
-          <ChevronDown className={cn('size-4 transition-transform', open && 'rotate-180')} />
+          <ChevronRight className={cn('size-4 text-muted-foreground transition-transform', open && 'rotate-90')} />
         </CollapsibleTrigger>
         <CollapsibleContent>
-          <CardContent className="grid gap-6 px-5 pb-5">
+          <div className="grid gap-5 border-t px-4 py-4">
             <section>
-              <h3 className="mb-1 font-semibold">{t('inputs.title')}</h3>
-              <p className="mb-3 text-sm text-muted-foreground">{t('inputs.hint')}</p>
+              <h3 className="mb-0.5 font-semibold">{t('inputs.title')}</h3>
+              <p className="mb-3 text-xs text-muted-foreground">{t('inputs.hint')}</p>
               <div ref={holder} />
             </section>
-            <section className="border-t pt-5">
+            <section className="border-t pt-4">
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                 <h3 className="font-semibold">{t('log.title')}</h3>
                 <div className="flex items-center gap-2">
                   <Checkbox id="log-board" checked={boardLines} onCheckedChange={(v) => setBoardLines(v === true)} />
-                  <Label htmlFor="log-board" className="text-sm font-normal text-muted-foreground">{t('log.boardLines')}</Label>
+                  <Label htmlFor="log-board" className="text-xs font-normal text-muted-foreground">{t('log.boardLines')}</Label>
                 </div>
               </div>
-              <div className="max-h-80 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-muted p-2.5 font-mono text-xs">
+              <div className="max-h-80 overflow-auto whitespace-pre-wrap break-all rounded-md bg-muted p-2.5 font-mono text-[11px]">
                 {rows.map((r, i) => (
                   <div key={i} className={cn(r.dir === '>' && 'text-primary', r.dir === '·' && 'text-muted-foreground')}>
                     {`${r.at.toLocaleTimeString()} ${r.dir} ${r.text}`}
@@ -86,9 +85,9 @@ export function Diagnostics({ s, a, ctl }: { s: BoardState; a: Actions; ctl: Con
                 ))}
               </div>
             </section>
-          </CardContent>
+          </div>
         </CollapsibleContent>
-      </Card>
+      </div>
     </Collapsible>
   );
 }

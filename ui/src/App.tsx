@@ -27,9 +27,9 @@ export function App({ ctl }: { ctl: Controller }) {
   const ready = s.link === 'connected';
   return (
     <TooltipProvider>
-      <div className="min-h-screen bg-[radial-gradient(1200px_420px_at_50%_-180px,var(--glow),transparent_70%)]">
+      <div className="min-h-screen">
         <Header s={s} a={a} ctl={ctl} />
-        <main className="mx-auto grid max-w-[900px] gap-4 px-3 pb-14 pt-6 sm:px-4">
+        <main className="mx-auto grid max-w-[680px] gap-6 px-4 pb-14 pt-5">
           {!ready && <ConnectCard s={s} a={a} ctl={ctl} />}
           {ready && (
             <>

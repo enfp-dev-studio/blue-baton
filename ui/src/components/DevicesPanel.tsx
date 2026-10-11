@@ -1,7 +1,6 @@
-import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { DeviceIcon, StateTag } from '@/components/parts';
+import { DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { DeviceIcon, Group, RowMenu, StateTag } from '@/components/parts';
 import { FAIL_STAGE, kindText, reasonText, stateText, stateTone, t } from '@/lib/board/i18n.js';
 import type { Actions, BoardState, Device, Tone } from '@/lib/board/types';
 import { cn } from '@/lib/utils';
@@ -18,96 +17,84 @@ function subline(d: Device) {
 export function DevicesPanel({ s, a, confirm }: { s: BoardState; a: Actions; confirm: Confirm }) {
   const list = [...s.devices.values()].sort((x, y) => (y.lastSeq || 0) - (x.lastSeq || 0));
   return (
-    <Card className="gap-0 py-0">
-      <CardContent className="p-5">
-        <div className="mb-3 flex flex-wrap items-end justify-between gap-x-3 gap-y-1">
-          <div>
-            <span className="block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{t('devices.eyebrow')}</span>
-            <h2 className="text-lg font-semibold tracking-tight">{t('devices.title')}</h2>
-          </div>
-          <span className="text-sm text-muted-foreground">{t('devices.summary', { bonds: s.bonds, max: s.bondsMax || '?' })}</span>
-        </div>
+    <div className="grid gap-2">
+      <Group title={t('devices.title')} aside={t('devices.summary', { bonds: s.bonds, max: s.bondsMax || '?' })}>
         {list.length ? (
-          <ul className="grid gap-1">
+          <ul className="list-none divide-y p-0">
             {list.map((d) => (
               <DeviceRow key={d.id} d={d} a={a} confirm={confirm} />
             ))}
           </ul>
         ) : (
-          <div className="py-6 text-center">
-            <p>{t('devices.empty')}</p>
-            <p className="mt-1 text-sm text-muted-foreground">{t('devices.emptyHint')}</p>
+          <div className="px-4 py-6 text-center">
+            <p className="font-medium">{t('devices.empty')}</p>
+            <p className="mx-auto mt-1 max-w-[46ch] text-xs text-muted-foreground">{t('devices.emptyHint')}</p>
           </div>
         )}
+      </Group>
+      <div className="flex justify-end">
         <Button
+          size="sm"
           variant="outline"
-          className="mt-3 rounded-full"
+          className="h-7 px-3 text-[13px]"
           onClick={a.openAdd}
           disabled={s.hostWindow.open}
           title={s.hostWindow.open ? t('devices.addBlocked') : undefined}
         >
-          <Plus /> {t('devices.add')}
+          {t('devices.addItem')}
         </Button>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
 function DeviceRow({ d, a, confirm }: { d: Device; a: Actions; confirm: Confirm }) {
   const connected = d.state !== 'offline' && d.state !== 'failed';
   const tone = stateTone(d.state) as Tone;
-  const sub = subline(d);
+  const sub = [kindText(d.kinds, d.appearance), subline(d)].filter(Boolean).join(' · ');
+  /* The one action worth a button; the rest sit in the row menu */
+  const primary =
+    d.state === 'failed'
+      ? { label: t('devices.retry'), run: () => a.connectDevice(d.id) }
+      : !connected && d.paired && !d.auto
+        ? { label: t('devices.autoOn'), run: () => a.connectDevice(d.id) }
+        : null;
   return (
-    <li data-device={d.addr} className="group grid grid-cols-[44px_minmax(0,1fr)] items-center gap-x-3.5 gap-y-2 rounded-xl p-2 transition-colors hover:bg-muted/60 sm:grid-cols-[44px_minmax(0,1fr)_auto]">
+    <li data-device={d.addr} className="group flex min-h-[52px] items-center gap-3 py-2 pl-4 pr-2">
       <span
         className={cn(
-          'grid size-11 place-items-center rounded-[13px] bg-muted text-muted-foreground transition-shadow',
-          tone === 'ok' && 'bg-primary/10 text-primary',
-          tone === 'busy' && 'text-busy',
-          tone === 'bad' && 'text-destructive',
-          'group-data-live:shadow-[0_0_0_4px_var(--glow)]',
+          'grid size-7 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground transition-shadow',
+          tone === 'ok' && 'bg-primary/12 text-primary',
+          'group-data-live:shadow-[0_0_0_3px_var(--glow)]',
         )}
       >
-        <DeviceIcon kinds={d.kinds} appearance={d.appearance} className="size-5.5" />
+        <DeviceIcon kinds={d.kinds} appearance={d.appearance} className="size-4" />
       </span>
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2.5">
-          <span className="break-words font-semibold">{d.name || t('common.unnamedDevice')}</span>
-          <StateTag tone={tone}>{stateText(d.state)}</StateTag>
-        </div>
-        <div className="flex flex-wrap items-baseline gap-3 text-sm text-muted-foreground">
-          <span>{kindText(d.kinds, d.appearance)}</span>
-          <span className="font-mono text-xs text-muted-foreground/70">{d.id}</span>
-        </div>
-        {sub && <div className="text-sm text-muted-foreground/80">{sub}</div>}
+      <div className="min-w-0 flex-1 leading-tight">
+        <div className="truncate font-medium">{d.name || t('common.unnamedDevice')}</div>
+        {sub && <div className="truncate text-xs text-muted-foreground">{sub}</div>}
       </div>
-      <div className="col-start-2 flex gap-1 sm:col-start-auto">
-        {connected ? (
-          <Button size="sm" variant="outline" className="rounded-full" onClick={() => a.disconnectDevice(d.addr)}>
-            {t('devices.disconnect')}
-          </Button>
-        ) : d.state === 'failed' ? (
-          <Button size="sm" variant="outline" className="rounded-full" onClick={() => a.connectDevice(d.id)}>
-            {t('devices.retry')}
-          </Button>
-        ) : d.paired && !d.auto ? (
-          <Button size="sm" variant="outline" className="rounded-full" onClick={() => a.connectDevice(d.id)}>
-            {t('devices.autoOn')}
-          </Button>
-        ) : null}
+      <StateTag tone={tone} className="shrink-0">{stateText(d.state)}</StateTag>
+      {primary && (
+        <Button size="xs" variant="outline" className="h-6 px-2.5 text-xs" onClick={primary.run}>
+          {primary.label}
+        </Button>
+      )}
+      <RowMenu label={t('common.more')}>
+        <DropdownMenuLabel className="font-mono text-[11px] font-normal text-muted-foreground">{d.id}</DropdownMenuLabel>
+        {(connected || d.paired) && <DropdownMenuSeparator />}
+        {connected && <DropdownMenuItem onSelect={() => a.disconnectDevice(d.addr)}>{t('devices.disconnect')}</DropdownMenuItem>}
         {d.paired && (
-          <Button
-            size="sm"
-            variant="ghost"
-            className="rounded-full text-destructive hover:bg-destructive/10 hover:text-destructive"
-            onClick={() =>
+          <DropdownMenuItem
+            variant="destructive"
+            onSelect={() =>
               confirm({ title: t('common.remove'), body: t('confirm.removeDevice', { name: d.name || d.id }), action: () => a.removeDevice(d) })
             }
           >
-            {t('common.remove')}
-          </Button>
+            {t('devices.removeItem')}
+          </DropdownMenuItem>
         )}
-      </div>
+      </RowMenu>
     </li>
   );
 }

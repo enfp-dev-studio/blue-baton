@@ -83,14 +83,14 @@ export function HostPairingDialog({ s, a }: { s: BoardState; a: Actions }) {
             <p className="text-sm text-muted-foreground">{t('hosts.passkeyFallback')}</p>
             <div className="flex flex-wrap items-center gap-2">
               <CodeInput value={code} onChange={setCode} label={t('hosts.passkeyLabel')} />
-              <Button type="submit" className="rounded-full" disabled={code.length !== 6}>
+              <Button type="submit" disabled={code.length !== 6}>
                 {t('common.send')}
               </Button>
             </div>
           </form>
         )}
         <DialogFooter>
-          <Button variant="ghost" className="rounded-full" onClick={a.closeHostWindow}>
+          <Button variant="ghost" onClick={a.closeHostWindow}>
             {t('common.close')}
           </Button>
         </DialogFooter>
@@ -112,8 +112,8 @@ function Prompt({ s, a }: { s: BoardState; a: Actions }) {
         <p className="text-sm">{t('prompt.numcmp')}</p>
         <div className="font-mono text-4xl font-semibold tracking-[0.22em]">{p.code}</div>
         <div className="flex gap-2">
-          <Button className="rounded-full" onClick={() => a.accept(true)}>{t('prompt.match')}</Button>
-          <Button variant="outline" className="rounded-full" onClick={() => a.accept(false)}>{t('prompt.noMatch')}</Button>
+          <Button onClick={() => a.accept(true)}>{t('prompt.match')}</Button>
+          <Button variant="outline" onClick={() => a.accept(false)}>{t('prompt.noMatch')}</Button>
         </div>
       </div>
     );
@@ -124,7 +124,7 @@ function Prompt({ s, a }: { s: BoardState; a: Actions }) {
         <p className="text-sm">{t('prompt.passkeyRequest')}</p>
         <div className="flex flex-wrap items-center gap-2">
           <CodeInput value={code} onChange={setCode} label={t('prompt.passkeyLabel')} />
-          <Button type="submit" className="rounded-full" disabled={code.length !== 6}>{t('common.send')}</Button>
+          <Button type="submit" disabled={code.length !== 6}>{t('common.send')}</Button>
         </div>
       </form>
     );
@@ -158,7 +158,7 @@ function FoundRow({ f, a }: { f: Found; a: Actions }) {
       {f.hid === false ? (
         <span className="text-sm text-muted-foreground">{t('add.notInput')}</span>
       ) : (
-        <Button size="sm" className="rounded-full" disabled={busy} onClick={() => a.connectDevice(f.addr)}>
+        <Button size="sm" disabled={busy} onClick={() => a.connectDevice(f.addr)}>
           {busy ? t('add.connecting') : t('add.connect')}
         </Button>
       )}
@@ -170,13 +170,13 @@ function ScanButton({ s, a }: { s: BoardState; a: Actions }) {
   const left = useSecondsLeft(s.scanUntil);
   if (s.scanning) {
     return (
-      <Button variant="outline" className="rounded-full" onClick={() => a.scan(false)}>
+      <Button variant="outline" onClick={() => a.scan(false)}>
         {tParts('add.scanning', { seconds: <span key="s" className="tabular-nums">{left}</span> })}
       </Button>
     );
   }
   return (
-    <Button className="rounded-full" onClick={() => a.scan(true)} disabled={s.scanPending}>
+    <Button onClick={() => a.scan(true)} disabled={s.scanPending}>
       {s.scanPending ? t('add.starting') : t('add.start')}
     </Button>
   );
@@ -234,10 +234,10 @@ export function ConfirmDialog({ req, onClose }: { req: ConfirmRequest | null; on
           <DialogDescription className="whitespace-pre-line">{req?.body}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="ghost" className="rounded-full" onClick={onClose}>{t('common.cancel')}</Button>
+          <Button variant="ghost" onClick={onClose}>{t('common.cancel')}</Button>
           <Button
             variant="destructive"
-            className="rounded-full"
+           
             onClick={() => {
               req?.action();
               onClose();

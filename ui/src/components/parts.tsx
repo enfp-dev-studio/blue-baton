@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Gamepad2, Keyboard, Mouse, Smartphone } from 'lucide-react';
+import { Ellipsis, Gamepad2, Keyboard, Mouse, Smartphone } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { kindIcon, t } from '@/lib/board/i18n.js';
 import type { Tone } from '@/lib/board/types';
 import { cn } from '@/lib/utils';
@@ -9,7 +11,7 @@ export function StateTag({ tone, children, className }: { tone: Tone; children: 
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-medium',
+        'inline-flex items-center gap-1.5 whitespace-nowrap text-xs',
         tone === 'ok' && 'text-ok',
         tone === 'busy' && 'text-busy',
         tone === 'bad' && 'text-destructive',
@@ -19,8 +21,8 @@ export function StateTag({ tone, children, className }: { tone: Tone; children: 
     >
       <span
         className={cn(
-          'size-[7px] shrink-0 rounded-full',
-          tone === 'ok' && 'bg-ok shadow-[0_0_0_3px_color-mix(in_oklch,var(--ok)_20%,transparent)]',
+          'size-1.5 shrink-0 rounded-full',
+          tone === 'ok' && 'bg-ok',
           tone === 'busy' && 'animate-blink bg-busy motion-reduce:animate-none',
           tone === 'bad' && 'bg-destructive',
           tone === 'idle' && 'bg-muted-foreground/60',
@@ -31,26 +33,67 @@ export function StateTag({ tone, children, className }: { tone: Tone; children: 
   );
 }
 
-/* Switch combos as keycaps. On a Mac the modifiers show as the symbols printed on Mac keyboards */
+/*
+ * A titled group of rows with hairline separators, as in macOS System Settings. `aside` sits at the right of the
+ * title; `footer` under the group.
+ */
+export function Group({
+  title,
+  aside,
+  footer,
+  children,
+  className,
+}: {
+  title?: React.ReactNode;
+  aside?: React.ReactNode;
+  footer?: React.ReactNode;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <section className="grid gap-1.5">
+      {(title || aside) && (
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3 px-1">
+          {title && <h2 className="text-[13px] font-semibold">{title}</h2>}
+          {aside && <span className="text-xs text-muted-foreground">{aside}</span>}
+        </div>
+      )}
+      <div className={cn('overflow-hidden rounded-[10px] border bg-card', className)}>{children}</div>
+      {footer && <div className="px-1 text-xs text-muted-foreground">{footer}</div>}
+    </section>
+  );
+}
+
+/* The "more" button at the end of a row; its menu holds the row's less frequent actions */
+export function RowMenu({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button size="icon-sm" variant="ghost" className="size-7 text-muted-foreground" aria-label={label} title={label}>
+          <Ellipsis />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-40 text-[13px]">
+        {children}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+/* Switch combos the way menus show shortcuts. On a Mac the modifiers show as the symbols printed on Mac keyboards */
 const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '');
 const KEY_LABEL: Record<string, string> = IS_MAC
   ? { ctrl: '⌃', control: '⌃', alt: '⌥', option: '⌥', opt: '⌥', cmd: '⌘', gui: '⌘', win: '⌘', meta: '⌘', super: '⌘', shift: '⇧' }
   : { ctrl: 'Ctrl', control: 'Ctrl', alt: 'Alt', option: 'Alt', opt: 'Alt', cmd: 'Win', gui: 'Win', win: 'Win', meta: 'Win', super: 'Win', shift: 'Shift' };
 
-export function Keycaps({ combo }: { combo?: string }) {
-  if (!combo) return <span className="text-sm text-muted-foreground">{t('hosts.noCombo')}</span>;
+export function Keycaps({ combo, className }: { combo?: string; className?: string }) {
+  if (!combo) return <span className={cn('text-xs text-muted-foreground', className)}>{t('hosts.noCombo')}</span>;
   const keys = combo.split('+').map((k) => k.trim()).filter(Boolean);
+  const label = keys.map((k) => KEY_LABEL[k.toLowerCase()] || (k.length === 1 ? k.toUpperCase() : k));
   return (
-    <span className="inline-flex flex-wrap items-center gap-1" title={combo}>
-      {keys.map((k, i) => (
-        <kbd
-          key={i}
-          className="inline-grid h-6 min-w-6 place-items-center rounded-md border border-b-2 bg-card px-1.5 font-sans text-xs font-semibold text-foreground"
-        >
-          {KEY_LABEL[k.toLowerCase()] || (k.length === 1 ? k.toUpperCase() : k)}
-        </kbd>
-      ))}
-    </span>
+    <kbd className={cn('whitespace-nowrap font-sans text-xs tracking-[0.12em] text-muted-foreground', className)} title={combo}>
+      {IS_MAC ? label.join('') : label.join('+')}
+    </kbd>
   );
 }
 
