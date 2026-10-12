@@ -26,10 +26,18 @@ test('the English table has no Hangul', () => {
   for (const [key, s] of Object.entries(STRINGS.en)) assert.doesNotMatch(s, /[\uAC00-\uD7A3]/, key);
 });
 
-test('language choice: ?lang wins, then the browser language, default English', () => {
+test('language choice: ?lang wins, then the saved choice, then the browser language, default English', () => {
+  assert.equal(pickLang('', 'en-US', 'ko'), 'ko');
+  assert.equal(pickLang('?lang=en', 'ko-KR', 'ko'), 'en');
+  assert.equal(pickLang('', 'ko-KR', 'xx'), 'ko');
   assert.equal(pickLang('?lang=ko', 'en-US'), 'ko');
   assert.equal(pickLang('?mock&lang=en', 'ko-KR'), 'en');
-  assert.equal(pickLang('?lang=fr', 'ko-KR'), 'ko');
+  assert.equal(pickLang('?lang=xx', 'ko-KR'), 'ko');
+  assert.equal(pickLang('', ['xx-YY', 'de-AT', 'en']), 'de');
+  assert.equal(pickLang('', 'zh-Hant-HK'), 'zh-TW');
+  assert.equal(pickLang('', 'zh-TW'), 'zh-TW');
+  assert.equal(pickLang('', 'zh-Hans-CN'), 'zh-CN');
+  assert.equal(pickLang('', 'zh'), 'zh-CN');
   assert.equal(pickLang('', 'ko'), 'ko');
   assert.equal(pickLang('', 'en-GB'), 'en');
   assert.equal(pickLang('', ''), 'en');
