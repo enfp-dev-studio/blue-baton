@@ -108,5 +108,8 @@ esp_err_t ble_pair_host_passkey(uint32_t code);
 /* Latency statistics (host link intervals, how long mouse motion waited on the board) as a JSON object. Resets them */
 size_t ble_pair_stats_json(char *buf, size_t len);
 
-/* Developer builds (CONFIG_KM_DIAG): mouse self-test traffic to host (1-3) for minutes; host 0 stops it. The host must not be the active one */
-esp_err_t ble_pair_selftest(int host, int minutes);
+/*
+ * Developer builds (CONFIG_KM_DIAG): self-test traffic to host (1-3) for minutes; host 0 stops it. Mouse: the host
+ * must not be the active one. Pen: circles drawn with pressure and tilt
+ */
+esp_err_t ble_pair_selftest(int host, int minutes, bool pen);

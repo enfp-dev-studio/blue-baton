@@ -49,8 +49,8 @@ size_t host_list_json(char *buf, size_t len);
 size_t host_stats_json(char *buf, size_t len);
 
 #if CONFIG_KM_DIAG
-/* Developer builds: mouse self-test traffic to host (from 0) for minutes; host < 0 stops it. Host task only */
-esp_err_t host_selftest(int host, int minutes);
+/* Developer builds: mouse or pen self-test traffic to host (from 0) for minutes; host < 0 stops it. Host task only */
+esp_err_t host_selftest(int host, int minutes, bool pen);
 #endif
 
 /* Deleting a bond (ble_gap_unpair) returns EBUSY while advertising. Stop advertising during the delete, then restore it */

@@ -345,9 +345,15 @@ static void handle_line(const char *line)
 #if CONFIG_KM_DIAG
     } else if (strcmp(cmd, "selftest") == 0) {
         int host = 0, minutes = 30;
+        char kind[8] = "mouse";
         json_get_int(line, "host", &host);
         json_get_int(line, "minutes", &minutes);
-        reply_ble(id, ble_pair_selftest(host, minutes));
+        json_get_string(line, "kind", kind, sizeof(kind));
+        if (strcmp(kind, "mouse") != 0 && strcmp(kind, "pen") != 0) {
+            reply_err_code(id, "bad_request", "kind must be mouse or pen");
+        } else {
+            reply_ble(id, ble_pair_selftest(host, minutes, strcmp(kind, "pen") == 0));
+        }
 #endif
     } else if (strcmp(cmd, "combo_get") == 0) {
         cmd_combo_get(id);

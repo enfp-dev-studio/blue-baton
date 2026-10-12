@@ -15,12 +15,16 @@
 #define HOST_RID_MOUSE 2      /* 7 bytes: buttons 8, X 16, Y 16, wheel 8, horizontal wheel 8 */
 #define HOST_RID_CONSUMER 3   /* 4 bytes: 2 slots of 16-bit Usage */
 #define HOST_RID_SYSTEM 4     /* 1 byte: power off, sleep, wake */
+#define HOST_RID_PEN 5        /* 9 bytes: tip, barrel, eraser, invert, in range; X, Y; tip pressure; X, Y tilt */
 
 #define HOST_KB_LEN 8
 #define HOST_MOUSE_LEN 7
 #define HOST_CONSUMER_LEN 4
 #define HOST_SYSTEM_LEN 1
 #define HOST_BOOT_MOUSE_LEN 3
+#define HOST_PEN_LEN 9
+#define HOST_PEN_XY_MAX 32767
+#define HOST_PEN_PRESSURE_MAX 4095
 
 extern const uint8_t HOST_REPORT_MAP[];
 extern const size_t HOST_REPORT_MAP_LEN;
@@ -38,6 +42,17 @@ void host_kb_report(const uint8_t keys[32], uint8_t out[HOST_KB_LEN]);
 
 /* Consumer control report, 4 bytes: the first 2 Usages */
 void host_consumer_report(const uint16_t *usages, uint8_t count, uint8_t out[HOST_CONSUMER_LEN]);
+
+/* A pen (stylus) state: absolute position, pressure and tilt (HID Usage Tables, Digitizers page) */
+typedef struct {
+    bool tip, barrel, eraser, invert, in_range;
+    uint16_t x, y;          /* 0..HOST_PEN_XY_MAX across the digitizer */
+    uint16_t pressure;      /* 0..HOST_PEN_PRESSURE_MAX */
+    int8_t tilt_x, tilt_y;  /* Degrees, -90..90 */
+} host_pen_t;
+
+/* Pen report, 9 bytes */
+void host_pen_report(const host_pen_t *p, uint8_t out[HOST_PEN_LEN]);
 
 /* Accumulate motion */
 void host_motion_add(host_motion_t *m, int32_t dx, int32_t dy, int32_t wheel, int32_t pan);
@@ -60,4 +75,5 @@ typedef struct {
     uint8_t buttons;
     uint8_t consumer[HOST_CONSUMER_LEN];
     uint8_t system;
+    uint8_t pen[HOST_PEN_LEN];
 } host_sent_t;
