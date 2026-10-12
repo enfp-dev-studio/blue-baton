@@ -46,10 +46,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": [
-      "app",
-      "dmg"
-    ],
+    "targets": "all",
     "category": "Utility",
     "shortDescription": "One Bluetooth keyboard and mouse for three computers",
     "icon": [
