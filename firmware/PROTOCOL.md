@@ -234,7 +234,7 @@ Only while the window is open does the board present itself as a keyboard (IO ca
   credentials or AP password stored by earlier firmware are erased at boot.
 - The console no longer prints a status line every 5 seconds.
 - Hosts also see a pen (HID Digitizers page, Pen with a Stylus: tip, barrel, eraser, invert, in range, absolute X/Y,
-  12-bit tip pressure, X/Y tilt) as report ID 5. Bonded hosts are told of the new GATT table once (Service Changed).
+  12-bit tip pressure, X/Y tilt in 0.01 degree) as report ID 5. Bonded hosts are told of the new GATT table once (Service Changed).
   `selftest` takes `kind:"pen"`.
 - Developer diagnostics are one build option, `CONFIG_KM_DIAG`, off by default: the detailed `stats` fields and the new
   `selftest` command. The developer flash script (`tools/flash.sh`) builds with it on.

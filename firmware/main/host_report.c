@@ -36,7 +36,9 @@ const uint8_t HOST_REPORT_MAP[] = {
     0xC0,
     /*
      * ID5 pen (Digitizers page, Pen application collection with a Stylus): tip, barrel, eraser, invert, in range
-     * + 3 padding bits; X, Y absolute 0-32767 over 20.00 x 11.25 cm; tip pressure 0-4095; X, Y tilt in degrees
+     * + 3 padding bits; X, Y absolute 0-32767 over 20.00 x 11.25 cm; tip pressure 0-4095; X, Y tilt in 0.01 degree.
+     * Tilt as Microsoft asks (unit exponent -2 for degrees) with its physical range stated, since Linux takes the
+     * resolution from it rather than from the logical range.
      */
     0x05, 0x0D, 0x09, 0x02, 0xA1, 0x01, 0x85, 0x05, 0x09, 0x20, 0xA1, 0x00,
     0x09, 0x42, 0x09, 0x44, 0x09, 0x45, 0x09, 0x3C, 0x09, 0x32,
@@ -46,7 +48,9 @@ const uint8_t HOST_REPORT_MAP[] = {
     0x09, 0x31, 0x46, 0x65, 0x04, 0x81, 0x02,
     0x45, 0x00, 0x55, 0x00, 0x65, 0x00,
     0x05, 0x0D, 0x09, 0x30, 0x26, 0xFF, 0x0F, 0x81, 0x02,
-    0x09, 0x3D, 0x09, 0x3E, 0x15, 0xA6, 0x25, 0x5A, 0x75, 0x08, 0x95, 0x02, 0x65, 0x14, 0x81, 0x02, 0x65, 0x00,
+    0x09, 0x3D, 0x09, 0x3E, 0x16, 0xD8, 0xDC, 0x26, 0x28, 0x23, 0x36, 0xD8, 0xDC, 0x46, 0x28, 0x23,
+    0x55, 0x0E, 0x65, 0x14, 0x75, 0x10, 0x95, 0x02, 0x81, 0x02,
+    0x35, 0x00, 0x45, 0x00, 0x55, 0x00, 0x65, 0x00,
     0xC0, 0xC0,
 };
 const size_t HOST_REPORT_MAP_LEN = sizeof(HOST_REPORT_MAP);
@@ -106,8 +110,12 @@ void host_pen_report(const host_pen_t *p, uint8_t out[HOST_PEN_LEN])
     out[4] = (uint8_t)(y >> 8);
     out[5] = (uint8_t)pr;
     out[6] = (uint8_t)(pr >> 8);
-    out[7] = (uint8_t)(p->tilt_x < -90 ? -90 : p->tilt_x > 90 ? 90 : p->tilt_x);
-    out[8] = (uint8_t)(p->tilt_y < -90 ? -90 : p->tilt_y > 90 ? 90 : p->tilt_y);
+    int16_t tx = p->tilt_x < -HOST_PEN_TILT_MAX ? -HOST_PEN_TILT_MAX : p->tilt_x > HOST_PEN_TILT_MAX ? HOST_PEN_TILT_MAX : p->tilt_x;
+    int16_t ty = p->tilt_y < -HOST_PEN_TILT_MAX ? -HOST_PEN_TILT_MAX : p->tilt_y > HOST_PEN_TILT_MAX ? HOST_PEN_TILT_MAX : p->tilt_y;
+    out[7] = (uint8_t)tx;
+    out[8] = (uint8_t)((uint16_t)tx >> 8);
+    out[9] = (uint8_t)ty;
+    out[10] = (uint8_t)((uint16_t)ty >> 8);
 }
 
 void host_motion_add(host_motion_t *m, int32_t dx, int32_t dy, int32_t wheel, int32_t pan)

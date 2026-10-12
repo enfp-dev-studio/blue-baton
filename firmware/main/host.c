@@ -808,11 +808,9 @@ static void add_motion(host_link_t *l, int dx, int dy, int wheel, int pan)
     host_motion_add(&l->motion, dx, dy, wheel, pan);
 }
 
-/* The pen's latest state, sent when a report slot is free */
-static void set_pen(host_link_t *l, const host_pen_t *p)
+/* The pen's latest report, sent when a report slot is free */
+static void set_pen_report(host_link_t *l, const uint8_t r[HOST_PEN_LEN])
 {
-    uint8_t r[HOST_PEN_LEN];
-    host_pen_report(p, r);
     if (!l->pen_t && memcmp(r, l->sent.pen, HOST_PEN_LEN) == 0) {
         return;
     }
@@ -820,6 +818,17 @@ static void set_pen(host_link_t *l, const host_pen_t *p)
         l->pen_t = now_us();
     }
     memcpy(l->pen, r, HOST_PEN_LEN);
+}
+
+/* The pen leaves range where it last was: no switches, no pressure, same position and tilt */
+static void pen_away(host_link_t *l)
+{
+    uint8_t r[HOST_PEN_LEN];
+    memcpy(r, l->pen_t ? l->pen : l->sent.pen, HOST_PEN_LEN);
+    r[0] = 0;
+    r[5] = 0;
+    r[6] = 0;
+    set_pen_report(l, r);
 }
 
 /* Queue a report if it changes what the host will have */
@@ -845,8 +854,7 @@ static void release_all(host_link_t *l)
     memset(&l->motion, 0, sizeof(l->motion));
     l->motion_t = 0;
     l->pen_t = 0;
-    static const host_pen_t away = {0};   /* Out of range */
-    set_pen(l, &away);
+    pen_away(l);
     if (boot_mode(l)) {
         queue_state(l, N_BOOT_KB, l->want_boot_kb, zeros, HOST_KB_LEN);
         queue_state(l, N_BOOT_MOUSE, &l->want_boot_buttons, zeros, 1);
@@ -954,8 +962,7 @@ static void selftest_stop(const char *why)
     plat_timer_stop(s_selftest_timer);
     host_link_t *l = link_by_index(s_selftest_host);
     if (s_selftest_pen && l && l->state == HL_READY) {
-        static const host_pen_t away = {0};   /* Out of range, so the host goes back to the mouse cursor */
-        set_pen(l, &away);
+        pen_away(l);   /* So the host goes back to the mouse cursor */
         pump(l);
     }
     char buf[96];
@@ -963,6 +970,14 @@ static void selftest_stop(const char *why)
              s_selftest_host + 1, why, (unsigned long)s_selftest_n);
     emit(buf);
     s_selftest_host = -1;
+}
+
+/* Only the self-test makes pen states for now */
+static void set_pen(host_link_t *l, const host_pen_t *p)
+{
+    uint8_t r[HOST_PEN_LEN];
+    host_pen_report(p, r);
+    set_pen_report(l, r);
 }
 
 static void selftest_ev_cb(struct ble_npl_event *ev)
@@ -981,8 +996,8 @@ static void selftest_ev_cb(struct ble_npl_event *ev)
         uint32_t k = s_selftest_n % SELFTEST_PEN_CYCLE;
         int place = (int)(s_selftest_n / SELFTEST_PEN_CYCLE % 7) - 3;
         s_selftest_n++;
-        float a = 2.0f * (float)M_PI * (float)k / SELFTEST_PEN_TURN;
         bool down = k < SELFTEST_PEN_TURN;
+        float a = 2.0f * (float)M_PI * (float)(down ? k : k - 1) / SELFTEST_PEN_TURN;   /* The tip lifts where it was */
         /* 2.44 cm across, 2.75 cm apart on the 20 x 11.25 cm digitizer, so circles on a 16:9 screen */
         host_pen_t p = {
             .tip = down,
@@ -990,8 +1005,8 @@ static void selftest_ev_cb(struct ble_npl_event *ev)
             .x = (uint16_t)(16384 + place * 4500 + 2000 * cosf(a)),
             .y = (uint16_t)(16384 + 3556 * sinf(a)),
             .pressure = down ? (uint16_t)(2048 - 1900 * cosf(2 * a)) : 0,
-            .tilt_x = (int8_t)(40 * cosf(a)),
-            .tilt_y = (int8_t)(40 * sinf(a)),
+            .tilt_x = (int16_t)(4000 * cosf(a)),   /* 40 degrees */
+            .tilt_y = (int16_t)(4000 * sinf(a)),
         };
         set_pen(l, &p);
         pump(l);

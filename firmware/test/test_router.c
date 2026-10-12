@@ -429,19 +429,20 @@ static void test_host_report(void)
 {
     hid_layout_t l;
     hid_layout_parse(HOST_REPORT_MAP, HOST_REPORT_MAP_LEN, &l);
-    CHECK(HOST_REPORT_MAP_LEN == 294 && !l.truncated, "host map is 294 bytes and fits (len=%zu)", HOST_REPORT_MAP_LEN);
+    CHECK(HOST_REPORT_MAP_LEN == 310 && !l.truncated, "host map is 310 bytes and fits (len=%zu)", HOST_REPORT_MAP_LEN);
     CHECK(hid_layout_report_bits(&l, HOST_RID_KEYBOARD) == HOST_KB_LEN * 8, "keyboard report 8 bytes");
     CHECK(hid_layout_report_bits(&l, HOST_RID_MOUSE) == HOST_MOUSE_LEN * 8, "mouse report 7 bytes");
     CHECK(hid_layout_report_bits(&l, HOST_RID_CONSUMER) == HOST_CONSUMER_LEN * 8, "consumer report 4 bytes");
     CHECK(hid_layout_report_bits(&l, HOST_RID_SYSTEM) == HOST_SYSTEM_LEN * 8, "system report 1 byte");
-    CHECK(hid_layout_report_bits(&l, HOST_RID_PEN) == HOST_PEN_LEN * 8, "pen report 9 bytes");
+    CHECK(hid_layout_report_bits(&l, HOST_RID_PEN) == HOST_PEN_LEN * 8, "pen report 11 bytes");
 
     /* Pen: tip down and in range at the center, half pressure, tilt clamped to 90 degrees */
-    host_pen_t pen = {.tip = true, .in_range = true, .x = 16384, .y = 40000, .pressure = 2048, .tilt_x = -100, .tilt_y = 30};
+    host_pen_t pen = {.tip = true, .in_range = true, .x = 16384, .y = 40000, .pressure = 2048, .tilt_x = -10000, .tilt_y = 3000};
     uint8_t pr[HOST_PEN_LEN];
     host_pen_report(&pen, pr);
     CHECK(pr[0] == 0x11 && pr[1] == 0x00 && pr[2] == 0x40 && pr[3] == 0xFF && pr[4] == 0x7F, "pen bits and position (y clamped)");
-    CHECK(pr[5] == 0x00 && pr[6] == 0x08 && (int8_t)pr[7] == -90 && pr[8] == 30, "pen pressure and tilt");
+    CHECK(pr[5] == 0x00 && pr[6] == 0x08, "pen pressure");
+    CHECK((int16_t)(pr[7] | pr[8] << 8) == -9000 && (int16_t)(pr[9] | pr[10] << 8) == 3000, "pen tilt in 0.01 degree");
 
     /* Keyboard: Shift + a + LANG1 (0x90). Round trip: decoding the built report with our Report Map gives the same keys */
     uint8_t keys[32] = {0};
