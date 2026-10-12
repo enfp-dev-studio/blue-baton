@@ -19,3 +19,8 @@ __pycache__/
 
 # Local only: originals before redaction, real address mapping (never pushed to the public repository)
 private/
+
+# Local secrets files (release secrets go to GitHub, never into the repository)
+.env
+*.env
+.env.*
