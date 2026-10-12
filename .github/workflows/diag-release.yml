@@ -1,0 +1,16 @@
+name: Diag release permission
+on:
+  workflow_dispatch:
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Create and delete a draft release with GITHUB_TOKEN
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh api repos/$GH_REPO/releases -X POST -f tag_name=diag-permission -f name=diag -F draft=true --jq .id > id.txt && echo "created $(cat id.txt)"
+          gh api repos/$GH_REPO/releases/$(cat id.txt) -X DELETE && echo deleted
