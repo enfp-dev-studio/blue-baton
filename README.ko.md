@@ -80,7 +80,7 @@ esptool --chip esp32s3 write-flash 0x20000 blue-baton-firmware-v0.7.1-esp32s3-ap
 | [firmware/main/](firmware/main/) | 펌웨어 (ESP-IDF v6.1, NimBLE). 입력 쪽 `ble_pair.c`, 리포트 해석 `hid_input.c`, 전환 `router.c`, 출력 쪽 `host.c` |
 | [firmware/PROTOCOL.md](firmware/PROTOCOL.md) | USB 제어 프로토콜 (한 줄에 JSON 하나, 영어) |
 | [app/](app/) | 메뉴 막대 앱 (Tauri): 보드 USB 포트를 맡고, 호스트를 빠르게 바꾸고, 설정 창을 띄우고, 들어 있는 펌웨어를 보드에 쓴다 |
-| [ui/](ui/) | 설정 화면 (React, Tailwind CSS, shadcn/ui. 브라우저에서도 Web Serial이나 개발용 브리지로 열린다). 브라우저 언어가 한국어면 한국어로 나온다 |
+| [ui/](ui/) | 설정 화면 (React, Tailwind CSS, shadcn/ui. 브라우저에서도 Web Serial이나 개발용 브리지로 열린다). 8개 언어, 시스템 언어를 따르거나 창에서 고른다 |
 | [firmware/tools/](firmware/tools/) | 릴리스 파일 `package.sh`, 개발용 브리지 `bridge.py`, 플래시 `flash.sh`, 보드 관찰 `watch.py` (연결, 지연 통계, 장시간 기록, 알림) |
 | [firmware/test/](firmware/test/) | 보드 없이 도는 시험: 펌웨어 C 시험. `run.sh`는 설정 화면 JS 시험(`ui/test/`)도 돌린다 |
 

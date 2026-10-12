@@ -86,7 +86,7 @@ updates the firmware and keeps pairings.
 | [firmware/main/](firmware/main/) | Firmware (ESP-IDF v6.1, NimBLE). Input side `ble_pair.c`, report decoding `hid_input.c`, switching `router.c`, host side `host.c` |
 | [firmware/PROTOCOL.md](firmware/PROTOCOL.md) | USB control protocol (one JSON object per line) |
 | [app/](app/) | Menu bar app (Tauri): owns the board's USB port, quick host switching, settings window, writes the bundled firmware to the board |
-| [ui/](ui/) | Settings UI (React, Tailwind CSS, shadcn/ui; also runs in a browser via Web Serial or the dev bridge). Korean when the browser language is Korean |
+| [ui/](ui/) | Settings UI (React, Tailwind CSS, shadcn/ui; also runs in a browser via Web Serial or the dev bridge). In eight languages, following the system or picked in the window |
 | [firmware/tools/](firmware/tools/) | Release files `package.sh`, dev bridge `bridge.py`, flash helper `flash.sh`, board watcher `watch.py` (connections, latency stats, soak log, alerts) |
 | [firmware/test/](firmware/test/) | Tests that run without the board: firmware C tests; `run.sh` also runs the UI's JS tests (`ui/test/`) |
 

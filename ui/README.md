@@ -18,7 +18,7 @@ pnpm install
 pnpm dev
 ```
 
-Open `http://localhost:5180/?mock` for the mock board (`&lang=ko` for Korean, `&fast` for 10 s scans).
+Open `http://localhost:5180/?mock` for the mock board (`&lang=ko` or another language code, `&fast` for 10 s scans, `&fw=0.8` to offer a firmware update, with `&blank` a board without Blue Baton).
 Inside the menu bar app (`pnpm tauri dev` in `../app`) the window loads this dev server and talks to the real board.
 
 ```bash
@@ -50,13 +50,17 @@ pnpm test
 | `src/lib/board/store.js` | UI state. Changes only through board replies and events |
 | `src/lib/board/inputs.js` | Input monitor (plain DOM: it updates dozens of times a second) |
 | `src/lib/board/hid/report-map.js` | HID Report Map parsing |
-| `src/lib/board/i18n.js` | UI strings (English and Korean) and language selection |
+| `src/lib/board/i18n.js`, `src/locales/` | Language selection and `t()` (i18next); one JSON file of strings per language |
 
 ## Language
 
-English by default, Korean as a second language: `?lang=en|ko`, otherwise a browser language starting with `ko`
-picks Korean. All strings are in `src/lib/board/i18n.js` (same keys per language, `t(key, params)`);
-`test/i18n.test.mjs` checks that keys and placeholders match.
+English, Korean, Japanese, Simplified and Traditional Chinese, Spanish, German and French. `?lang=<code>` wins; then
+the language picked at the bottom of the settings window (local storage, so every window of the app follows); then
+the first system language there is a file for; English otherwise. Strings are in `src/locales/<code>.json` (same keys
+in every file, `{name}` placeholders, `t(key, params)` with i18next); `test/i18n.test.mjs` checks that keys and
+placeholders match. To add a language, add its file and list it in `STRINGS` (`src/lib/board/i18n.js`), in
+`app/src-tauri/Info.plist` (`CFBundleLocalizations`) and in `app/src-tauri/tauri.conf.json` (NSIS `languages`).
+Corrections from native speakers are welcome.
 
 ## Known limitations
 
