@@ -10,8 +10,11 @@ set -e
 cd "$(dirname "$0")"
 PROFILE="${NOTARY_PROFILE:-blue-baton-notary}"
 export APPLE_SIGNING_IDENTITY="${APPLE_SIGNING_IDENTITY:-Developer ID Application}"
+# Update files (.app.tar.gz + .sig for the in-app updater) are signed with the Tauri update key, kept outside the repo
+KEY="${TAURI_UPDATE_KEY_FILE:-$HOME/.tauri/blue-baton-updater.key}"
+[ -f "$KEY" ] && export TAURI_SIGNING_PRIVATE_KEY="$(cat "$KEY")" TAURI_SIGNING_PRIVATE_KEY_PASSWORD="${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}"
 
-npm run build
+npm run build -- --config src-tauri/tauri.release.conf.json
 
 APP="src-tauri/target/release/bundle/macos/Blue Baton.app"
 VERSION=$(node -p "require('./package.json').version")

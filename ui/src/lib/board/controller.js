@@ -385,6 +385,11 @@ function trayModel(s) {
       inputs: t('devices.title'),
       no_inputs: t('tray.noInputs'),
       board_off: t('link.disconnected'),
+      check_updates: t('tray.checkUpdates'),
+      install_update: t('tray.installUpdate'),
+      update_ready: t('tray.updateReady'),
+      up_to_date: t('tray.upToDate'),
+      update_failed: t('tray.updateFailed'),
     },
   };
 }

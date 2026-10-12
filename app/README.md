@@ -42,9 +42,21 @@ npm run build
 The app is at `src-tauri/target/release/bundle/macos/Blue Baton.app`. `npm run dev` runs it against the UI dev
 server (`../ui`, port 5180) with live reload.
 
-Signed release for macOS (Developer ID, notarized and stapled): `./release-macos.sh`. It needs a "Developer ID
-Application" certificate in the keychain and notarytool credentials stored as `blue-baton-notary` (see the script).
-The Windows build is not signed.
+## Releases and updates
+
+The app updates itself from GitHub Releases (`tauri-plugin-updater`): it checks a minute after it starts and then
+once a day, and the menu has Check for Updates…. Update files are signed with the project's Tauri update key; the
+public key is in `src-tauri/tauri.conf.json`, the private key stays outside the repository.
+
+- Push a tag such as `v0.7.0`: `.github/workflows/release.yml` builds macOS (Apple silicon, signed and notarized),
+  Windows and Linux, and creates a draft release with `latest.json`. Repository secrets it needs:
+  `TAURI_SIGNING_PRIVATE_KEY` (and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` if the key has one), and for macOS
+  `APPLE_CERTIFICATE` (the Developer ID Application certificate exported as .p12, base64), `APPLE_CERTIFICATE_PASSWORD`,
+  `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD` (an app-specific password) and `APPLE_TEAM_ID`.
+- `.github/workflows/build.yml` (run by hand) is a test build for Windows and Linux.
+- On a Mac, `./release-macos.sh` builds, signs (Developer ID), notarizes and staples the app. It needs a "Developer
+  ID Application" certificate in the keychain and notarytool credentials stored as `blue-baton-notary` (see the
+  script). The Windows build is not signed.
 
 Icons: `npm run icons` writes `assets/icon.svg` and `assets/tray.svg` (`assets/make_icons.py`), rasterizes them with
 headless Chrome (`CHROME` overrides the path) into `assets/icon-1024.png` and the menu bar template icon, and

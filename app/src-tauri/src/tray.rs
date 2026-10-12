@@ -33,6 +33,7 @@ pub struct InputItem {
 }
 
 #[derive(Deserialize, Clone)]
+#[serde(default)]
 pub struct Labels {
     pub open: String,
     pub add_host: String,
@@ -44,6 +45,12 @@ pub struct Labels {
     pub inputs: String,
     pub no_inputs: String,
     pub board_off: String,
+    pub check_updates: String,
+    /// "{version}" is replaced
+    pub install_update: String,
+    pub update_ready: String,
+    pub up_to_date: String,
+    pub update_failed: String,
 }
 
 impl Default for Labels {
@@ -59,6 +66,11 @@ impl Default for Labels {
             inputs: "Input devices".into(),
             no_inputs: "No input device connected".into(),
             board_off: "Board not connected".into(),
+            check_updates: "Check for Updates…".into(),
+            install_update: "Install Update {version} and Restart".into(),
+            update_ready: "Blue Baton {version} is available".into(),
+            up_to_date: "Blue Baton is up to date".into(),
+            update_failed: "Couldn't update Blue Baton. Try again later".into(),
         }
     }
 }
@@ -159,6 +171,10 @@ fn build_menu(app: &AppHandle, model: &Model, dev_api_on: bool) -> tauri::Result
     menu.append(&CheckMenuItem::with_id(app, "autostart", &l.autostart, true, autostart, None::<&str>)?)?;
     menu.append(&CheckMenuItem::with_id(app, "devapi", &l.dev_api, true, dev_api_on, None::<&str>)?)?;
     menu.append(&PredefinedMenuItem::separator(app)?)?;
+    if let Some(version) = crate::updates::pending_version(app) {
+        menu.append(&MenuItem::with_id(app, "install-update", l.install_update.replace("{version}", &version), true, None::<&str>)?)?;
+    }
+    menu.append(&MenuItem::with_id(app, "check-updates", &l.check_updates, true, None::<&str>)?)?;
     menu.append(&MenuItem::with_id(app, "quit", &l.quit, true, None::<&str>)?)?;
     Ok(menu)
 }
@@ -176,6 +192,8 @@ fn on_menu(app: &AppHandle, id: &str) {
             crate::refresh_tray(app);
         }
         "devapi" => crate::toggle_dev_api(app),
+        "check-updates" => crate::updates::check_now(app),
+        "install-update" => crate::updates::install(app),
         "quit" => app.exit(0),
         _ => {
             if let Some(n) = id.strip_prefix("host-").and_then(|s| s.parse::<u8>().ok()) {

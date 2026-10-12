@@ -8,6 +8,7 @@
 
 mod board;
 mod devapi;
+mod updates;
 mod tray;
 
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -107,6 +108,11 @@ pub(crate) fn toggle_panel(app: &AppHandle) {
     let _ = p.set_focus();
 }
 
+/// Menu and notification labels in the UI language (sent with the tray model)
+pub(crate) fn tray_labels(app: &AppHandle) -> tray::Labels {
+    app.state::<AppState>().tray_model.lock().unwrap().labels.clone()
+}
+
 pub(crate) fn refresh_tray(app: &AppHandle) {
     let state = app.state::<AppState>();
     let model = state.tray_model.lock().unwrap().clone();
@@ -192,6 +198,7 @@ pub fn run() {
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec![HIDDEN_ARG])))
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_positioner::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             let handle = app.handle().clone();
             #[cfg(target_os = "macos")]
@@ -199,6 +206,7 @@ pub fn run() {
 
             let settings = load_settings(&handle);
             let board = board::Board::start(handle.clone());
+            app.manage(updates::Pending::default());
             app.manage(AppState {
                 board,
                 dev_api: Mutex::new(None),
@@ -209,6 +217,7 @@ pub fn run() {
                 set_dev_api(&handle, true);
             }
             tray::create(&handle, settings.dev_api)?;
+            updates::start(&handle);
 
             if let Some(w) = app.get_webview_window("main") {
                 let h = handle.clone();

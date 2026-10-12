@@ -62,5 +62,13 @@
     "macOS": {
       "minimumSystemVersion": "12.0"
     }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDU1NjZFMzUwMzQ3RkIzREUKUldUZXMzODBVT05tVlNFUVlMYm16d1VRS3FTMFV5aDJLTzcyUisySnJrT2cvQkhPZ3EwSnlQME4K",
+      "endpoints": [
+        "https://github.com/enfp-dev-studio/blue-baton/releases/latest/download/latest.json"
+      ]
+    }
   }
 }
