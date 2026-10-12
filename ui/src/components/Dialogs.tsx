@@ -233,6 +233,9 @@ export interface ConfirmRequest {
   title: string;
   body: string;
   action: () => void;
+  /* The button: Remove (destructive) unless given */
+  confirmText?: string;
+  destructive?: boolean;
 }
 
 export function ConfirmDialog({ req, onClose }: { req: ConfirmRequest | null; onClose: () => void }) {
@@ -246,14 +249,13 @@ export function ConfirmDialog({ req, onClose }: { req: ConfirmRequest | null; on
         <DialogFooter>
           <Button variant="ghost" onClick={onClose}>{t('common.cancel')}</Button>
           <Button
-            variant="destructive"
-           
+            variant={req?.destructive === false ? 'default' : 'destructive'}
             onClick={() => {
               req?.action();
               onClose();
             }}
           >
-            {t('common.remove')}
+            {req?.confirmText || t('common.remove')}
           </Button>
         </DialogFooter>
       </DialogContent>

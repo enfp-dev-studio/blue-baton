@@ -1,0 +1,2 @@
+# Release builds put the firmware image here (blue-baton-esp32s3.bin, see build.rs)
+*.bin

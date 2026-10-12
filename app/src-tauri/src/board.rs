@@ -41,7 +41,8 @@ const LOG_MAX: u64 = 1024 * 1024;
 
 #[derive(Clone, Serialize)]
 pub struct Status {
-    /// searching | busy | open | released
+    /// searching | busy | open | released | other (an ESP32-S3 port that does not answer as Blue Baton: a board
+    /// without our firmware, which the settings window offers to install)
     pub state: &'static str,
     pub port: Option<String>,
     pub released: bool,
@@ -250,7 +251,10 @@ impl Board {
                     continue;
                 }
                 Found::Nothing => {
-                    self.set_state("searching", None);
+                    match not_ours.keys().next().cloned() {
+                        Some(other) => self.set_state("other", Some(other)),
+                        None => self.set_state("searching", None),
+                    }
                     thread::sleep(Duration::from_secs(1));
                     continue;
                 }

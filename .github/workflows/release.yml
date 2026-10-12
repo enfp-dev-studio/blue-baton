@@ -1,8 +1,10 @@
-# Release: push a tag like v0.7.0. Builds macOS (Apple silicon, signed and notarized), Windows and Linux, signs the
-# update files with the Tauri update key, and creates a draft GitHub Release with latest.json for the in-app updater.
+# Release: push a tag like v0.7.1 (the same version as the app and firmware/main/version.h). Builds macOS (Apple
+# silicon, signed and notarized), Windows and Linux, signs the update files with the Tauri update key, builds the
+# firmware (also carried inside the app, which offers it to the board), and creates a draft GitHub Release with
+# latest.json for the in-app updater.
 # Repository secrets it needs are listed in app/README.md ("Releases and updates"). The signing identity comes from
 # the certificate itself.
-name: Release app
+name: Release
 
 on:
   push:
@@ -17,20 +19,46 @@ jobs:
     outputs:
       id: ${{ steps.release.outputs.id }}
     steps:
+      - uses: actions/checkout@v4
       - id: release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
           TAG: ${{ github.ref_name }}
         run: |
+          v=${TAG#v}
+          grep -q "\"version\": \"$v\"" app/src-tauri/tauri.conf.json || { echo "app/src-tauri/tauri.conf.json is not $v"; exit 1; }
+          grep -q "KM_FW_VERSION \"$v\"" firmware/main/version.h || { echo "firmware/main/version.h is not $v"; exit 1; }
           id=$(gh api repos/$GH_REPO/releases --jq ".[] | select(.tag_name == \"$TAG\") | .id" | head -1)
           if [ -z "$id" ]; then
             id=$(gh api repos/$GH_REPO/releases -X POST -f tag_name="$TAG" -f name="Blue Baton $TAG" -F draft=true --jq .id)
           fi
           echo "id=$id" >> "$GITHUB_OUTPUT"
 
-  release:
+  # Release firmware (diagnostics off) with the ESP-IDF version it is developed with
+  firmware:
     needs: create-release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: >
+          docker run --rm -v "$PWD:/project" -w /project espressif/idf:v6.1
+          bash -c "git config --global --add safe.directory '*' && firmware/tools/package.sh $GITHUB_REF_NAME dist"
+      - name: Upload to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "$GITHUB_REF_NAME" dist/*.bin --clobber --repo "$GITHUB_REPOSITORY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: blue-baton-firmware
+          path: dist/*.bin
+          if-no-files-found: error
+
+  release:
+    needs: [create-release, firmware]
     permissions:
       contents: write
     strategy:
@@ -46,6 +74,14 @@ jobs:
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Bundle the firmware with the app (app/src-tauri/build.rs)
+        uses: actions/download-artifact@v4
+        with:
+          name: blue-baton-firmware
+          path: dist
+      - shell: bash
+        run: cp dist/blue-baton-firmware-*-esp32s3.bin app/src-tauri/firmware/blue-baton-esp32s3.bin
 
       - name: Linux packages (WebKitGTK, tray, serial port)
         if: matrix.platform == 'ubuntu-22.04'

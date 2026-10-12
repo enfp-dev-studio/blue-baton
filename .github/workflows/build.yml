@@ -1,12 +1,27 @@
-# Test build of the app for Windows and Linux (run by hand from the Actions tab). The macOS app is built and
-# signed on a Mac (app/release-macos.sh) or by release.yml.
-name: Build app (Windows, Linux)
+# Test build of the app for Windows and Linux and of the release firmware (run by hand from the Actions tab). The
+# macOS app is built and signed on a Mac (app/release-macos.sh) or by release.yml.
+name: Build (app on Windows and Linux, firmware)
 
 on:
   workflow_dispatch:
 
 jobs:
+  firmware:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: >
+          docker run --rm -v "$PWD:/project" -w /project espressif/idf:v6.1
+          bash -c "git config --global --add safe.directory '*' && firmware/tools/package.sh test dist"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: blue-baton-firmware
+          path: dist/*.bin
+          if-no-files-found: error
+
   build:
+    needs: firmware
     strategy:
       fail-fast: false
       matrix:
@@ -14,6 +29,14 @@ jobs:
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Bundle the firmware with the app (app/src-tauri/build.rs)
+        uses: actions/download-artifact@v4
+        with:
+          name: blue-baton-firmware
+          path: dist
+      - shell: bash
+        run: cp dist/blue-baton-firmware-*-esp32s3.bin app/src-tauri/firmware/blue-baton-esp32s3.bin
 
       - name: Linux packages (WebKitGTK, tray, serial port)
         if: matrix.platform == 'ubuntu-22.04'

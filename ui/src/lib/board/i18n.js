@@ -282,6 +282,28 @@ const en = {
   'usage.playPause': 'Play/Pause',
   'usage.hWheel': 'Horizontal wheel',
   'usage.consumer': 'Consumer 0x{hex}',
+
+  /* ---- firmware that comes with the app ---- */
+  'fw.title': 'Firmware',
+  'fw.current': 'Version {version}',
+  'fw.upToDate': 'Up to date',
+  'fw.updateAvailable': '{version} available',
+  'fw.update': 'Update',
+  'fw.updateConfirmTitle': 'Update the firmware to version {version}?',
+  'fw.updateConfirmBody': 'The board restarts, so keyboard and mouse input stops for a moment. Pairings stay as they are.',
+  'fw.newer': 'Newer than this app ({version}). Update the app to match.',
+  'fw.otherTitle': "This board doesn't run Blue Baton yet",
+  'fw.otherHint': 'Install Blue Baton version {version} on it. Whatever is on the board now is erased.',
+  'fw.install': 'Install Blue Baton',
+  'fw.installConfirmTitle': 'Install Blue Baton version {version}?',
+  'fw.installConfirmBody': 'Everything on this board is erased, including anything another program put there.',
+  'fw.writingTitle': 'Writing firmware',
+  'fw.connecting': 'Connecting to the board…',
+  'fw.writing': 'Writing… {percent}%',
+  'fw.keepPlugged': 'Keep the board plugged in.',
+  'fw.failed': 'The firmware could not be written: {error}',
+  'fw.failedHint': 'Unplug the board, plug it back in, and try again. If it still fails, hold the BOOT button while plugging it in.',
+  'fw.done': 'Firmware written. The board is restarting.',
 };
 
 const ko = {
@@ -557,6 +579,28 @@ const ko = {
   'usage.playPause': '재생/정지',
   'usage.hWheel': '가로 휠',
   'usage.consumer': '소비자 0x{hex}',
+
+  /* ---- firmware that comes with the app ---- */
+  'fw.title': '펌웨어',
+  'fw.current': '버전 {version}',
+  'fw.upToDate': '최신',
+  'fw.updateAvailable': '{version} 설치 가능',
+  'fw.update': '업데이트',
+  'fw.updateConfirmTitle': '펌웨어를 {version} 버전으로 업데이트할까요?',
+  'fw.updateConfirmBody': '보드가 다시 시작해서 잠시 키보드와 마우스 입력이 멈춰요. 페어링은 그대로 남아요.',
+  'fw.newer': '이 앱({version})보다 새 버전이에요. 앱을 업데이트해 주세요.',
+  'fw.otherTitle': '이 보드에는 아직 블루 바톤이 없어요',
+  'fw.otherHint': '블루 바톤 {version} 버전을 설치합니다. 지금 보드에 있는 것은 모두 지워져요.',
+  'fw.install': '블루 바톤 설치',
+  'fw.installConfirmTitle': '블루 바톤 {version} 버전을 설치할까요?',
+  'fw.installConfirmBody': '이 보드에 있는 것이 모두 지워져요. 다른 프로그램이 넣어 둔 것도 지워져요.',
+  'fw.writingTitle': '펌웨어를 쓰는 중',
+  'fw.connecting': '보드에 연결하는 중…',
+  'fw.writing': '쓰는 중… {percent}%',
+  'fw.keepPlugged': '보드를 빼지 마세요.',
+  'fw.failed': '펌웨어를 쓰지 못했어요: {error}',
+  'fw.failedHint': '보드를 뺐다가 다시 꽂고 다시 해 보세요. 그래도 안 되면 BOOT 버튼을 누른 채로 꽂아 보세요.',
+  'fw.done': '펌웨어를 썼어요. 보드가 다시 시작해요.',
 };
 
 export const STRINGS = { en, ko };

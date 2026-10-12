@@ -9,6 +9,7 @@
 
 mod board;
 mod devapi;
+mod firmware;
 mod updates;
 mod tray;
 
@@ -166,6 +167,19 @@ fn board_send(state: tauri::State<AppState>, line: String) -> Result<(), String>
     state.board.send(&line).map_err(|e| e.to_string())
 }
 
+/// The firmware version this app carries (None in a development build without one)
+#[tauri::command]
+fn firmware_bundled() -> Option<&'static str> {
+    firmware::bundled_version()
+}
+
+/// Write the bundled firmware to the board: update keeps pairings, install clears them. Progress comes as
+/// `firmware-progress` events
+#[tauri::command]
+fn firmware_write(app: AppHandle, state: tauri::State<AppState>, keep_pairings: bool) -> Result<(), String> {
+    firmware::start(app, state.board.clone(), keep_pairings)
+}
+
 #[tauri::command]
 fn tray_update(app: AppHandle, state: tauri::State<AppState>, model: tray::Model) {
     *state.tray_model.lock().unwrap() = model;
@@ -244,7 +258,8 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            board_status, board_send, tray_update, window_show, panel_hide, app_quit, notify
+            board_status, board_send, firmware_bundled, firmware_write, tray_update, window_show, panel_hide, app_quit,
+            notify
         ])
         .build(tauri::generate_context!())
         .expect("error while building Blue Baton")

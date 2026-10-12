@@ -206,6 +206,29 @@ export function createController(params = new URLSearchParams(location.search), 
         if (inApp || useBridge) reconnectSoon();
       }
     },
+    /* Write the app's firmware to the board: update (keeps pairings) or install (clears the board) */
+    async writeFirmware(keepPairings) {
+      store.set({ fwJob: { stage: 'connecting', percent: 0 } });
+      if (app) {
+        try {
+          await app.core.invoke('firmware_write', { keepPairings });
+        } catch (e) {
+          store.set({ fwJob: { stage: 'failed', percent: 0, error: String(e) } });
+        }
+        return;
+      }
+      for (let p = 0; p <= 100; p += 20) {
+        await new Promise((r) => setTimeout(r, 200));
+        store.set({ fwJob: { stage: 'writing', percent: p } });
+      }
+      store.set({ fwJob: null, appBoard: 'open' });
+      store.notice('info', t('fw.done'));
+      if (store.state.link === 'disconnected') await actions.connect();
+      else store.set({ fw: store.state.fwBundled });
+    },
+    dismissFirmware() {
+      store.set({ fwJob: null });
+    },
     async disconnectLink() {
       await transport.close();
       store.notice('info', t('notice.released'));
@@ -335,8 +358,24 @@ export function createController(params = new URLSearchParams(location.search), 
     });
   }
 
+  /* ---- Firmware that comes with the app (app/src-tauri/src/firmware.rs). The mock board fakes it (?mock&fw=0.8) ---- */
+
+  if (app && isMain) {
+    app.core.invoke('firmware_bundled').then((v) => store.set({ fwBundled: v || null })).catch(() => {});
+    app.core.invoke('board_status').then((st) => store.set({ appBoard: st.state })).catch(() => {});
+    app.event.listen('board-state', (e) => store.set({ appBoard: e.payload?.state || '' }));
+    app.event.listen('firmware-progress', (e) => {
+      const job = e.payload || {};
+      store.set({ fwJob: job.stage === 'done' ? null : job });
+      if (job.stage === 'done') store.notice('info', t('fw.done'));
+    });
+  } else if (useMock && params.has('fw')) {
+    store.set({ fwBundled: params.get('fw'), appBoard: params.has('blank') ? 'other' : 'open' });
+  }
+
   /* First load: the app, mock board, and bridge connect right away; USB connects without the picker if a port was allowed before */
   (async () => {
+    if (useMock && store.state.appBoard === 'other') return; /* waits for the firmware to be installed */
     if (inApp || useMock || useBridge) {
       await actions.connect();
       return;

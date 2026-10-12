@@ -52,6 +52,9 @@ export interface BoardState {
   link: 'disconnected' | 'connecting' | 'connected';
   transport: string;
   fw: string | null;
+  fwBundled: string | null;
+  appBoard: string;
+  fwJob: { stage: 'connecting' | 'writing' | 'done' | 'failed'; percent: number; error?: string | null } | null;
   radio: string;
   scanning: boolean;
   scanPending?: boolean;
@@ -96,6 +99,8 @@ export interface Actions {
   removeDevice(d: Device): Promise<void>;
   accept(yes: boolean): Promise<void>;
   passkey(code: string): Promise<void>;
+  writeFirmware(keepPairings: boolean): Promise<void>;
+  dismissFirmware(): void;
 }
 
 export interface Controller {
