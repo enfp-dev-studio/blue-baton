@@ -1,8 +1,8 @@
 #!/bin/sh
 # Registers the repository secrets that .github/workflows/release.yml needs, in one go (GitHub CLI, logged in).
 #   app/set-release-secrets.sh [owner/repo]
-# Reads from this Mac: the Tauri update key (~/.tauri/blue-baton-updater.key), the Developer ID identity name and
-# team ID (keychain). Asks for: the Developer ID .p12 exported from Keychain Access and its password, the Apple ID,
+# Reads from this Mac: the Tauri update key (~/.tauri/blue-baton-updater.key) and the team ID of the Developer ID
+# certificate (keychain). Asks for: the Developer ID .p12 exported from Keychain Access and its password, the Apple ID,
 # and an app-specific password. Values go to gh through stdin; nothing is written to disk.
 set -e
 REPO="${1:-enfp-dev-studio/blue-baton}"
@@ -28,7 +28,6 @@ put() { printf '%s' "$2" | gh secret set "$1" --repo "$REPO" >/dev/null && echo 
 put TAURI_SIGNING_PRIVATE_KEY "$(tr -d '\n' < "$KEY")"
 put APPLE_CERTIFICATE "$(base64 -i "$P12" | tr -d '\n')"
 put APPLE_CERTIFICATE_PASSWORD "$P12_PASS"
-put APPLE_SIGNING_IDENTITY "$IDENTITY"
 put APPLE_ID "$APPLE_ID"
 put APPLE_PASSWORD "$APP_PASS"
 put APPLE_TEAM_ID "$TEAM"

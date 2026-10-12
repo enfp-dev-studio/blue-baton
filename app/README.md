@@ -49,7 +49,7 @@ public key is in `src-tauri/tauri.conf.json`, the private key stays outside the 
   Windows and Linux, and creates a draft release with `latest.json`. Repository secrets it needs:
   `TAURI_SIGNING_PRIVATE_KEY` (and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` if the key has one), and for macOS
   `APPLE_CERTIFICATE` (the Developer ID Application certificate exported as .p12, base64), `APPLE_CERTIFICATE_PASSWORD`,
-  `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD` (an app-specific password) and `APPLE_TEAM_ID`.
+  `APPLE_ID`, `APPLE_PASSWORD` (an app-specific password) and `APPLE_TEAM_ID`.
   `./set-release-secrets.sh` sets all of them in one go (it asks for the .p12, its password, the Apple ID and an
   app-specific password, and reads the rest from this Mac).
 - `.github/workflows/build.yml` (run by hand) is a test build for Windows and Linux.

@@ -1,6 +1,7 @@
 # Release: push a tag like v0.7.0. Builds macOS (Apple silicon, signed and notarized), Windows and Linux, signs the
 # update files with the Tauri update key, and creates a draft GitHub Release with latest.json for the in-app updater.
-# Repository secrets it needs are listed in app/README.md ("Releases").
+# Repository secrets it needs are listed in app/README.md ("Releases and updates"). The signing identity comes from
+# the certificate itself.
 name: Release app
 
 on:
@@ -8,7 +9,28 @@ on:
     tags: ['v*']
 
 jobs:
+  # One draft release first; the builds below only upload to it (no race between them creating it)
+  create-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      id: ${{ steps.release.outputs.id }}
+    steps:
+      - id: release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          id=$(gh api repos/$GH_REPO/releases --jq ".[] | select(.tag_name == \"$TAG\") | .id" | head -1)
+          if [ -z "$id" ]; then
+            id=$(gh api repos/$GH_REPO/releases -X POST -f tag_name="$TAG" -f name="Blue Baton $TAG" -F draft=true --jq .id)
+          fi
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+
   release:
+    needs: create-release
     permissions:
       contents: write
     strategy:
@@ -56,15 +78,12 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
           projectPath: app
           tauriScript: pnpm tauri
-          tagName: ${{ github.ref_name }}
-          releaseName: Blue Baton ${{ github.ref_name }}
-          releaseDraft: true
+          releaseId: ${{ needs.create-release.outputs.id }}
           includeUpdaterJson: true
           args: ${{ matrix.args }} --config src-tauri/tauri.release.conf.json
