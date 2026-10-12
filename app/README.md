@@ -1,6 +1,6 @@
 # Blue Baton menu bar app (app/)
 
-A small menu bar app built with [Tauri 2](https://tauri.app). Only the macOS build has been made; the code also has a Windows tray path, not built yet.
+A small menu bar app built with [Tauri 2](https://tauri.app), for macOS, Windows and Linux. The macOS build is tested on hardware; the Windows and Linux builds are built by CI and not yet tested.
 
 - Lives in the menu bar only, never in the Dock (LSUIElement), like Google Drive.
 - Left click on the icon opens a panel under it: the paired hosts (click to switch, the baton slides), the
@@ -13,6 +13,10 @@ A small menu bar app built with [Tauri 2](https://tauri.app). Only the macOS bui
 - The app owns the board's USB serial port (`src-tauri/src/board.rs`) and reconnects after an unplug. It looks
   for USB ID 0x303A:0x1001, which every ESP32-S3/C3 board shares, and takes a port only once it answers `hello` as
   Blue Baton firmware; a port that does not is left alone for a minute.
+- Firmware (`src-tauri/src/firmware.rs`): a release build carries the firmware of the same version. When the board
+  runs an older one, the settings window offers an update that keeps the pairings (it rewrites the bootloader,
+  partition table and app, not the pairing store). A board that does not answer as Blue Baton is offered an
+  install of the whole image. The writing is done with espflash while the board link lets go of the port.
 - No PIN: like other USB accessories, the board trusts the computer it is plugged into. It sends what is typed only
   while the input monitor in Diagnostics is open (`firmware/PROTOCOL.md`, "Access and input content").
 - Pairing prompts (host passkey, device codes) bring the window forward and post a notification.
@@ -52,7 +56,12 @@ public key is in `src-tauri/tauri.conf.json`, the private key stays outside the 
   `APPLE_ID`, `APPLE_PASSWORD` (an app-specific password) and `APPLE_TEAM_ID`.
   `./set-release-secrets.sh` sets all of them in one go (it asks for the .p12, its password, the Apple ID and an
   app-specific password, and reads the rest from this Mac).
-- `.github/workflows/build.yml` (run by hand) is a test build for Windows and Linux.
+- The release also builds the firmware (`firmware/tools/package.sh` in the `espressif/idf:v6.1` container), uploads
+  it, and puts it inside each app build: `src-tauri/build.rs` bundles `src-tauri/firmware/blue-baton-esp32s3.bin` when
+  it is there, with its version from `firmware/main/version.h`. The tag must match the app and firmware versions.
+  For a local build with firmware, run `firmware/tools/package.sh <version> <dir>` and copy the whole image
+  (`*-esp32s3.bin`) to that path; without it the app builds as before, with no firmware to offer.
+- `.github/workflows/build.yml` (run by hand) is a test build of the firmware and of the app for Windows and Linux.
 - On a Mac, `./release-macos.sh` builds, signs (Developer ID), notarizes and staples the app. It needs a "Developer
   ID Application" certificate in the keychain and notarytool credentials stored as `blue-baton-notary` (see the
   script). The Windows build is not signed.
@@ -60,8 +69,3 @@ public key is in `src-tauri/tauri.conf.json`, the private key stays outside the 
 Icons: `pnpm icons` writes `assets/icon.svg` and `assets/tray.svg` (`assets/make_icons.py`), rasterizes them with
 headless Chrome (`CHROME` overrides the path) into `assets/icon-1024.png` and the menu bar template icon, and
 regenerates the platform icon sizes. The mark is a hollow relay baton passed at speed.
-
-## Distribution (later)
-
-Personal builds run unsigned. For distribution, macOS needs a Developer ID Application certificate and
-notarization, and Windows an Authenticode certificate.
