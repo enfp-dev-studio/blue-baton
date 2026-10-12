@@ -11,22 +11,22 @@ JavaScript in `src/lib/board/` (no React), so it is tested with Node and reused 
 ## Develop
 
 ```bash
-npm install
+pnpm install
 ```
 
 ```bash
-npm run dev
+pnpm dev
 ```
 
 Open `http://localhost:5180/?mock` for the mock board (`&lang=ko` for Korean, `&fast` for 10 s scans).
-Inside the menu bar app (`npm run dev` in `../app`) the window loads this dev server and talks to the real board.
+Inside the menu bar app (`pnpm tauri dev` in `../app`) the window loads this dev server and talks to the real board.
 
 ```bash
-npm run build
+pnpm build
 ```
 
 ```bash
-npm test
+pnpm test
 ```
 
 ## Transports

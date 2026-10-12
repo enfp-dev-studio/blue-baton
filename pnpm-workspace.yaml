@@ -1,0 +1,7 @@
+packages:
+  - ui
+  - app
+
+# The shadcn CLI (a dev dependency of ui) pulls express through the MCP SDK; keep it on the fixed release
+overrides:
+  express: 5.2.1

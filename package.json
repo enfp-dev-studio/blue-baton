@@ -1,0 +1,6 @@
+{
+  "name": "blue-baton",
+  "private": true,
+  "description": "Workspace for the settings UI (ui/) and the menu bar app (app/). Firmware is in firmware/ (ESP-IDF)",
+  "packageManager": "pnpm@12.3.4"
+}

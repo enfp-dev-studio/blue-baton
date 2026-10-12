@@ -14,7 +14,7 @@ export APPLE_SIGNING_IDENTITY="${APPLE_SIGNING_IDENTITY:-Developer ID Applicatio
 KEY="${TAURI_UPDATE_KEY_FILE:-$HOME/.tauri/blue-baton-updater.key}"
 [ -f "$KEY" ] && export TAURI_SIGNING_PRIVATE_KEY="$(cat "$KEY")" TAURI_SIGNING_PRIVATE_KEY_PASSWORD="${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}"
 
-npm run build -- --config src-tauri/tauri.release.conf.json
+pnpm tauri build --config src-tauri/tauri.release.conf.json
 
 APP="src-tauri/target/release/bundle/macos/Blue Baton.app"
 VERSION=$(node -p "require('./package.json').version")

@@ -25,21 +25,18 @@ A small menu bar app built with [Tauri 2](https://tauri.app). Only the macOS bui
 
 ## Build
 
-Needs Rust (rustup) and Node. `npm run build` also builds the UI, so install the packages here and in `../ui`.
+Needs Rust (rustup), Node and pnpm. The repository is one pnpm workspace (`ui`, `app`): install once at the top, then
+build here (it builds the UI too).
 
 ```bash
-npm install
+pnpm install
 ```
 
 ```bash
-npm --prefix ../ui install
+pnpm tauri build
 ```
 
-```bash
-npm run build
-```
-
-The app is at `src-tauri/target/release/bundle/macos/Blue Baton.app`. `npm run dev` runs it against the UI dev
+The app is at `src-tauri/target/release/bundle/macos/Blue Baton.app`. `pnpm tauri dev` runs it against the UI dev
 server (`../ui`, port 5180) with live reload.
 
 ## Releases and updates
@@ -60,7 +57,7 @@ public key is in `src-tauri/tauri.conf.json`, the private key stays outside the 
   ID Application" certificate in the keychain and notarytool credentials stored as `blue-baton-notary` (see the
   script). The Windows build is not signed.
 
-Icons: `npm run icons` writes `assets/icon.svg` and `assets/tray.svg` (`assets/make_icons.py`), rasterizes them with
+Icons: `pnpm icons` writes `assets/icon.svg` and `assets/tray.svg` (`assets/make_icons.py`), rasterizes them with
 headless Chrome (`CHROME` overrides the path) into `assets/icon-1024.png` and the menu bar template icon, and
 regenerates the platform icon sizes. The mark is a hollow relay baton passed at speed.
 

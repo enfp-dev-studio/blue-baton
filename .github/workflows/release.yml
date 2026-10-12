@@ -31,9 +31,12 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf libudev-dev pkg-config
 
+      - uses: pnpm/action-setup@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: pnpm
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -44,9 +47,7 @@ jobs:
           workspaces: app/src-tauri -> target
 
       - name: Install packages
-        run: |
-          npm ci --prefix ui
-          npm ci --prefix app
+        run: pnpm install --frozen-lockfile
 
       - uses: tauri-apps/tauri-action@v0
         env:
@@ -61,6 +62,7 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
           projectPath: app
+          tauriScript: pnpm tauri
           tagName: ${{ github.ref_name }}
           releaseName: Blue Baton ${{ github.ref_name }}
           releaseDraft: true
