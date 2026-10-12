@@ -123,10 +123,18 @@ def stats(n):
 ACK_EDGES = ['<15', '15-30', '30-45', '45-60', '60-90', '90-150', '150-300', '300+']
 
 
+def send_or_skip(cmd):
+    """send, but while the board is away (a flash holds the port: the bridge answers 409) only this one is skipped"""
+    try:
+        send(cmd)
+    except OSError:
+        pass
+
+
 def stats_replies(period):
     """Every period seconds, send stats and yield its reply (the first read resets the counters)"""
     rid = int(time.time()) % 100000 + 700000
-    send({'id': rid, 'cmd': 'stats'})
+    send_or_skip({'id': rid, 'cmd': 'stats'})
     stream = events()
     deadline = time.time() + period
     want = None
@@ -138,7 +146,7 @@ def stats_replies(period):
         if time.time() >= deadline:
             rid += 1
             want = rid
-            send({'id': rid, 'cmd': 'stats'})
+            send_or_skip({'id': rid, 'cmd': 'stats'})
             deadline = time.time() + period
 
 
