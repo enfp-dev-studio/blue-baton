@@ -2,19 +2,12 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "esp_check.h"
-#include "esp_log.h"
-#include "esp_random.h"
-#include "esp_timer.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/semphr.h"
-#include "freertos/task.h"
 
 #include "nimble/nimble_port.h"
-#include "nimble/nimble_port_freertos.h"
 #include "host/ble_gap.h"
 #include "host/ble_gatt.h"
 #include "host/ble_hs.h"
+#include "host/ble_hs_hci.h"
 #include "host/ble_hs_id.h"
 #include "host/ble_sm.h"
 #include "host/ble_store.h"
@@ -28,6 +21,7 @@
 #include "gap_name.h"
 #include "host.h"
 #include "hid_map.h"
+#include "platform.h"
 #include "json_mini.h"
 #include "router.h"
 
@@ -77,7 +71,7 @@ typedef struct {
     int8_t rssi;
     bool hid;                /* The advertisement or scan response had the HID UUID or an HID appearance */
     bool announced;          /* The device_found event was sent */
-    TickType_t seen;
+    ble_npl_time_t seen;
 } found_dev_t;
 
 typedef enum { PS_CONNECTED, PS_SECURING, PS_DISCOVERING, PS_READY } peer_state_t;
@@ -131,7 +125,7 @@ typedef struct {
     uint8_t rep_count;
     uint8_t kinds;
     uint16_t mtu;            /* ATT MTU agreed at the start of discovery */
-    int64_t activity_us;     /* Last activity event (esp_timer time) */
+    int64_t activity_us;     /* Last activity event (plat_now_us) */
     bool led_written;        /* led_last reached the device */
     uint8_t led_last;        /* Host LED byte last written to the device's LED output report */
     bool att_busy;           /* A request (read, write with response) is waiting for its response */
@@ -170,7 +164,6 @@ static void radio_update(void);
 static void disc_next(peer_t *p);
 
 /* NimBLE bond store init. There is no public header, so declare it directly as the ESP-IDF example (blecent) does */
-void ble_store_config_init(void);
 
 static void emit(const char *json)
 {
@@ -409,13 +402,13 @@ static found_dev_t *found_by_val(const uint8_t val[6])
 /* If no slot is free, evict the device seen longest ago */
 static found_dev_t *found_alloc(void)
 {
-    TickType_t now = xTaskGetTickCount();
+    ble_npl_time_t now = ble_npl_time_get();
     found_dev_t *oldest = &s_found[0];
     for (int i = 0; i < FOUND_MAX; i++) {
         if (!s_found[i].used) {
             return &s_found[i];
         }
-        if ((TickType_t)(now - s_found[i].seen) > (TickType_t)(now - oldest->seen)) {
+        if ((ble_npl_time_t)(now - s_found[i].seen) > (ble_npl_time_t)(now - oldest->seen)) {
             oldest = &s_found[i];
         }
     }
@@ -461,7 +454,7 @@ static void note_adv(const struct ble_gap_disc_desc *d)
     }
     bool changed = false;
     e->rssi = d->rssi;
-    e->seen = xTaskGetTickCount();
+    e->seen = ble_npl_time_get();
     if (f.name_len > 0 && (f.name_is_complete || e->name[0] == '\0')) {
         char name[sizeof(e->name)];
         size_t n = f.name_len < sizeof(name) - 1 ? f.name_len : sizeof(name) - 1;
@@ -793,7 +786,7 @@ static void auto_retry_cb(struct ble_npl_event *ev)
 /* A device dropped (or the board started): listen fast for AUTO_FAST_MS */
 static void auto_fast(void)
 {
-    s_auto_fast_until_us = esp_timer_get_time() + (int64_t)AUTO_FAST_MS * 1000;
+    s_auto_fast_until_us = plat_now_us() + (int64_t)AUTO_FAST_MS * 1000;
 }
 
 /* Put bonded devices in the accept list and wait. Connects to whichever listed device advertises first (any advertising type) */
@@ -804,7 +797,7 @@ static void radio_start_auto(void)
     if (n == 0) {
         return;
     }
-    int64_t fast_left_us = s_auto_fast_until_us - esp_timer_get_time();
+    int64_t fast_left_us = s_auto_fast_until_us - plat_now_us();
     bool fast = fast_left_us > 0;
     int rc = ble_gap_wl_set(list, n);
     if (rc == 0) {
@@ -927,29 +920,28 @@ static void meta_update(peer_t *p, const char *name, bool name_is_gatt, bool tou
  * may read keystrokes (macOS: Input Monitoring). Otherwise only "activity" goes out: which device, no content,
  * at most every ACTIVITY_MS.
  */
-static portMUX_TYPE s_monitor_lock = portMUX_INITIALIZER_UNLOCKED;
-static int64_t s_monitor_until;      /* esp_timer time. Written by the USB task, read by the host task */
+static int64_t s_monitor_until;      /* plat_now_us time. Written by the USB task, read by the host task */
 
 uint32_t ble_pair_monitor(bool on)
 {
-    int64_t until = on ? esp_timer_get_time() + (int64_t)MONITOR_LEASE_MS * 1000 : 0;
-    taskENTER_CRITICAL(&s_monitor_lock);
+    int64_t until = on ? plat_now_us() + (int64_t)MONITOR_LEASE_MS * 1000 : 0;
+    uint32_t ctx = ble_npl_hw_enter_critical();
     s_monitor_until = until;
-    taskEXIT_CRITICAL(&s_monitor_lock);
+    ble_npl_hw_exit_critical(ctx);
     return on ? MONITOR_LEASE_MS : 0;
 }
 
 static bool monitor_on(void)
 {
-    taskENTER_CRITICAL(&s_monitor_lock);
+    uint32_t ctx = ble_npl_hw_enter_critical();
     int64_t until = s_monitor_until;
-    taskEXIT_CRITICAL(&s_monitor_lock);
-    return esp_timer_get_time() < until;
+    ble_npl_hw_exit_critical(ctx);
+    return plat_now_us() < until;
 }
 
 static void emit_activity(peer_t *p)
 {
-    int64_t now = esp_timer_get_time();
+    int64_t now = plat_now_us();
     if (p->activity_us && now - p->activity_us < (int64_t)ACTIVITY_MS * 1000) {
         return;
     }
@@ -1187,7 +1179,7 @@ static void route_out(const router_out_t *out, int switched_from)
         /* Kept across restarts (power, firmware update). Saved after the reports, since a flash write holds up this task */
         esp_err_t err = cfg_active_host_set(router_active_host());
         if (err != ESP_OK) {
-            ESP_LOGW(TAG, "active host save failed: %s", esp_err_to_name(err));
+            ESP_LOGW(TAG, "active host save failed: %d", err);
         }
     }
 }
@@ -1729,7 +1721,9 @@ static void on_passkey_action(struct ble_gap_event *event)
         snprintf(buf, sizeof(buf), "{\"event\":\"passkey_request\",\"addr\":\"%s\"}", p->addr_str);
         emit(buf);
     } else if (action == BLE_SM_IOACT_DISP) {
-        struct ble_sm_io io = {.action = BLE_SM_IOACT_DISP, .passkey = esp_random() % 1000000};
+        uint32_t rnd = 0;
+        ble_hs_hci_util_rand(&rnd, sizeof(rnd));   /* The controller's random numbers (HCI LE Rand) */
+        struct ble_sm_io io = {.action = BLE_SM_IOACT_DISP, .passkey = rnd % 1000000};
         int rc = ble_sm_inject_io(p->conn, &io);
         snprintf(buf, sizeof(buf), "{\"event\":\"passkey_display\",\"addr\":\"%s\",\"code\":\"%06lu\",\"ok\":%s}",
                  p->addr_str, (unsigned long)io.passkey, rc == 0 ? "true" : "false");
@@ -2045,12 +2039,6 @@ static void on_reset(int reason)
     emit("{\"event\":\"ble_reset\"}");
 }
 
-static void host_task(void *param)
-{
-    nimble_port_run();
-    nimble_port_freertos_deinit();
-}
-
 /* ---------- Run requests from other tasks on the host task ---------- */
 
 typedef enum {
@@ -2076,8 +2064,9 @@ typedef struct {
     esp_err_t result;
 } req_t;
 
-static SemaphoreHandle_t s_req_lock;
-static SemaphoreHandle_t s_req_done;
+static struct ble_npl_mutex s_req_lock;   /* One request at a time */
+static struct ble_npl_sem s_req_done;     /* Released by the host task when the request has run */
+static bool s_req_ready;
 static struct ble_npl_event s_req_ev;
 static req_t *s_req;
 
@@ -2483,20 +2472,20 @@ static esp_err_t op_dispatch(req_t *r)
 static void req_run(struct ble_npl_event *ev)
 {
     s_req->result = op_dispatch(s_req);
-    xSemaphoreGive(s_req_done);
+    ble_npl_sem_release(&s_req_done);
 }
 
 static esp_err_t host_call(req_t *r)
 {
-    if (!s_req_lock) {
+    if (!s_req_ready) {
         return ESP_ERR_INVALID_STATE;
     }
-    xSemaphoreTake(s_req_lock, portMAX_DELAY);
+    ble_npl_mutex_pend(&s_req_lock, BLE_NPL_TIME_FOREVER);
     s_req = r;
     ble_npl_eventq_put(nimble_port_get_dflt_eventq(), &s_req_ev);
-    xSemaphoreTake(s_req_done, portMAX_DELAY);
+    ble_npl_sem_pend(&s_req_done, BLE_NPL_TIME_FOREVER);
     s_req = NULL;
-    xSemaphoreGive(s_req_lock);
+    ble_npl_mutex_release(&s_req_lock);
     return r->result;
 }
 
@@ -2505,12 +2494,14 @@ static esp_err_t host_call(req_t *r)
 esp_err_t ble_pair_init(ble_pair_event_fn event)
 {
     s_emit = event;
-    s_req_lock = xSemaphoreCreateMutex();
-    s_req_done = xSemaphoreCreateBinary();
-    if (!s_req_lock || !s_req_done) {
+    esp_err_t err = plat_ble_init();
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "nimble init failed: %d", err);
+        return err;
+    }
+    if (ble_npl_mutex_init(&s_req_lock) != BLE_NPL_OK || ble_npl_sem_init(&s_req_done, 0) != BLE_NPL_OK) {
         return ESP_ERR_NO_MEM;
     }
-    ESP_RETURN_ON_ERROR(nimble_port_init(), TAG, "nimble init failed");
     ble_npl_event_init(&s_req_ev, req_run, NULL);
     ble_npl_callout_init(&s_sec_retry, nimble_port_get_dflt_eventq(), sec_retry_cb, NULL);
     ble_npl_callout_init(&s_auto_retry, nimble_port_get_dflt_eventq(), auto_retry_cb, NULL);
@@ -2533,8 +2524,11 @@ esp_err_t ble_pair_init(ble_pair_event_fn event)
     ble_hs_cfg.sm_our_key_dist = BLE_SM_PAIR_KEY_DIST_ENC;
     ble_hs_cfg.sm_their_key_dist = BLE_SM_PAIR_KEY_DIST_ENC | BLE_SM_PAIR_KEY_DIST_ID;
     ble_hs_cfg.store_status_cb = on_store_status;
-    ble_store_config_init();
-    ESP_RETURN_ON_ERROR(host_init(event), TAG, "host gatt init failed");
+    err = host_init(event);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "host gatt init failed: %d", err);
+        return err;
+    }
 
     /* Router: the host task has not started yet, so configuring it directly here is safe */
     router_init();
@@ -2546,7 +2540,8 @@ esp_err_t ble_pair_init(ble_pair_event_fn event)
         apply_combos(NULL);
     }
 
-    nimble_port_freertos_init(host_task);
+    s_req_ready = true;
+    plat_ble_start();   /* Bond store, then the NimBLE host task */
     return ESP_OK;
 }
 

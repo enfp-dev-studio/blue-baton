@@ -1,9 +1,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "esp_check.h"
-#include "esp_log.h"
-#include "esp_timer.h"
 
 #include "nimble/nimble_port.h"
 #include "host/ble_gap.h"
@@ -21,6 +18,7 @@
 #include "gap_name.h"
 #include "ble_pair.h"
 #include "host.h"
+#include "platform.h"
 #include "host_report.h"
 #include "json_mini.h"
 #include "router.h"
@@ -245,7 +243,7 @@ static void emit(const char *json)
 
 static int64_t now_us(void)
 {
-    return esp_timer_get_time();
+    return plat_now_us();
 }
 
 static void val_to_str(const uint8_t val[6], char *out)
@@ -593,7 +591,7 @@ int __wrap_ble_hs_hci_evt_process(struct ble_hci_ev *ev)
     uint16_t done[HOST_LINK_MAX] = {0};
     uint8_t ndone = 0;
     if (ev->opcode == BLE_HCI_EVCODE_NUM_COMP_PKTS && ev->length >= 1) {
-        int64_t now = esp_timer_get_time();
+        int64_t now = plat_now_us();
         uint8_t count = ev->data[0];
         for (int i = 0; i < count && 1 + i * 4 + 4 <= ev->length; i++) {
             const uint8_t *p = &ev->data[1 + i * 4];
@@ -898,7 +896,7 @@ void host_send(const router_out_t *out, int switched_from)
 static int s_selftest_host = -1;
 static int64_t s_selftest_until_us;
 static uint32_t s_selftest_n;
-static esp_timer_handle_t s_selftest_timer;
+static plat_timer_t *s_selftest_timer;
 static struct ble_npl_event s_selftest_ev;
 
 static void selftest_stop(const char *why)
@@ -906,7 +904,7 @@ static void selftest_stop(const char *why)
     if (s_selftest_host < 0) {
         return;
     }
-    esp_timer_stop(s_selftest_timer);
+    plat_timer_stop(s_selftest_timer);
     char buf[96];
     snprintf(buf, sizeof(buf), "{\"event\":\"selftest_stopped\",\"host\":%d,\"reason\":\"%s\",\"reports\":%lu}",
              s_selftest_host + 1, why, (unsigned long)s_selftest_n);
@@ -949,14 +947,16 @@ esp_err_t host_selftest(int host, int minutes)
     }
     if (!s_selftest_timer) {
         ble_npl_event_init(&s_selftest_ev, selftest_ev_cb, NULL);
-        const esp_timer_create_args_t args = {.callback = selftest_timer_cb, .name = "selftest"};
-        ESP_RETURN_ON_ERROR(esp_timer_create(&args, &s_selftest_timer), TAG, "selftest timer");
+        s_selftest_timer = plat_timer_create(selftest_timer_cb, NULL);
+        if (!s_selftest_timer) {
+            return ESP_ERR_NO_MEM;
+        }
     }
     selftest_stop("restarted");
     s_selftest_host = host;
     s_selftest_n = 0;
     s_selftest_until_us = now_us() + (int64_t)minutes * 60 * 1000000;
-    esp_timer_start_periodic(s_selftest_timer, SELFTEST_PERIOD_US);
+    plat_timer_start_periodic(s_selftest_timer, SELFTEST_PERIOD_US);
     char buf[80];
     snprintf(buf, sizeof(buf), "{\"event\":\"selftest_started\",\"host\":%d,\"minutes\":%d}", host + 1, minutes);
     emit(buf);

@@ -1,6 +1,5 @@
 #include <string.h>
 
-#include "esp_log.h"
 
 #include "host/ble_att.h"
 #include "host/ble_gatt.h"
@@ -9,6 +8,7 @@
 #include "os/os_mbuf.h"
 
 #include "gap_name.h"
+#include "platform.h"
 #include "json_mini.h"
 
 static const char *TAG = "gap_name";

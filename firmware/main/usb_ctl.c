@@ -2,27 +2,22 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "esp_system.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
 #include "sdkconfig.h"
 
 #include "ble_pair.h"
 #include "cfg_store.h"
 #include "json_mini.h"
+#include "platform.h"
 #include "router.h"
 #include "usb_ctl.h"
 #include "version.h"
 
-#define LINE_MAX_LEN 256
 #define RESP_MAX 1024
-#define TASK_STACK 8192
 
 
 void usb_ctl_emit(const char *json)
 {
-    printf("KM< %s\n", json);
-    fflush(stdout);
+    plat_ctl_write("KM< ", json);
 }
 
 static void reply_ok(int id, const char *fields)
@@ -129,8 +124,8 @@ static void cmd_status(int id)
              ble_pair_input_count(),
              BLE_PAIR_INPUT_MAX,
              ble_pair_active_host() + 1,
-             (unsigned long)esp_get_free_heap_size(),
-             (unsigned long)esp_get_minimum_free_heap_size());
+             (unsigned long)plat_heap_free(),
+             (unsigned long)plat_heap_min());
     reply_ok(id, fields);
 }
 
@@ -393,27 +388,7 @@ static void handle_line(const char *line)
     }
 }
 
-static void reader_task(void *arg)
-{
-    char line[LINE_MAX_LEN];
-    while (1) {
-        if (fgets(line, sizeof(line), stdin) == NULL) {
-            clearerr(stdin);
-            vTaskDelay(pdMS_TO_TICKS(20));
-            continue;
-        }
-        size_t n = strlen(line);
-        while (n > 0 && (line[n - 1] == '\n' || line[n - 1] == '\r')) {
-            line[--n] = '\0';
-        }
-        if (n > 0) {
-            handle_line(line);
-        }
-    }
-}
-
 esp_err_t usb_ctl_start(void)
 {
-    BaseType_t ok = xTaskCreate(reader_task, "usb_ctl", TASK_STACK, NULL, 5, NULL);
-    return ok == pdPASS ? ESP_OK : ESP_ERR_NO_MEM;
+    return plat_ctl_start(handle_line);
 }
