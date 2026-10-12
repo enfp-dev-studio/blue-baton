@@ -4,6 +4,7 @@
   "version": "0.7.0",
   "description": "Blue Baton menu bar app (Tauri). The window shows the settings UI in ../ui",
   "scripts": {
+    "tauri": "tauri",
     "dev": "tauri dev",
     "build": "tauri build",
     "icons": "python3 assets/make_icons.py && tauri icon assets/icon-1024.png && rm -rf src-tauri/icons/android src-tauri/icons/ios"
