@@ -66,6 +66,8 @@
   <div><dt>Tilt X / Y</dt><dd id="tilt">–</dd></div>
   <div><dt>Buttons</dt><dd id="buttons">–</dd></div>
   <div><dt>Pen events</dt><dd id="count">0</dd></div>
+  <div><dt>Tip down</dt><dd id="down">0</dd></div>
+  <div><dt>Max pressure</dt><dd id="max">–</dd></div>
   <div><dt>Pressure levels seen</dt><dd id="levels">0</dd></div>
   <div><dt>Tilt seen</dt><dd id="tiltSeen">no</dd></div>
 </dl>
@@ -75,7 +77,7 @@
   const canvas = $('pad');
   const ctx = canvas.getContext('2d');
   const levels = new Set();
-  let penEvents = 0, tiltSeen = false, last = null;
+  let penEvents = 0, downEvents = 0, maxPressure = 0, tiltSeen = false, last = null;
 
   function fit() {
     const r = canvas.getBoundingClientRect(), d = window.devicePixelRatio || 1;
@@ -96,8 +98,11 @@
     if (levels.size > 2) {
       v.textContent = tiltSeen ? 'Pen with pressure and tilt' : 'Pen with pressure (no tilt)';
       v.className = 'ok';
+    } else if (downEvents) {
+      v.textContent = 'Pen touches, but pressure stays ' + maxPressure.toFixed(3);
+      v.className = 'warn';
     } else {
-      v.textContent = 'Pen, but no pressure levels yet';
+      v.textContent = 'Pen hovering, no touch yet';
       v.className = 'warn';
     }
   }
@@ -116,12 +121,14 @@
     for (const p of (pts.length ? pts : [e])) {
       const x = p.clientX - r.left, y = p.clientY - r.top;
       const pen = p.pointerType === 'pen';
+      const down = p.buttons !== 0;
       if (pen) {
         penEvents++;
+        if (down) downEvents++;
         if (p.pressure > 0) levels.add(Math.round(p.pressure * 1000));
+        maxPressure = Math.max(maxPressure, p.pressure);
         if (p.tiltX || p.tiltY) tiltSeen = true;
       }
-      const down = p.buttons !== 0 && p.pressure > 0;
       if (down && last && last.id === p.pointerId) {
         ctx.strokeStyle = color(pen ? '--pen' : '--mouse');
         ctx.lineWidth = pen ? 0.5 + p.pressure * 12 : 2;
@@ -133,6 +140,8 @@
       last = down ? { id: p.pointerId, x, y } : null;
     }
     $('count').textContent = penEvents;
+    $('down').textContent = downEvents;
+    $('max').textContent = penEvents ? maxPressure.toFixed(3) : '–';
     $('levels').textContent = levels.size;
     $('tiltSeen').textContent = tiltSeen ? 'yes' : 'no';
     verdict();
@@ -148,8 +157,12 @@
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     levels.clear();
     penEvents = 0;
+    downEvents = 0;
+    maxPressure = 0;
     tiltSeen = false;
     $('count').textContent = '0';
+    $('down').textContent = '0';
+    $('max').textContent = '–';
     $('levels').textContent = '0';
     $('tiltSeen').textContent = 'no';
     $('verdict').textContent = 'Waiting for input';
