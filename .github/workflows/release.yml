@@ -87,3 +87,18 @@ jobs:
           releaseId: ${{ needs.create-release.outputs.id }}
           includeUpdaterJson: true
           args: ${{ matrix.args }} --config src-tauri/tauri.release.conf.json
+
+      # tauri-action notarizes the app but not the DMG around it; notarize and staple the DMG too (what users download)
+      - name: Notarize and staple the DMG
+        if: matrix.platform == 'macos-latest'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          dmg=$(ls app/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg)
+          xcrun notarytool submit "$dmg" --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait
+          xcrun stapler staple "$dmg"
+          spctl --assess --type open --context context:primary-signature --verbose "$dmg"
+          gh release upload "${{ github.ref_name }}" "$dmg" --clobber --repo "${{ github.repository }}"
