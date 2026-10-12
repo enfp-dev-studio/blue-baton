@@ -16,9 +16,11 @@ function subline(d: Device) {
 
 export function DevicesPanel({ s, a, confirm }: { s: BoardState; a: Actions; confirm: Confirm }) {
   const list = [...s.devices.values()].sort((x, y) => (y.lastSeq || 0) - (x.lastSeq || 0));
+  const inputs = s.inputs || list.filter((d) => d.paired).length;
+  const full = inputs >= s.inputsMax;
   return (
     <div className="grid gap-2">
-      <Group title={t('devices.title')} aside={t('devices.summary', { bonds: s.bonds, max: s.bondsMax || '?' })}>
+      <Group title={t('devices.title')} aside={t('devices.summary', { n: inputs, max: s.inputsMax })}>
         {list.length ? (
           <ul className="list-none divide-y p-0">
             {list.map((d) => (
@@ -38,8 +40,8 @@ export function DevicesPanel({ s, a, confirm }: { s: BoardState; a: Actions; con
           variant="outline"
           className="h-7 px-3 text-[13px]"
           onClick={a.openAdd}
-          disabled={s.hostWindow.open}
-          title={s.hostWindow.open ? t('devices.addBlocked') : undefined}
+          disabled={s.hostWindow.open || full}
+          title={full ? t('devices.full') : s.hostWindow.open ? t('devices.addBlocked') : undefined}
         >
           {t('devices.addItem')}
         </Button>

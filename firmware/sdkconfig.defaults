@@ -23,7 +23,7 @@ CONFIG_BT_NIMBLE_GATT_MAX_PROCS=8
 CONFIG_BT_NIMBLE_HOST_TASK_STACK_SIZE=6144
 # Persist bond keys in NVS (the default is RAM, which is lost on reboot)
 CONFIG_BT_NIMBLE_NVS_PERSIST=y
-# Bond count: 4 input + 3 host + 1 in progress.
+# Bond count: 2 input (BLE_PAIR_INPUT_MAX) + 3 host stored, with room for security procedures in progress:
 # NimBLE accepts a new pairing only when "stored count + in-progress security procedures < MAX_BONDS" (host/src/ble_sm.c)
 CONFIG_BT_NIMBLE_MAX_BONDS=8
 # No silent re-attempts inside the stack: a Peripheral link that fails before CONNECT then reaches the app as a

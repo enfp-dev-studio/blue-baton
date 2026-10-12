@@ -71,7 +71,7 @@ test('bonded devices reconnect by themselves with stored keys', async () => {
   await t.close();
 });
 
-test('slots full -> no_slot, then numeric comparison pairing after freeing one', async () => {
+test('slots full -> no_slot; two paired -> inputs_full; numeric comparison pairing after removing one', async () => {
   const { t, c, waitFor } = setup('fast');
   await t.open();
   await waitFor((e) => e.event === 'hid_ready' && e.addr === '00:00:5E:00:53:22');
@@ -79,6 +79,8 @@ test('slots full -> no_slot, then numeric comparison pairing after freeing one',
   await waitFor((e) => e.event === 'device_found' && e.addr === '00:00:5E:00:53:41');
   await assert.rejects(c.request('pair_connect', { addr: '00:00:5E:00:53:41' }), (e) => e.code === 'no_slot');
   await c.request('disconnect', { addr: '00:00:5E:00:53:17' });
+  await assert.rejects(c.request('pair_connect', { addr: '00:00:5E:00:53:41' }), (e) => e.code === 'inputs_full');
+  await c.request('paired_remove', { addr: '00:00:5E:00:53:17' });
   await c.request('pair_connect', { addr: '00:00:5E:00:53:41' });
   const nc = await waitFor((e) => e.event === 'numcmp');
   assert.match(nc.code, /^\d{6}$/);
@@ -86,9 +88,7 @@ test('slots full -> no_slot, then numeric comparison pairing after freeing one',
   const paired = await waitFor((e) => e.event === 'paired' && e.addr === '00:00:5E:00:53:41');
   assert.equal(paired.bond, 'new');
   const pl = await c.request('paired_list');
-  assert.equal(pl.paired.length, 3);
-  /* A mouse the user disconnected is dropped from auto-reconnect */
-  assert.equal(pl.paired.find((p) => p.addr === '00:00:5E:00:53:17').auto, false);
+  assert.equal(pl.paired.length, 2);
   await t.close();
 });
 
@@ -96,7 +96,7 @@ test('wrong passkey fails with a security failure, then unknown command and bad 
   const { t, c, waitFor } = setup('fast');
   await t.open();
   await waitFor((e) => e.event === 'hid_ready' && e.addr === '00:00:5E:00:53:22');
-  await c.request('disconnect', { addr: '00:00:5E:00:53:22' });
+  await c.request('paired_remove', { addr: '00:00:5E:00:53:22' });
   await c.request('pair_scan', { on: true });
   await waitFor((e) => e.event === 'device_found' && e.addr === '00:00:5E:00:53:42');
   await c.request('pair_connect', { addr: '00:00:5E:00:53:42' });

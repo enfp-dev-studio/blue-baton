@@ -65,6 +65,13 @@ const char *ble_pair_radio(void);
 /* Number of bonds in the NimBLE store. -1 on failure */
 int ble_pair_bond_count(void);
 
+/*
+ * Paired input devices are limited to BLE_PAIR_INPUT_MAX, of any kind (D-030): the board is for one keyboard and one
+ * mouse, and they share its radio. A new one is refused (inputs_full) until one is removed.
+ */
+#define BLE_PAIR_INPUT_MAX 2
+int ble_pair_input_count(void);
+
 /* Host switch combos "ctrl+alt+1,ctrl+alt+2,ctrl+alt+3" (in host order). Empty string means the default. ESP_ERR_INVALID_ARG if malformed */
 esp_err_t ble_pair_set_combos(const char *text);
 

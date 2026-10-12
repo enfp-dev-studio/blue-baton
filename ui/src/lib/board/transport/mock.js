@@ -447,6 +447,7 @@ class MockBoard {
         return this.reply(id, {
           scanning: this.scanning, connected: peers.length > 0, hid_ready: peers.some((p) => p.hid_ready),
           peer: peers[0]?.addr || '', peers, radio: this.radio, bonds: this.bonded().length, bonds_max: 8,
+          inputs: this.bonded().length, inputs_max: 2,
           active_host: this.activeHost,
         });
       }
@@ -475,9 +476,8 @@ class MockBoard {
           this.radioUpdate();
           return this.later(1500, () => this.wake(d));
         }
-        if (this.bonded().length >= 8 && !d.bonded) {
-          this.reply(id);
-          return this.ev({ event: 'bond_full', stage: 'before_pairing', bonds: 8, max: 8 });
+        if (this.bonded().length >= 2 && !d.bonded) {
+          return this.fail(id, 'inputs_full', 'Two input devices are paired already. Remove one before adding another');
         }
         d.auto = true;
         this.stopScan('radio');

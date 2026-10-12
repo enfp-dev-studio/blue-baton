@@ -63,6 +63,9 @@ static void reply_ble_err(int id, esp_err_t err)
     case ESP_ERR_NOT_ALLOWED:
         reply_err_code(id, "host_window", "The host pairing window is open. Close it before adding an input device");
         break;
+    case ESP_ERR_INVALID_SIZE:
+        reply_err_code(id, "inputs_full", "Two input devices are paired already. Remove one before adding another");
+        break;
     default:
         reply_err_code(id, "failed", "Failed");
         break;
@@ -116,10 +119,11 @@ static void cmd_status(int id)
 
     char peers[360];
     ble_pair_peers_json(peers, sizeof(peers));
-    char fields[600];
+    char fields[640];
     snprintf(fields, sizeof(fields),
              ",\"scanning\":%s,\"connected\":%s,\"hid_ready\":%s,\"peer\":\"%s\",\"peers\":%s,"
-             "\"radio\":\"%s\",\"bonds\":%d,\"bonds_max\":%d,\"active_host\":%d,\"heap_free\":%lu,\"heap_min\":%lu",
+             "\"radio\":\"%s\",\"bonds\":%d,\"bonds_max\":%d,\"inputs\":%d,\"inputs_max\":%d,\"active_host\":%d,"
+             "\"heap_free\":%lu,\"heap_min\":%lu",
              scanning ? "true" : "false",
              connected ? "true" : "false",
              hid_ready ? "true" : "false",
@@ -128,6 +132,8 @@ static void cmd_status(int id)
              ble_pair_radio(),
              ble_pair_bond_count(),
              CONFIG_BT_NIMBLE_MAX_BONDS,
+             ble_pair_input_count(),
+             BLE_PAIR_INPUT_MAX,
              ble_pair_active_host() + 1,
              (unsigned long)esp_get_free_heap_size(),
              (unsigned long)esp_get_minimum_free_heap_size());

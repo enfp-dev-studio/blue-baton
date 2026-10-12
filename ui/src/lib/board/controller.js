@@ -16,7 +16,7 @@ import { TauriTransport } from './transport/tauri.js';
 import { WebSerialTransport } from './transport/webserial.js';
 
 const REFRESH_ON = new Set(['ble_ready', 'paired', 'hid_ready', 'disconnected', 'unpaired', 'unpaired_all',
-  'autoconnect', 'autoconnect_paused', 'device_name', 'failed', 'ble_reset',
+  'autoconnect', 'device_name', 'failed', 'ble_reset',
   'host_paired', 'host_ready', 'host_disconnected', 'host_removed', 'host_name']);
 
 /* Events that need the user while the window may be hidden (menu bar app): bring the window forward */

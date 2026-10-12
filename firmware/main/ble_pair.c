@@ -55,7 +55,6 @@
 #define MAP_MAX 512          /* Maximum Report Map length per the HID Service spec */
 #define SCAN_MS 60000        /* Scanning for new devices stops by itself after 60 seconds (so auto-reconnect is not blocked for long) */
 #define CONNECT_MS 10000     /* Time limit for a connection attempt to a user-selected device */
-#define FAIL_LIMIT 3         /* Stop auto-reconnect for a device that disconnects this many times in a row before becoming ready */
 #define HCI_USER_TERM 0x13   /* HCI reason: remote user terminated connection */
 #define MONITOR_LEASE_MS 60000  /* Input content goes out this long after each monitor request (the UI renews it) */
 #define ACTIVITY_MS 250      /* At most one activity event per input device in this time */
@@ -141,11 +140,10 @@ typedef struct {
 
 typedef enum { RADIO_IDLE, RADIO_SCAN, RADIO_CONNECT, RADIO_AUTO, RADIO_CANCEL } radio_t;
 
-/* Auto-reconnect exclusion marks. Devices the user disconnected or that failed repeatedly (RAM only, cleared on reboot) */
+/* Auto-reconnect exclusion marks: devices the user disconnected (RAM only, cleared on reboot) */
 typedef struct {
     bool used;
     ble_addr_t id;
-    uint8_t fails;
     bool paused;
 } auto_ctl_t;
 
@@ -659,6 +657,17 @@ static bool is_host_bond(const ble_addr_t *id)
 {
     cfg_paired_t m;
     return meta_get(id, &m) && m.role == CFG_ROLE_HOST;
+}
+
+static int input_bond_count(void)
+{
+    ble_addr_t bonds[CFG_PAIRED_MAX];
+    int nb = bonds_get(bonds, CFG_PAIRED_MAX);
+    int n = 0;
+    for (int i = 0; i < nb; i++) {
+        n += !is_host_bond(&bonds[i]);
+    }
+    return n;
 }
 
 static int auto_candidates(ble_addr_t *out, int max)
@@ -1242,6 +1251,23 @@ static void disc_fail(peer_t *p, const char *stage, int status)
     fail_peer(p, stage, status);
 }
 
+static esp_err_t unpair_id(const ble_addr_t *idp);
+
+/*
+ * Not an input device the board can use: no HID service, or none of the input it forwards (keys, pointer, media or
+ * system keys; a gamepad-only device, for example). Disconnect it and delete its bond, so it takes no input slot and
+ * auto-reconnect does not bring it back.
+ */
+static void reject_peer(peer_t *p, const char *stage)
+{
+    bool remove = p->id_valid && bonds_has(&p->id);
+    ble_addr_t id = p->id;
+    disc_fail(p, stage, 0);
+    if (remove) {
+        unpair_id(&id);
+    }
+}
+
 /* Name: Device Name (0x2A00) in the GAP service is mandatory. Devices with no name in their advertising get one here */
 static void on_name_read(uint16_t conn, const char *name)
 {
@@ -1266,10 +1292,6 @@ static void peer_ready(peer_t *p)
     p->state = PS_READY;
     p->stage = ST_DONE;
     cache_save(p);
-    auto_ctl_t *a = auto_ctl(&p->id, false);
-    if (a) {
-        a->fails = 0;
-    }
     meta_update(p, NULL, false, true);
     char kinds[64];
     char buf[200];
@@ -1523,7 +1545,7 @@ static int on_svc(uint16_t conn, const struct ble_gatt_error *error,
         return 0;
     }
     if (p->svc_count == 0) {
-        disc_fail(p, "no_hid_service", 0);
+        reject_peer(p, "no_hid_service");
         return 0;
     }
     p->stage = ST_CHR;
@@ -1612,6 +1634,15 @@ static void disc_next(peer_t *p)
                 }
                 p->idx++;
                 break;
+            }
+            /* Judged only when every Report Map was read (a failed read leaves the kinds unknown, not empty) */
+            bool maps_read = true;
+            for (int i = 0; i < p->svc_count; i++) {
+                maps_read &= p->svc[i].map_handle == 0 || p->svc[i].map_len > 0;
+            }
+            if (maps_read && !(p->kinds & (HID_KIND_KEYBOARD | HID_KIND_MOUSE | HID_KIND_CONSUMER | HID_KIND_SYSTEM))) {
+                reject_peer(p, "no_usable_input");
+                return;
             }
             p->stage = ST_SUB;
             p->idx = 0;
@@ -1774,16 +1805,6 @@ static void on_disconnect(struct ble_gap_event *event)
     if (p) {
         if (s_sec_owner == p) {
             s_sec_owner = NULL;
-        }
-        /* A bonded device dropped before ready counts as a failure. Repeated failures pause auto-reconnect to stop endless retries */
-        if (p->state != PS_READY && p->id_valid && bonds_has(&p->id)) {
-            auto_ctl_t *a = auto_ctl(&p->id, true);
-            if (a && !a->paused && ++a->fails >= FAIL_LIMIT) {
-                a->paused = true;
-                snprintf(buf, sizeof(buf), "{\"event\":\"autoconnect_paused\",\"id_addr\":\"%s\",\"fails\":%u}",
-                         p->id_str, a->fails);
-                emit(buf);
-            }
         }
         /* Treat the keys and buttons that device was pressing as released (so no key stays stuck on the host) */
         router_out_t out;
@@ -2097,6 +2118,9 @@ static esp_err_t op_connect(const char *addr)
     if (!fd) {
         return ESP_ERR_NOT_FOUND;
     }
+    if (input_bond_count() >= BLE_PAIR_INPUT_MAX) {
+        return ESP_ERR_INVALID_SIZE;   /* inputs_full */
+    }
     if (host_window_open()) {
         return ESP_ERR_NOT_ALLOWED;   /* Do not pair a new input device while the host pairing window is open */
     }
@@ -2167,6 +2191,8 @@ static void op_cancel(void)
     radio_update();
 }
 
+static esp_err_t unpair_id(const ble_addr_t *idp);
+
 static esp_err_t op_remove(const char *addr)
 {
     uint8_t val[6];
@@ -2180,6 +2206,13 @@ static esp_err_t op_remove(const char *addr)
     if (s_user_pending && memcmp(s_user_target.val, id.val, 6) == 0) {
         s_user_pending = false;   /* Abandon any connection attempt to the device being removed */
     }
+    return unpair_id(&id);
+}
+
+/* Delete one bond with its keys, resolving list entry, metadata and cache, then tell the GUI (unpaired) */
+static esp_err_t unpair_id(const ble_addr_t *idp)
+{
+    ble_addr_t id = *idp;
     /* ble_gap_unpair returns EBUSY while scanning or advertising. Pause the radio briefly */
     s_radio_hold = true;
     radio_update();
@@ -2398,6 +2431,7 @@ static esp_err_t op_dispatch(req_t *r)
         return ESP_OK;
     case OP_BONDS:
         r->count = bond_count_local();
+        r->num = (uint32_t)input_bond_count();
         return ESP_OK;
     case OP_COMBOS:
         return apply_combos(r->addr);
@@ -2608,6 +2642,13 @@ int ble_pair_bond_count(void)
     req_t r = {.op = OP_BONDS, .count = -1};
     host_call(&r);
     return r.count;
+}
+
+int ble_pair_input_count(void)
+{
+    req_t r = {.op = OP_BONDS, .count = -1};
+    host_call(&r);
+    return (int)r.num;
 }
 
 esp_err_t ble_pair_set_combos(const char *text)

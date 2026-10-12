@@ -73,6 +73,7 @@ Failure `code`
 | `busy` | Not possible right now (BLE not ready, already connected, or another connection attempt in progress) |
 | `not_found` | No device with that address (in neither the found list nor the paired list), or no host at that number (`host_remove`) |
 | `no_slot` | All input device slots (2 concurrent) are in use |
+| `inputs_full` | `pair_connect` to a new device while 2 input devices are paired already. Remove one first |
 | `bad_addr` | Address missing or malformed |
 | `no_request` | No pending pairing input request to answer |
 | `host_window` | The host pairing window is open, so input device scanning/new connections are not accepted |
@@ -90,7 +91,7 @@ Failure `code`
 ```text
 {"id":9,"ok":true,"scanning":false,"connected":true,"hid_ready":true,"peer":"00:00:5E:00:53:17",
  "peers":[{"addr":"00:00:5E:00:53:17","id_addr":"00:00:5E:00:53:17","state":"ready","hid_ready":true,"itvl":7}],
- "radio":"auto","bonds":1,"bonds_max":8,"active_host":1,"heap_free":228688,"heap_min":224496}
+ "radio":"auto","bonds":1,"bonds_max":8,"inputs":1,"inputs_max":2,"active_host":1,"heap_free":228688,"heap_min":224496}
 ```
 
 - `radio`: what the radio is doing right now.
@@ -100,7 +101,9 @@ Failure `code`
   - `auto`: waiting to auto-reconnect paired devices
   - `cancel`: canceling the previous attempt
 - `peers[].state`: `connected`, `securing`, `discovering`, `ready`
-- `bonds`: number of bonds stored in NimBLE. `bonds_max`: the maximum (4 input + 3 host + 1 in progress)
+- `bonds`: number of bonds stored in NimBLE (input devices and hosts). `bonds_max`: the store's size (room is left for
+  security procedures in progress, which NimBLE counts toward it)
+- `inputs`: paired input devices. `inputs_max`: how many may be paired (2)
 - `active_host`: the host that receives input (1-based)
 
 ### pair_list and paired_list entries
@@ -136,7 +139,6 @@ hosts: [{"host":1,"addr":"00:00:5E:00:53:30","name":"Example’s MacBook Pro","c
 | `scan_stopped` | `reason` | Scan stopped. `timeout` (60 seconds), `radio` (turned off, or the radio switched to another task), `preempted` (briefly interrupted by the stack; restarts soon), `error` (with `status`) |
 | `device_found` | `addr`, `name`, `rssi`, `paired`, `appearance` | Found an HID device. If the name etc. is filled in later (scan response), it is sent again with the same `addr` |
 | `autoconnect` | `devices`, `fast` | Put N paired devices on the accept list and started waiting for auto-connect. `fast`: listening 30 ms every 60 ms (for 30 s after a device drops, or at start); otherwise 11.25 ms every 1.28 s (HOGP 1.0 Table 5.5) |
-| `autoconnect_paused` | `id_addr`, `fails` | The device repeatedly disconnected before becoming ready, so its auto-reconnect was stopped |
 | `autoconnect_failed` | `rc`, `retry_ms` | Starting auto-reconnect failed (for example `rc` 525 = HCI 0x0D, the controller refused for lack of resources). The board tries again after `retry_ms` |
 | `connecting` | `addr` | Connection attempt to a user-chosen device in progress |
 | `connect_failed` | `addr`, `status` | User connection failed (`status`: HCI/NimBLE code, `"no_slot"`, or `"cancelled"` when `pair_scan` replaced the attempt) |
@@ -159,7 +161,7 @@ hosts: [{"host":1,"addr":"00:00:5E:00:53:30","name":"Example’s MacBook Pro","c
 | `device_name` | `addr`, `name` | Read the GAP Device Name (devices without a name in their advertising get their name here) |
 | `activity` | `addr` | Input arrived from that device. No content; at most every 250 ms per device |
 | `report` | `addr`, `handle`, `data` (hex) | Input report. `handle` is the `val` from `report_ref`. Only under the input monitor lease |
-| `failed` | `addr`, `stage`, `status` | A connection ended in failure. The board disconnects it. `stage`: `security_start`, `security`, `not_bonded`, `mtu`, `services`, `no_hid_service`, `characteristics`, `descriptors` |
+| `failed` | `addr`, `stage`, `status` | A connection ended in failure. The board disconnects it. `stage`: `security_start`, `security`, `not_bonded`, `mtu`, `services`, `no_hid_service`, `no_usable_input` (none of keys, pointer, media or system keys; checked once every Report Map is read), `characteristics`, `descriptors`. For `no_hid_service` and `no_usable_input` the bond is deleted too (`unpaired` follows) |
 | `disconnected` | `addr`, `id_addr`, `reason` | Disconnected (HCI reason code. 531 = remote side disconnected) |
 | `unpaired` | `id_addr` | One pairing was deleted |
 | `unpaired_all` | none | All pairings were deleted |
@@ -212,7 +214,7 @@ Only while the window is open does the board present itself as a keyboard (IO ca
 
 ## Known limitations
 
-- Up to 2 concurrent input connections and 8 bonds (4 input + 3 host + 1 in progress).
+- Up to 2 paired input devices, of any kind (`inputs_max`), and 3 hosts.
 - Input devices start the security procedure (pairing, key restore) one at a time. If two input devices attach at the same time, one waits briefly.
 - Some devices create a new address (identity) every time they enter pairing mode. They then show up as a new device, and the user deletes the old record by looking at `last_seq`.
 - The found list holds at most 16 devices; when it overflows, the device seen longest ago is pushed out. Names are at most 23 bytes.
@@ -261,6 +263,10 @@ Only while the window is open does the board present itself as a keyboard (IO ca
   same report), and mouse motion adds up into the next mouse report. Before, every report was queued in the stack,
   and reports were dropped when the stack's buffers ran out (a key-up could have been among them).
 - Idle hosts are asked for peripheral latency 30 and the active host for 4; a switch re-requests both.
+- A device with no HID service, or none of the input the board forwards, is disconnected and its bond deleted
+  (`failed` `stage:"no_usable_input"` is new).
+- At most 2 input devices are paired (`inputs`, `inputs_max` in `status`; a new one gets `inputs_full`). Auto-reconnect no
+  longer stops for a device that drops before it is ready (`autoconnect_paused` is gone).
 - A report that finds no stack buffer is tried again after 10 ms when nothing else is in flight on that host (it
   waited up to 1 s for the next tick). A known host that pairs again inside the window closes it. The active host is
   saved to flash after the switch's reports have gone to the stack.

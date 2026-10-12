@@ -54,6 +54,7 @@ const en = {
   'error.busy': "Can't do that right now. Already connected, or another connection attempt is in progress.",
   'error.not_found': "Couldn't find that device. Try scanning again.",
   'error.no_slot': 'Both input device slots (2) are in use. Disconnect one, then try again.',
+  'error.inputs_full': 'Two input devices are paired. Remove one to add another.',
   'error.bad_addr': "That device address isn't valid.",
   'error.no_request': "There's no pairing request to answer. It already finished or was cancelled.",
   'error.failed': "The board couldn't complete the request.",
@@ -124,6 +125,7 @@ const en = {
   'fail.not_bonded': "The device didn't save the pairing",
   'fail.services': "Couldn't read device info",
   'fail.no_hid_service': 'This device has no keyboard or mouse function',
+  'fail.no_usable_input': 'This device has no keys, pointer or media keys the board can pass on',
   'fail.characteristics': "Couldn't read device info",
   'fail.descriptors': "Couldn't read device info",
 
@@ -171,7 +173,8 @@ const en = {
 
   /* ---- input devices ---- */
   'devices.title': 'Input devices',
-  'devices.summary': 'Paired {bonds}/{max} · up to 2 connected at once',
+  'devices.summary': 'Paired {n}/{max}',
+  'devices.full': 'Two input devices are paired. Remove one to add another.',
   'devices.empty': 'No paired devices yet',
   'devices.emptyHint': 'Add a keyboard or mouse. The board remembers it and connects to it automatically from then on.',
   'devices.addBlocked': 'Close the host pairing window to add a device',
@@ -324,6 +327,7 @@ const ko = {
   'error.busy': '지금은 할 수 없어요. 이미 연결됐거나 다른 연결을 시도하는 중이에요.',
   'error.not_found': '그 기기를 찾을 수 없어요. 다시 스캔해 보세요.',
   'error.no_slot': '입력 기기 자리(2대)가 모두 찼어요. 하나를 끊은 뒤 다시 시도하세요.',
+  'error.inputs_full': '입력 기기는 2대까지예요. 하나를 삭제한 뒤 추가하세요.',
   'error.bad_addr': '기기 주소 형식이 맞지 않아요.',
   'error.no_request': '응답할 페어링 요청이 없어요. 이미 끝났거나 취소됐어요.',
   'error.failed': '보드가 요청을 처리하지 못했어요.',
@@ -394,6 +398,7 @@ const ko = {
   'fail.not_bonded': '기기가 페어링 정보를 저장하지 않았어요',
   'fail.services': '기기 정보를 읽지 못했어요',
   'fail.no_hid_service': '키보드나 마우스 기능이 없는 기기예요',
+  'fail.no_usable_input': '보드가 넘겨줄 수 있는 키·마우스·미디어 키 입력이 없는 기기예요',
   'fail.characteristics': '기기 정보를 읽지 못했어요',
   'fail.descriptors': '기기 정보를 읽지 못했어요',
 
@@ -441,7 +446,8 @@ const ko = {
 
   /* ---- input devices ---- */
   'devices.title': '입력 기기',
-  'devices.summary': '페어링 {bonds}/{max} · 동시 연결 최대 2대',
+  'devices.summary': '페어링 {n}/{max}',
+  'devices.full': '입력 기기는 2대까지예요. 하나를 삭제한 뒤 추가하세요.',
   'devices.empty': '아직 페어링된 기기가 없어요',
   'devices.emptyHint': '키보드나 마우스를 추가하면 보드에 저장되고, 다음부터는 자동으로 연결돼요.',
   'devices.addBlocked': '호스트 추가 창을 닫은 뒤에 추가할 수 있어요',
@@ -570,7 +576,7 @@ function lookup(key) {
 
 const PLACEHOLDER = /\{(\w+)\}/g;
 
-/* t('devices.summary', { bonds: 2, max: 8 }). Unknown keys come back as the key itself */
+/* t('devices.summary', { n: 2, max: 2 }). Unknown keys come back as the key itself */
 export function t(key, params) {
   const s = lookup(key) ?? key;
   if (!params) return s;

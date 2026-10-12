@@ -57,6 +57,8 @@ export interface BoardState {
   scanUntil: number;
   bonds: number;
   bondsMax: number;
+  inputs: number;
+  inputsMax: number;
   activeHost: number;
   hosts: Map<number, Host>;
   hostWindow: { open: boolean; until: number };

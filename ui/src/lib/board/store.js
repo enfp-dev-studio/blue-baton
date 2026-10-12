@@ -21,6 +21,8 @@ export class Store {
       scanUntil: 0,
       bonds: 0,
       bondsMax: 0,
+      inputs: 0,                   /* paired input devices, and how many may be */
+      inputsMax: 2,
       activeHost: 1,               /* 1-based */
       hosts: new Map(),            /* number (1 to 3) -> {host, addr, name, state, connected} (host_list is the source) */
       hostWindow: { open: false, until: 0 },
@@ -126,6 +128,8 @@ export class Store {
     s.scanning = !!st.scanning;
     s.bonds = st.bonds ?? s.bonds;
     s.bondsMax = st.bonds_max ?? s.bondsMax;
+    s.inputs = st.inputs ?? s.inputs;
+    s.inputsMax = st.inputs_max ?? s.inputsMax;
     s.activeHost = st.active_host ?? s.activeHost;
     for (const p of st.peers || []) {
       const d = this.deviceByAddr(p.addr) || (p.id_addr && this.state.devices.get(p.id_addr));
@@ -248,11 +252,6 @@ export class Store {
       case 'autoconnect': {
         /* The auto-connect targets were recomputed: a device the user turned back on gets auto = true again (confirmed by paired_list) */
         s.radio = 'auto';
-        break;
-      }
-      case 'autoconnect_paused': {
-        const d = s.devices.get(ev.id_addr);
-        if (d) d.auto = false;
         break;
       }
       case 'unpaired':
