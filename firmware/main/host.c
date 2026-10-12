@@ -1,5 +1,4 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -60,12 +59,12 @@ static const char *TAG = "host";
 enum {
     A_MANUF = 1, A_MODEL, A_FWREV, A_PNP, A_BATTERY,
     A_HID_INFO, A_REPORT_MAP, A_CONTROL_POINT, A_PROTOCOL_MODE,
-    A_REPORT_KB, A_REPORT_MOUSE, A_REPORT_CONSUMER, A_REPORT_SYSTEM, A_REPORT_PEN, A_REPORT_LED,
+    A_REPORT_KB, A_REPORT_MOUSE, A_REPORT_CONSUMER, A_REPORT_SYSTEM, A_REPORT_LED,
     A_BOOT_KB_IN, A_BOOT_KB_OUT, A_BOOT_MOUSE_IN,
 };
 
 /* Characteristics that send notifications (per-connection subscription bit numbers) */
-enum { N_KB, N_MOUSE, N_CONSUMER, N_SYSTEM, N_PEN, N_BOOT_KB, N_BOOT_MOUSE, N_COUNT };
+enum { N_KB, N_MOUSE, N_CONSUMER, N_SYSTEM, N_BOOT_KB, N_BOOT_MOUSE, N_COUNT };
 static uint16_t s_notify_handle[N_COUNT];
 
 static int chr_access(uint16_t conn, uint16_t attr, struct ble_gatt_access_ctxt *ctxt, void *arg);
@@ -129,8 +128,6 @@ static const struct ble_gatt_svc_def s_svcs[] = {
             {.uuid = BLE_UUID16_DECLARE(0x2A4D), .access_cb = chr_access, .arg = (void *)A_REPORT_SYSTEM,
              .flags = R_AUTH | N_AUTH, .val_handle = &s_notify_handle[N_SYSTEM],
              .descriptors = REF_DSC(HOST_RID_SYSTEM, 1)},
-            {.uuid = BLE_UUID16_DECLARE(0x2A4D), .access_cb = chr_access, .arg = (void *)A_REPORT_PEN,
-             .flags = R_AUTH | N_AUTH, .val_handle = &s_notify_handle[N_PEN], .descriptors = REF_DSC(HOST_RID_PEN, 1)},
             {.uuid = BLE_UUID16_DECLARE(0x2A4D), .access_cb = chr_access, .arg = (void *)A_REPORT_LED,
              .flags = R_AUTH | W_AUTH | WNR_AUTH, .descriptors = REF_DSC(HOST_RID_KEYBOARD, 2)},
             {.uuid = BLE_UUID16_DECLARE(0x2A22), .access_cb = chr_access, .arg = (void *)A_BOOT_KB_IN,
@@ -198,8 +195,6 @@ typedef struct {
     uint8_t q_len;
     host_motion_t motion;        /* Mouse motion not yet sent */
     int64_t motion_t;            /* When the oldest unsent motion came in (0: none) */
-    uint8_t pen[HOST_PEN_LEN];   /* Latest pen report not yet sent */
-    int64_t pen_t;               /* When the oldest unsent pen state came in (0: none) */
     int64_t tx_t[TX_RING];       /* Reports handed to the stack and not yet completed: when their oldest input came in, oldest first */
     uint8_t tx_head;
     uint8_t tx_count;
@@ -452,8 +447,6 @@ static int chr_access(uint16_t conn, uint16_t attr, struct ble_gatt_access_ctxt 
         return append(ctxt, l ? l->sent.consumer : zeros, HOST_CONSUMER_LEN);
     case A_REPORT_SYSTEM:
         return append(ctxt, l ? &l->sent.system : zeros, HOST_SYSTEM_LEN);
-    case A_REPORT_PEN:
-        return append(ctxt, l ? l->sent.pen : zeros, HOST_PEN_LEN);
     case A_REPORT_LED:
     case A_BOOT_KB_OUT:
         if (write) {
@@ -582,7 +575,6 @@ static inline size_t diag_link_json(host_link_t *l, char *buf, size_t len) { (vo
  *   order. Only if the queue fills does an older change give way to a later one of the same report.
  * - Mouse motion adds up and goes out with the next mouse report: the cursor goes to where the mouse is instead of
  *   replaying old motion.
- * - The pen reports where it is now (absolute position), so only its latest state goes out, after motion.
  * So a host that is slow to take reports delays only its own input, a key-up is never lost, and it holds at most
  * TX_PIPELINE of the controller's 12 shared buffers.
  */
@@ -691,19 +683,16 @@ static void delivered(host_link_t *l, int n, const uint8_t *data)
     case N_BOOT_MOUSE:
         l->boot_buttons = data[0] & 0x07;
         break;
-    case N_PEN:
-        memcpy(l->sent.pen, data, HOST_PEN_LEN);
-        break;
     default:
         break;
     }
 }
 
-/* Hand reports to the stack while fewer than TX_PIPELINE are not yet completed: queued changes first, then motion, then the pen */
+/* Hand reports to the stack while fewer than TX_PIPELINE are not yet completed: queued changes first, then motion */
 static void pump(host_link_t *l)
 {
     while (l->state == HL_READY && l->tx_count < TX_PIPELINE) {
-        uint8_t buf[HOST_PEN_LEN];   /* The longest report */
+        uint8_t buf[HOST_KB_LEN];
         int n;
         uint16_t len;
         change_t *c = l->q_len ? &l->q[l->q_head] : NULL;
@@ -718,21 +707,14 @@ static void pump(host_link_t *l)
             n = boot_mode(l) ? N_BOOT_MOUSE : N_MOUSE;
             if (!(l->sub & (1u << n))) {
                 memset(&l->motion, 0, sizeof(l->motion));
-                l->motion_t = 0;
-                continue;
-            }
-        } else if (l->pen_t) {
-            n = N_PEN;
-            if (boot_mode(l) || !(l->sub & (1u << n))) {
-                l->pen_t = 0;
-                continue;
+                return;
             }
         } else {
             return;
         }
         host_motion_t motion = l->motion;
         bool mouse = n == N_MOUSE || n == N_BOOT_MOUSE;
-        int64_t since = c ? c->t : n == N_PEN ? l->pen_t : 0;
+        int64_t since = c ? c->t : 0;
         if (mouse && l->motion_t && (!since || l->motion_t < since)) {
             since = l->motion_t;
         }
@@ -742,11 +724,8 @@ static void pump(host_link_t *l)
         } else if (n == N_BOOT_MOUSE) {
             host_boot_mouse_report(&motion, c ? c->data[0] : l->want_boot_buttons, buf);
             len = HOST_BOOT_MOUSE_LEN;
-        } else if (n == N_PEN) {
-            memcpy(buf, l->pen, HOST_PEN_LEN);
-            len = HOST_PEN_LEN;
         } else {
-            memcpy(buf, c->data, sizeof(c->data));
+            memcpy(buf, c->data, sizeof(buf));
             len = n == N_CONSUMER ? HOST_CONSUMER_LEN : n == N_SYSTEM ? HOST_SYSTEM_LEN : HOST_KB_LEN;
         }
         if (!notify(l, n, buf, len, since)) {
@@ -761,8 +740,6 @@ static void pump(host_link_t *l)
             if (host_motion_empty(&l->motion)) {
                 l->motion_t = 0;
             }
-        } else if (n == N_PEN) {
-            l->pen_t = 0;
         }
         delivered(l, n, buf);
         if (c) {
@@ -808,29 +785,6 @@ static void add_motion(host_link_t *l, int dx, int dy, int wheel, int pan)
     host_motion_add(&l->motion, dx, dy, wheel, pan);
 }
 
-/* The pen's latest report, sent when a report slot is free */
-static void set_pen_report(host_link_t *l, const uint8_t r[HOST_PEN_LEN])
-{
-    if (!l->pen_t && memcmp(r, l->sent.pen, HOST_PEN_LEN) == 0) {
-        return;
-    }
-    if (!l->pen_t) {
-        l->pen_t = now_us();
-    }
-    memcpy(l->pen, r, HOST_PEN_LEN);
-}
-
-/* The pen leaves range where it last was: no switches, no pressure, same position and tilt */
-static void pen_away(host_link_t *l)
-{
-    uint8_t r[HOST_PEN_LEN];
-    memcpy(r, l->pen_t ? l->pen : l->sent.pen, HOST_PEN_LEN);
-    r[0] = 0;
-    r[5] = 0;
-    r[6] = 0;
-    set_pen_report(l, r);
-}
-
 /* Queue a report if it changes what the host will have */
 static void queue_state(host_link_t *l, int n, uint8_t *want, const uint8_t *now, uint8_t len)
 {
@@ -853,8 +807,6 @@ static void release_all(host_link_t *l)
     l->want_boot_buttons = l->boot_buttons;
     memset(&l->motion, 0, sizeof(l->motion));
     l->motion_t = 0;
-    l->pen_t = 0;
-    pen_away(l);
     if (boot_mode(l)) {
         queue_state(l, N_BOOT_KB, l->want_boot_kb, zeros, HOST_KB_LEN);
         queue_state(l, N_BOOT_MOUSE, &l->want_boot_buttons, zeros, 1);
@@ -936,19 +888,13 @@ void host_send(const router_out_t *out, int switched_from)
 
 #if CONFIG_KM_DIAG
 /*
- * Self-test (developer builds): reports to one host at the input interval (every 8.75 ms) through the same delivery
- * path as real input, while stats measure it.
- * - Mouse: 16 counts right then 16 left so the cursor stays within a few pixels. Meant for a host not in use: it
- *   stops when that host becomes the active one.
- * - Pen: circles in a row of 7 across the middle of the screen, each one place right of the last, so they can be
- *   counted. Tip down for 3 s with pressure and tilt changing along the circle, then 1 s hovering. For checking that a host takes the pen, so it keeps going when that host becomes active.
- * Both stop when the link drops or the time is up.
+ * Self-test (developer builds): mouse reports to one host at the input interval (every 8.75 ms), 16 counts right
+ * then 16 left so the cursor stays within a few pixels, through the same delivery path as real input, while stats
+ * measure it. Meant for a host not in use: it stops when that host becomes the active one, when its link drops, or
+ * when the time is up.
  */
 #define SELFTEST_PERIOD_US 8750
-#define SELFTEST_PEN_TURN 343    /* Ticks per circle: 3 s */
-#define SELFTEST_PEN_CYCLE 457   /* Ticks per circle plus hover: 4 s */
 static int s_selftest_host = -1;
-static bool s_selftest_pen;
 static int64_t s_selftest_until_us;
 static uint32_t s_selftest_n;
 static plat_timer_t *s_selftest_timer;
@@ -960,24 +906,11 @@ static void selftest_stop(const char *why)
         return;
     }
     plat_timer_stop(s_selftest_timer);
-    host_link_t *l = link_by_index(s_selftest_host);
-    if (s_selftest_pen && l && l->state == HL_READY) {
-        pen_away(l);   /* So the host goes back to the mouse cursor */
-        pump(l);
-    }
     char buf[96];
     snprintf(buf, sizeof(buf), "{\"event\":\"selftest_stopped\",\"host\":%d,\"reason\":\"%s\",\"reports\":%lu}",
              s_selftest_host + 1, why, (unsigned long)s_selftest_n);
     emit(buf);
     s_selftest_host = -1;
-}
-
-/* Only the self-test makes pen states for now */
-static void set_pen(host_link_t *l, const host_pen_t *p)
-{
-    uint8_t r[HOST_PEN_LEN];
-    host_pen_report(p, r);
-    set_pen_report(l, r);
 }
 
 static void selftest_ev_cb(struct ble_npl_event *ev)
@@ -988,28 +921,10 @@ static void selftest_ev_cb(struct ble_npl_event *ev)
     host_link_t *l = link_by_index(s_selftest_host);
     if (!l || l->state != HL_READY) {
         selftest_stop("link");
-    } else if (!s_selftest_pen && s_selftest_host == router_active_host()) {
+    } else if (s_selftest_host == router_active_host()) {
         selftest_stop("active");
     } else if (now_us() >= s_selftest_until_us) {
         selftest_stop("done");
-    } else if (s_selftest_pen) {
-        uint32_t k = s_selftest_n % SELFTEST_PEN_CYCLE;
-        int place = (int)(s_selftest_n / SELFTEST_PEN_CYCLE % 7) - 3;
-        s_selftest_n++;
-        bool down = k < SELFTEST_PEN_TURN;
-        float a = 2.0f * (float)M_PI * (float)(down ? k : k - 1) / SELFTEST_PEN_TURN;   /* The tip lifts where it was */
-        /* 2.44 cm across, 2.75 cm apart on the 20 x 11.25 cm digitizer, so circles on a 16:9 screen */
-        host_pen_t p = {
-            .tip = down,
-            .in_range = true,
-            .x = (uint16_t)(16384 + place * 4500 + 2000 * cosf(a)),
-            .y = (uint16_t)(16384 + 3556 * sinf(a)),
-            .pressure = down ? (uint16_t)(2048 - 1900 * cosf(2 * a)) : 0,
-            .tilt_x = (int16_t)(4000 * cosf(a)),   /* 40 degrees */
-            .tilt_y = (int16_t)(4000 * sinf(a)),
-        };
-        set_pen(l, &p);
-        pump(l);
     } else {
         add_motion(l, (s_selftest_n++ / 16) % 2 ? -1 : 1, 0, 0, 0);
         pump(l);
@@ -1021,14 +936,14 @@ static void selftest_timer_cb(void *arg)
     ble_npl_eventq_put(nimble_port_get_dflt_eventq(), &s_selftest_ev);
 }
 
-esp_err_t host_selftest(int host, int minutes, bool pen)
+esp_err_t host_selftest(int host, int minutes)
 {
     if (host < 0) {
         selftest_stop("stopped");
         return ESP_OK;
     }
     host_link_t *l = link_by_index(host);
-    if (!l || l->state != HL_READY || (!pen && host == router_active_host()) || minutes <= 0) {
+    if (!l || l->state != HL_READY || host == router_active_host() || minutes <= 0) {
         return ESP_ERR_INVALID_STATE;
     }
     if (!s_selftest_timer) {
@@ -1040,13 +955,11 @@ esp_err_t host_selftest(int host, int minutes, bool pen)
     }
     selftest_stop("restarted");
     s_selftest_host = host;
-    s_selftest_pen = pen;
     s_selftest_n = 0;
     s_selftest_until_us = now_us() + (int64_t)minutes * 60 * 1000000;
     plat_timer_start_periodic(s_selftest_timer, SELFTEST_PERIOD_US);
-    char buf[96];
-    snprintf(buf, sizeof(buf), "{\"event\":\"selftest_started\",\"host\":%d,\"minutes\":%d,\"kind\":\"%s\"}", host + 1,
-             minutes, pen ? "pen" : "mouse");
+    char buf[80];
+    snprintf(buf, sizeof(buf), "{\"event\":\"selftest_started\",\"host\":%d,\"minutes\":%d}", host + 1, minutes);
     emit(buf);
     return ESP_OK;
 }
@@ -1755,7 +1668,7 @@ esp_err_t host_init(host_event_fn emit_fn)
  * (ble_gatts_chr_updated keeps the flag in the bond store). Bump GATT_LAYOUT whenever services or characteristics
  * change; the Report Map is covered by its hash.
  */
-#define GATT_LAYOUT 2
+#define GATT_LAYOUT 1
 
 static uint32_t gatt_signature(void)
 {

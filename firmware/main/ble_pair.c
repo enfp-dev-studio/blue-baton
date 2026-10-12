@@ -2459,7 +2459,7 @@ static esp_err_t op_dispatch(req_t *r)
         return host_passkey(r->num);
     case OP_SELFTEST:
 #if CONFIG_KM_DIAG
-        return host_selftest((int)r->num - 1, (int)r->count, r->flag);
+        return host_selftest((int)r->num - 1, (int)r->count);
 #else
         return ESP_ERR_NOT_SUPPORTED;
 #endif
@@ -2678,9 +2678,9 @@ size_t ble_pair_host_list_json(char *buf, size_t len)
     return r.out_len;
 }
 
-esp_err_t ble_pair_selftest(int host, int minutes, bool pen)
+esp_err_t ble_pair_selftest(int host, int minutes)
 {
-    req_t r = {.op = OP_SELFTEST, .num = (uint32_t)host, .count = minutes, .flag = pen};
+    req_t r = {.op = OP_SELFTEST, .num = (uint32_t)host, .count = minutes};
     return host_call(&r);
 }
 
