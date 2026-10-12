@@ -932,8 +932,8 @@ void host_send(const router_out_t *out, int switched_from)
  * path as real input, while stats measure it.
  * - Mouse: 16 counts right then 16 left so the cursor stays within a few pixels. Meant for a host not in use: it
  *   stops when that host becomes the active one.
- * - Pen: circles around the middle of the screen, tip down for 3 s with pressure and tilt changing along the circle,
- *   then 1 s hovering. For checking that a host takes the pen, so it keeps going when that host becomes active.
+ * - Pen: circles in a row of 7 across the middle of the screen, each one place right of the last, so they can be
+ *   counted. Tip down for 3 s with pressure and tilt changing along the circle, then 1 s hovering. For checking that a host takes the pen, so it keeps going when that host becomes active.
  * Both stop when the link drops or the time is up.
  */
 #define SELFTEST_PERIOD_US 8750
@@ -978,15 +978,17 @@ static void selftest_ev_cb(struct ble_npl_event *ev)
     } else if (now_us() >= s_selftest_until_us) {
         selftest_stop("done");
     } else if (s_selftest_pen) {
-        uint32_t k = s_selftest_n++ % SELFTEST_PEN_CYCLE;
+        uint32_t k = s_selftest_n % SELFTEST_PEN_CYCLE;
+        int place = (int)(s_selftest_n / SELFTEST_PEN_CYCLE % 7) - 3;
+        s_selftest_n++;
         float a = 2.0f * (float)M_PI * (float)k / SELFTEST_PEN_TURN;
         bool down = k < SELFTEST_PEN_TURN;
-        /* 4 cm across on the 20 x 11.25 cm digitizer, so a circle on a 16:9 screen */
+        /* 2.44 cm across, 2.75 cm apart on the 20 x 11.25 cm digitizer, so circles on a 16:9 screen */
         host_pen_t p = {
             .tip = down,
             .in_range = true,
-            .x = (uint16_t)(16384 + 6554 * cosf(a)),
-            .y = (uint16_t)(16384 + 11651 * sinf(a)),
+            .x = (uint16_t)(16384 + place * 4500 + 2000 * cosf(a)),
+            .y = (uint16_t)(16384 + 3556 * sinf(a)),
             .pressure = down ? (uint16_t)(2048 - 1900 * cosf(2 * a)) : 0,
             .tilt_x = (int8_t)(40 * cosf(a)),
             .tilt_y = (int8_t)(40 * sinf(a)),
