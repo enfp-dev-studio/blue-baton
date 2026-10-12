@@ -42,6 +42,10 @@ npm run build
 The app is at `src-tauri/target/release/bundle/macos/Blue Baton.app`. `npm run dev` runs it against the UI dev
 server (`../ui`, port 5180) with live reload.
 
+Signed release for macOS (Developer ID, notarized and stapled): `./release-macos.sh`. It needs a "Developer ID
+Application" certificate in the keychain and notarytool credentials stored as `blue-baton-notary` (see the script).
+The Windows build is not signed.
+
 Icons: `npm run icons` writes `assets/icon.svg` and `assets/tray.svg` (`assets/make_icons.py`), rasterizes them with
 headless Chrome (`CHROME` overrides the path) into `assets/icon-1024.png` and the menu bar template icon, and
 regenerates the platform icon sizes. The mark is a hollow relay baton passed at speed.
