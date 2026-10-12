@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 /*
  * USB link (Web Serial). Works only in Chrome/Edge, and only on localhost or HTTPS.
  * A port allowed once is found again with getPorts(), so later connections skip the picker.

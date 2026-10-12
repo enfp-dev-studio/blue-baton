@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 //! Updates from GitHub Releases (tauri-plugin-updater). The release workflow publishes `latest.json` and the update
 //! files signed with the project's update key; the app checks a minute after it starts and then once a day, and
 //! "Check for Updates…" checks at once. A found update adds "Install Update x.y.z and Restart" to the menu and shows

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 /*
  * Local bridge link (firmware/tools/bridge.py). The bridge holds the USB port and this page talks to it over HTTP.
  * Several pages and dev tools can watch the same board at once, in any browser (no Web Serial needed).

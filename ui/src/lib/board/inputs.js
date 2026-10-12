@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 /*
  * Input monitor (developer area). Input reports arrive dozens of times per second, so instead of redrawing
  * the page we update individual cells. Decoding follows the Report Map (hid/report-map.js).

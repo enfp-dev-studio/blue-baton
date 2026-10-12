@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 import { Usb } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { t } from '@/lib/board/i18n.js';

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 /*
  * UI state. The board is the source of truth, so state changes only through board replies and events
  * (no optimistic updates).

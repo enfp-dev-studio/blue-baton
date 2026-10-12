@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 /*
  * Protocol client + mock board integration tests (no browser). Run: node --test ui/test/
  * Sends commands through the same BoardClient the UI uses and checks replies and events in the firmware 0.6 format.

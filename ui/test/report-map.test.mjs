@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 /* UI-side Report Map parsing tests. Run: node --test firmware/ui/test/ */
 import assert from 'node:assert/strict';
 import test from 'node:test';

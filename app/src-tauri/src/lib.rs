@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 //! Blue Baton menu bar app.
 //!
 //! - Owns the board's USB serial port (board.rs) and hands lines to the settings window.

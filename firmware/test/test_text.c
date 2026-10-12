@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /*
  * Unit tests for json_mini.c: UTF-8 tail trimming (when cutting a GAP name to 23 bytes), JSON escaping.
  *   firmware/test/run.sh

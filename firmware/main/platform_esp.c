@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* platform.h on ESP32-S3 (ESP-IDF): time, heap, NimBLE bring-up, a microsecond timer, and the USB serial channel */
 
 #include <stdio.h>

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Draws the Blue Baton icons as SVG and rasterizes them with headless Chrome (no image libraries).
 
   assets/icon.svg, assets/icon-1024.png   app icon (tauri icon makes the platform sizes from the PNG)

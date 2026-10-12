@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 /* UI string tables: every language has the same keys and placeholders. Run: node --test ui/test/ */
 import assert from 'node:assert/strict';
 import test from 'node:test';

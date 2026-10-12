@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 /*
  * Mock board. Lets us build and check the UI without hardware.
  * Imitates the firmware 0.6 commands, replies, and event formats (firmware/PROTOCOL.md).

@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-only
 # All tests that run without a board.
 #  1) Firmware C code (Report Map kind detection): built with sanitizers (ASan, UBSan) so out-of-bounds reads are caught too
 #  2) Settings UI JS (Report Map parsing, command/event flow against the mock board): Node's built-in test runner

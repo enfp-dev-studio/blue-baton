@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 /* Small DOM helpers. Text always goes in through textContent (safe even if a device name contains HTML) */
 
 export function h(tag, props = {}, ...children) {

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /*
  * Unit tests for hid_map.c. Runs on a Mac (or Linux) without a board.
  *   firmware/test/run.sh

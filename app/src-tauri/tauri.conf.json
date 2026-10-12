@@ -58,7 +58,9 @@
     ],
     "macOS": {
       "minimumSystemVersion": "12.0"
-    }
+    },
+    "copyright": "Copyright (C) 2026 enfpdev. GPL-3.0-only",
+    "license": "GPL-3.0-only"
   },
   "plugins": {
     "updater": {

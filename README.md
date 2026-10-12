@@ -14,7 +14,9 @@ BLE mouse ────┴─→ ESP32-S3 (NimBLE) ─┼─ BLE HID → host 2
 
 Status: firmware 0.7. Up to two input devices (a keyboard and a mouse, or any two) and three hosts. Tested on real hardware with a keyboard and a mouse connected at the same time, and with two Macs, a Windows PC and an iPhone as hosts: input goes to the active host, and both the key combo and the settings UI switch hosts. Not yet tested on hardware: typing a host's passkey on the keyboard (entering it in the app was tested) and system keys (power, sleep, wake). Only the macOS app has been built.
 
-License: not decided yet.
+License: [GNU GPL v3](LICENSE) (GPL-3.0-only). Copyright (C) 2026 enfpdev. A commercial license, for use without the
+GPL's terms, is available on request: contact@enfpdev.com. Contributions need the [CLA](CLA.md) (see
+[CONTRIBUTING.md](CONTRIBUTING.md)). `ui/src/components/ui/` comes from [shadcn/ui](https://ui.shadcn.com) (MIT).
 
 ## Repository layout
 

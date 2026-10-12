@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 /*
  * Line-JSON protocol with the board (firmware/PROTOCOL.md).
  * The transport (USB, mock board, later Wi-Fi) handles the link; this file only works on top of it.

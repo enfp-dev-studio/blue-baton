@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 /*
  * Blue Baton settings UI: the controller. It owns the board link, the store, and every action; the React
  * views (src/components) only read the store and call actions.

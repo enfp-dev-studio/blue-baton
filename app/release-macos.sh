@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-only
 # Release build of the macOS app: build, sign with Developer ID, notarize, staple, check.
 #   app/release-macos.sh
 # Needs, on this Mac:

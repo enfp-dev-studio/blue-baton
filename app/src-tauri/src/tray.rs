@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 //! Menu bar (macOS) / tray (Windows) icon and menu.
 //!
 //! Left click opens the panel under the icon (lib.rs, `toggle_panel`), like Google Drive; right click opens

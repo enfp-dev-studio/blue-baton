@@ -3,6 +3,7 @@ name = "blue-baton"
 version = "0.7.0"
 description = "Blue Baton menu bar app"
 edition = "2021"
+license = "GPL-3.0-only"
 publish = false
 
 [lib]

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 import { useSyncExternalStore } from 'react';
 
 /* Follows the system light/dark setting (shadcn/ui switches on the .dark class) */

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 /*
  * Host switch combos: from a key press in the settings window to the firmware's combo text (PROTOCOL.md,
  * "Host switch combos"), and back to labels. Keys are taken by physical position (KeyboardEvent.code), as the

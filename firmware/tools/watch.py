@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """
 Watch the board through the menu bar app's developer API or tools/bridge.py (same HTTP interface).
 

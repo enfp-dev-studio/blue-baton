@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-only
 # Registers the repository secrets that .github/workflows/release.yml needs, in one go (GitHub CLI, logged in).
 #   app/set-release-secrets.sh [owner/repo]
 # Reads from this Mac: the Tauri update key (~/.tauri/blue-baton-updater.key) and the team ID of the Developer ID

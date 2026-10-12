@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 /* Recording a switch combo from key presses. Run: node --test ui/test/ */
 import assert from 'node:assert/strict';
 import test from 'node:test';

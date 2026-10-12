@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 /* Types for the plain-JS board modules (controller.js, store.js), as the React views use them */
 
 export type Tone = 'ok' | 'busy' | 'bad' | 'idle';

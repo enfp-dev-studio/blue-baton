@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-only
 # Build and flash the developer firmware (diagnostics on). If the bridge is running, it is asked to release the port for a moment and re-acquire it afterwards.
 # Settings UI and monitor clients attached to the bridge are not dropped; they reattach automatically.
 #   firmware/tools/flash.sh            (build + flash)

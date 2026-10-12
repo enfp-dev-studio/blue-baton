@@ -14,7 +14,9 @@ BLE 마우스 ─┴─→ ESP32-S3 (NimBLE) ─┼─ BLE HID → 호스트 2
 
 상태: 펌웨어 0.7. 입력 기기는 2대까지(키보드와 마우스, 또는 아무 두 대), 호스트는 3대. 키보드와 마우스를 동시에 연결하고, Mac 2대·Windows PC·iPhone을 호스트로 실기 확인했다. 입력은 활성 호스트로 가고, 키 조합과 설정 화면 모두로 호스트를 바꾼다. 실기 확인 전: 호스트 패스키를 키보드로 입력하기(앱 화면 입력은 확인), 시스템 키(전원·잠자기·깨우기). 앱은 macOS용만 빌드했다.
 
-라이선스: 아직 정하지 않았다.
+라이선스: [GNU GPL v3](LICENSE) (GPL-3.0-only). Copyright (C) 2026 enfpdev. GPL 조건 없이 쓰는 상용 라이선스는 문의:
+contact@enfpdev.com. 기여에는 [CLA](CLA.md) 동의가 필요하다 ([CONTRIBUTING.md](CONTRIBUTING.md)). `ui/src/components/ui/`는
+[shadcn/ui](https://ui.shadcn.com)(MIT)에서 가져왔다.
 
 ## 폴더
 

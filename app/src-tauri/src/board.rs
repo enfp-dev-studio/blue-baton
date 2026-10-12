@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 //! The board's USB serial link. The app owns the port; the settings window and the developer API
 //! (devapi.rs) both talk through it.
 //!

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 import { useEffect, useState } from 'react';
 import { Ellipsis, Gamepad2, Keyboard, Mouse, Smartphone } from 'lucide-react';
 import { Button } from '@/components/ui/button';

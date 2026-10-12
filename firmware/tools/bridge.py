@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """
 Local bridge: this one program holds the board's USB serial port and shares it with several clients.
 

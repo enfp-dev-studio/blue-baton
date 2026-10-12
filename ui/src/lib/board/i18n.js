@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 /*
  * UI strings. English is the default, Korean is the second language.
  *

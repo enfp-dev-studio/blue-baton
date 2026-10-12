@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 //! Developer API on 127.0.0.1:8766, the same HTTP interface as firmware/tools/bridge.py, so the flash
 //! helper (/release, /acquire) and monitoring tools keep working while the app owns the port.
 //! Off by default (tray menu → Developer API), because board lines include typed passkeys.

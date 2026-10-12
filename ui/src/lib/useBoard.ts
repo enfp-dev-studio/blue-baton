@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 import { useSyncExternalStore } from 'react';
 import type { BoardState, Controller } from './board/types';
 

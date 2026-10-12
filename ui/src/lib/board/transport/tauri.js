@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 /*
  * The menu bar app's own serial link (app/src-tauri/src/board.rs). The app owns the USB port; this page gets
  * its lines as `board-line` events and sends commands with the `board_send` command. Only works inside the app.
