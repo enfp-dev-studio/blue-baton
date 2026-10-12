@@ -55,8 +55,6 @@ esp_err_t host_selftest(int host, int minutes);
 /* Deleting a bond (ble_gap_unpair) returns EBUSY while advertising. Stop advertising during the delete, then restore it */
 void host_adv_hold(bool hold);
 
-/* For connection slot accounting: current number of host connections */
-int host_link_count(void);
 
 /* Whether the active host can receive input right now */
 bool host_online(int index);

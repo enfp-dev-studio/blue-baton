@@ -12,7 +12,7 @@ BLE mouse ────┴─→ ESP32-S3 (NimBLE) ─┼─ BLE HID → host 2
                     └─ USB: menu bar app (settings, quick switch)
 ```
 
-Status: firmware 0.6. Tested on real hardware with a keyboard and a mouse connected at the same time, and with two Macs, a Windows PC and an iPhone as hosts: input goes to the active host, and both the key combo and the settings UI switch hosts. Not yet tested on hardware: typing a host's passkey on the keyboard (entering it in the app was tested) and system keys (power, sleep, wake). Only the macOS app has been built.
+Status: firmware 0.7. Up to two input devices (a keyboard and a mouse, or any two) and three hosts. Tested on real hardware with a keyboard and a mouse connected at the same time, and with two Macs, a Windows PC and an iPhone as hosts: input goes to the active host, and both the key combo and the settings UI switch hosts. Not yet tested on hardware: typing a host's passkey on the keyboard (entering it in the app was tested) and system keys (power, sleep, wake). Only the macOS app has been built.
 
 License: not decided yet.
 
@@ -29,15 +29,19 @@ License: not decided yet.
 
 ## Build, flash, test
 
+Release build (developer diagnostics off):
+
 ```bash
 . ~/esp/esp-idf/export.sh && cd firmware && idf.py build
 ```
+
+Developer build and flash (diagnostics on: detailed `stats`, `selftest`):
 
 ```bash
 firmware/tools/flash.sh
 ```
 
-`flash.sh` builds, then flashes the first `/dev/cu.usbmodem*` port (macOS; `KM_PORT` sets another port). It expects ESP-IDF in `~/esp/esp-idf`.
+`flash.sh` builds into `firmware/build-dev`, then flashes the first `/dev/cu.usbmodem*` port (macOS; `KM_PORT` sets another port). It expects ESP-IDF in `~/esp/esp-idf`.
 
 ```bash
 firmware/test/run.sh

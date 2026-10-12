@@ -1,5 +1,5 @@
 #!/bin/sh
-# Build and flash the firmware. If the bridge is running, it is asked to release the port for a moment and re-acquire it afterwards.
+# Build and flash the developer firmware (diagnostics on). If the bridge is running, it is asked to release the port for a moment and re-acquire it afterwards.
 # Settings UI and monitor clients attached to the bridge are not dropped; they reattach automatically.
 #   firmware/tools/flash.sh            (build + flash)
 set -e
@@ -9,7 +9,9 @@ PORT="${KM_PORT:-$(ls /dev/cu.usbmodem* 2>/dev/null | head -1)}"
 [ -n "$PORT" ] || { echo "Board port not found (/dev/cu.usbmodem*)"; exit 1; }
 . "$HOME/esp/esp-idf/export.sh" >/dev/null 2>&1
 LOG="${TMPDIR:-/tmp}/km_flash_build.log"
-if ! idf.py build >"$LOG" 2>&1; then
+# Developer build: diagnostics on (sdkconfig.dev), in its own build folder so a release build (idf.py build) stays separate
+IDF="idf.py -B build-dev -DSDKCONFIG=build-dev/sdkconfig -DSDKCONFIG_DEFAULTS=sdkconfig.defaults;sdkconfig.dev"
+if ! $IDF build >"$LOG" 2>&1; then
   echo "Build failed (full log: $LOG)"
   grep -E "error|Error" "$LOG" | head -20
   exit 1
@@ -20,7 +22,7 @@ if curl -sf -X POST "$BRIDGE/release" >/dev/null 2>&1; then
   sleep 0.5
 fi
 status=0
-idf.py -p "$PORT" flash >"$LOG" 2>&1 || status=$?
+$IDF -p "$PORT" flash >"$LOG" 2>&1 || status=$?
 if [ "$released" = 1 ]; then
   curl -sf -X POST "$BRIDGE/acquire" >/dev/null || true
 fi

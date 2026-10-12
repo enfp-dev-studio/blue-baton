@@ -1,8 +1,8 @@
-# USB Control Protocol (firmware 0.6)
+# USB Control Protocol (firmware 0.7)
 
 The board connects over USB to the main machine, and that machine's settings app (`app/`, or the UI in `ui/` via the local bridge or Web Serial) controls the board with this protocol.
 
-Changes from earlier versions are collected at the end under "0.5 → 0.6 changes", "0.4 → 0.5 changes" and "0.3 → 0.4 changes".
+Changes from earlier versions are collected at the end under "0.6 → 0.7 changes", "0.5 → 0.6 changes", "0.4 → 0.5 changes" and "0.3 → 0.4 changes".
 
 ## Basic rules
 
@@ -12,7 +12,7 @@ Changes from earlier versions are collected at the end under "0.5 → 0.6 change
   ```
 - Board → host: one JSON line with the `KM< ` prefix
   ```text
-  KM< {"id":1,"ok":true,"fw":"blue-baton","version":"0.6","combo_set":false,"wifi_feature":false}
+  KM< {"id":1,"ok":true,"fw":"blue-baton","version":"0.7","combo_set":false}
   ```
 - A response carries the same `id` as its request. Notifications the board sends on its own (events) have an `event` field and no `id`.
 - Board logs (`I (123) km: ...`) come out on the same port. The host should read only lines that start with `KM< `. Locate `KM< `, then parse from there.
@@ -35,19 +35,16 @@ Changes from earlier versions are collected at the end under "0.5 → 0.6 change
 - `report` and `route` (input content) are sent only while a client holds the input monitor lease: `monitor`
   `{"on":true}` turns it on for `lease_ms` (60 s) and must be renewed; `{"on":false}` or a reboot ends it. The
   settings UI renews it only while its input monitor is open and visible.
-- The Wi-Fi setup API (`KM_WIFI_ENABLE=y` builds only) is reachable by anyone in radio range, so it needs a PIN
-  (`X-PIN` header), set over USB with `pin_set`. Builds without Wi-Fi erase a PIN left by earlier firmware at boot.
 
 ## Commands
 
 | Command | Arguments | Description |
 |---|---|---|
-| `hello` | none | Firmware info, whether a switch combo is set, whether the Wi-Fi feature is present |
+| `hello` | none | Firmware info and whether a switch combo is set |
 | `status` | none | See "status response" below |
 | `monitor` | `on` | Input monitor lease (see "Access and input content"). Reply: `lease_ms` (60000 when on, 0 when off) |
-| `stats` | none | Latency statistics since the last `stats` (`stats`): `mouse_sent`, `notify_avg_us`, `notify_max_us` (time inside the notify call that hands a report to the controller), `hosts` (`host`, `itvl`, `latency` of each host link). Developer builds (`CONFIG_KM_DIAG`, on by default; off for releases) add `mbufs` and `mbufs_free_min` (the stack's buffer count, and the fewest free at a notify), `nvs_writes` and `nvs_max_us` (settings flash writes and the longest one, µs), `hosts` (`host`, `itvl`, `latency`, `rssi` in dBm as the board receives it, `mouse_reports` handed to the stack, `nobuf_mouse`/`nobuf_other` reports the stack could not take, `superseded` queued changes dropped for a later one of the same report, `ack_ms` how long reports took from the input reaching the board until the controller reported them completed (HCI Number Of Completed Packets): counts for <15, 15–30, 30–45, 45–60, 60–90, 90–150, 150–300, ≥300 ms, `ack_max_ms`, of each host link). Reading resets the counters |
+| `stats` | none | Latency statistics since the last `stats` (`stats`): `mouse_sent`, `notify_avg_us`, `notify_max_us` (time inside the notify call that hands a report to the controller), `hosts` (`host`, `itvl`, `latency` of each host link). Developer builds (`CONFIG_KM_DIAG`; `tools/flash.sh` builds them, release builds leave it off) add `mbufs` and `mbufs_free_min` (the stack's buffer count, and the fewest free at a notify), `nvs_writes` and `nvs_max_us` (settings flash writes and the longest one, µs), `hosts` (`host`, `itvl`, `latency`, `rssi` in dBm as the board receives it, `mouse_reports` handed to the stack, `nobuf_mouse`/`nobuf_other` reports the stack could not take, `superseded` queued changes dropped for a later one of the same report, `ack_ms` how long reports took from the input reaching the board until the controller reported them completed (HCI Number Of Completed Packets): counts for <15, 15–30, 30–45, 45–60, 60–90, 90–150, 150–300, ≥300 ms, `ack_max_ms`, of each host link). Reading resets the counters |
 | `selftest` | `host` (1–3, 0 stops), `minutes` (default 30) | Developer builds only. Sends mouse reports to that host every 8.75 ms (16 counts right, then 16 left: the cursor stays within a few pixels) through the normal delivery path, so `stats` measures delivery without anyone moving the mouse. The host must not be the active one; it stops when that host becomes active, when its link drops, or when time is up. Events `selftest_started` (`host`, `minutes`), `selftest_stopped` (`host`, `reason`: `done`/`active`/`link`/`stopped`/`restarted`, `reports`) |
-| `pin_set` | `pin` (4 to 8 digits) | Wi-Fi builds only: set the Wi-Fi setup API PIN |
 | `combo_get` | none | The host switch combos actually in effect (`combo`). If nothing is stored or the stored value is malformed, the default applies and `default:true`; if an invalid value is stored, `stored_invalid:true` |
 | `combo_set` | `combo` | Comma-separated list of combos in host order (e.g. `ctrl+alt+1,ctrl+alt+2,ctrl+alt+3`, up to 95 characters). Validated, then applied and saved immediately. If invalid, `code:"bad_combo"` |
 | `host_select` | `host` (1–3) | Select the active host directly. Same handling as a combo switch (release-all to the previous host) |
@@ -80,7 +77,6 @@ Failure `code`
 | `hosts_full` | All 3 host slots are in use |
 | `bad_host` | Host number is not 1–3 |
 | `bad_code` | Passkey is not 6 digits |
-| `bad_pin` | `pin_set` (Wi-Fi builds): PIN is not 4–8 digits |
 | `bad_combo` | Switch combo missing or malformed |
 | `bad_request` | Missing or malformed argument (`cmd`, `on`, `accept`) |
 | `unknown_cmd` | Unknown command |
@@ -218,7 +214,6 @@ Only while the window is open does the board present itself as a keyboard (IO ca
 - Input devices start the security procedure (pairing, key restore) one at a time. If two input devices attach at the same time, one waits briefly.
 - Some devices create a new address (identity) every time they enter pairing mode. They then show up as a new device, and the user deletes the old record by looking at `last_seq`.
 - The found list holds at most 16 devices; when it overflows, the device seen longest ago is pushed out. Names are at most 23 bytes.
-- Wi-Fi settings commands (`/api/*`) exist only in builds with `KM_WIFI_ENABLE=y` (off by default).
 
 ## Host switch combos
 
@@ -233,12 +228,14 @@ Only while the window is open does the board present itself as a keyboard (IO ca
   - When an input device disconnects, the keys it was holding are treated as released
   - The active host is kept across restarts (power, firmware update)
 
-## 0.5 → 0.6 changes
+## 0.6 → 0.7 changes
 
-- USB is no longer locked: `auth` and `lock` are gone, `hello` no longer has `pin_set` and `unlocked`, and the
-  `locked`, `no_pin` and `wrong_pin` codes are gone. `pin_set` remains only in Wi-Fi builds (for the Wi-Fi setup API).
-  A PIN stored by earlier firmware is erased at boot in builds without Wi-Fi.
-- Input content (`report`, `route`) goes out only under the new `monitor` lease. New event `activity` (no content).
+- Wi-Fi is gone: no Wi-Fi setup API, no `pin_set` or `bad_pin`, and `hello` no longer has `wifi_feature`. A PIN, Wi-Fi
+  credentials or AP password stored by earlier firmware are erased at boot.
+- The console no longer prints a status line every 5 seconds.
+- Developer diagnostics are one build option, `CONFIG_KM_DIAG`, off by default: the detailed `stats` fields and the new
+  `selftest` command. The developer flash script (`tools/flash.sh`) builds with it on.
+- When a firmware update changes the GATT table, bonded hosts are told once (Service Changed) so they read it again.
 - Latency: a mouse report no longer waits for the next host interval (was at most 1 per host interval, which made
   motion wait up to an interval); see report delivery below. New command `stats`; `status` `peers` entries have
   `itvl`; `status` has `heap_free` and `heap_min` (lowest free heap since boot, bytes).
@@ -256,10 +253,8 @@ Only while the window is open does the board present itself as a keyboard (IO ca
   held on the host); Usages listed one by one are no longer limited to 6, and array values select from such a list.
 - A report the stack could not take is no longer remembered as sent, so the next change carries the full state.
 - The active host is kept across restarts (was always host 1 after a restart).
-- Developer diagnostics are one build option, `CONFIG_KM_DIAG` (on by default): the detailed `stats` fields and the
-  new `selftest` command. Release builds turn it off.
-- Report delivery to hosts: at most 2 reports per host are in the controller at once (counted by its completion reports); further key, button,
-  media and system changes wait in order (if 8 are already waiting, an older change gives way to a later one of the
+- Report delivery to hosts: at most 2 reports per host are in the controller at once (counted by its completion
+  reports); further key, button, media and system changes wait in order (if 8 are already waiting, an older change gives way to a later one of the
   same report), and mouse motion adds up into the next mouse report. Before, every report was queued in the stack,
   and reports were dropped when the stack's buffers ran out (a key-up could have been among them).
 - Idle hosts are asked for peripheral latency 30 and the active host for 4; a switch re-requests both.
@@ -272,6 +267,13 @@ Only while the window is open does the board present itself as a keyboard (IO ca
   saved to flash after the switch's reports have gone to the stack.
 - Auto-reconnect listens 30 ms every 60 ms only for 30 s after a device drops, then 11.25 ms every 1.28 s (it
   listened half the time indefinitely). A sleeping device may take up to about 1.3 s longer to come back.
+
+## 0.5 → 0.6 changes
+
+- USB is no longer locked: `auth` and `lock` are gone, `hello` no longer has `pin_set` and `unlocked`, and the
+  `locked`, `no_pin` and `wrong_pin` codes are gone. `pin_set` remains only in Wi-Fi builds (for the Wi-Fi setup API).
+  A PIN stored by earlier firmware is erased at boot in builds without Wi-Fi.
+- Input content (`report`, `route`) goes out only under the new `monitor` lease. New event `activity` (no content).
 
 ## 0.4 → 0.5 changes
 

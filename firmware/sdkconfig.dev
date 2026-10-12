@@ -1,0 +1,2 @@
+# Developer build (tools/flash.sh): sdkconfig.defaults plus these
+CONFIG_KM_DIAG=y

@@ -1,5 +1,6 @@
 # ESP-IDF build output. sdkconfig is regenerated identically from sdkconfig.defaults (checked 2026-10-09)
 firmware/build/
+firmware/build-dev/
 firmware/sdkconfig
 firmware/sdkconfig.old
 firmware/managed_components/

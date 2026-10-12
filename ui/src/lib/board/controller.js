@@ -289,8 +289,10 @@ export function createController(params = new URLSearchParams(location.search), 
     },
   };
 
-  /* Values without events (such as the radio state) are resynced every 5 s */
-  setInterval(refresh, 5000);
+  /* Values without events (such as the radio state) are resynced every 5 s, only while the window is shown */
+  const shown = () => typeof document === 'undefined' || document.visibilityState === 'visible';
+  setInterval(() => shown() && refresh(), 5000);
+  if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => shown() && refresh());
 
   /*
    * Reconnect after a drop: the bridge and the app grab the port again after flashing, so retry after a

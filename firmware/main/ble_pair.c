@@ -1231,12 +1231,11 @@ static void route_report(peer_t *p, uint16_t handle, const uint8_t *data, uint16
 }
 
 /* Apply the switch combos. Empty text means the default. ESP_ERR_INVALID_ARG if malformed */
-#define DEFAULT_COMBOS "ctrl+alt+1,ctrl+alt+2,ctrl+alt+3"
 
 static esp_err_t apply_combos(const char *text)
 {
     combo_t list[ROUTER_HOST_MAX];
-    if (!combo_parse_list(text && text[0] ? text : DEFAULT_COMBOS, list)) {
+    if (!combo_parse_list(text && text[0] ? text : ROUTER_DEFAULT_COMBOS, list)) {
         return ESP_ERR_INVALID_ARG;
     }
     router_set_combos(list);

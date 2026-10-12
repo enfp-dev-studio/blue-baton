@@ -55,7 +55,7 @@ static const char *TAG = "host";
 #define APPEARANCE_KEYBOARD 0x03C1
 #define HCI_USER_TERM 0x13
 
-/* ---------- GATT table (fixed handles: no Service Changed, so do not reorder. Core v6.0 Vol 3 Part G 2.5.2) ---------- */
+/* ---------- GATT table (bonded hosts cache the handles: after any change bump GATT_LAYOUT so they are told, see host_on_sync) ---------- */
 
 enum {
     A_MANUF = 1, A_MODEL, A_FWREV, A_PNP, A_BATTERY,
@@ -271,15 +271,6 @@ static host_link_t *link_by_index(int index)
         }
     }
     return NULL;
-}
-
-int host_link_count(void)
-{
-    int n = 0;
-    for (int i = 0; i < HOST_LINK_MAX; i++) {
-        n += s_links[i].used;
-    }
-    return n;
 }
 
 bool host_online(int index)
@@ -997,7 +988,7 @@ static void adv_start(int mode, int itvl)
     f.appearance_is_present = 1;
     f.name = (const uint8_t *)DEVICE_NAME;
     f.name_len = strlen(DEVICE_NAME);
-    f.name_is_complete = 1;   /* Windows does not active-scan, so the name goes in the advertising packet (Microsoft Swift Pair) */
+    f.name_is_complete = 1;   /* In the advertising packet itself, so a scanner sees the name without a scan request */
     int rc = ble_gap_adv_set_fields(&f);
     if (rc != 0) {
         ESP_LOGE(TAG, "adv fields rc=%d", rc);
@@ -1669,9 +1660,32 @@ esp_err_t host_init(host_event_fn emit_fn)
     return ESP_OK;
 }
 
+/*
+ * Bonded hosts cache the GATT table (handles, the Report Map) and look again only when told (Service Changed,
+ * Core v6.0 Vol 3 Part G 2.5.2 and 7.1). When a firmware update changes the table, the whole range is marked changed:
+ * NimBLE indicates it to connected hosts and, for bonded hosts that subscribed, at their next connection
+ * (ble_gatts_chr_updated keeps the flag in the bond store). Bump GATT_LAYOUT whenever services or characteristics
+ * change; the Report Map is covered by its hash.
+ */
+#define GATT_LAYOUT 1
+
+static uint32_t gatt_signature(void)
+{
+    uint32_t h = 2166136261u ^ GATT_LAYOUT;   /* FNV-1a */
+    for (size_t i = 0; i < HOST_REPORT_MAP_LEN; i++) {
+        h = (h ^ HOST_REPORT_MAP[i]) * 16777619u;
+    }
+    return h;
+}
+
 void host_on_sync(void)
 {
     s_synced = true;
+    uint32_t sig = gatt_signature();
+    if (cfg_gatt_sig_get() != sig) {
+        ble_svc_gatt_changed(0x0001, 0xFFFF);
+        cfg_gatt_sig_set(sig);
+    }
     fast_adv();   /* Right after boot, let disconnected bonded hosts reconnect quickly */
     adv_update();
     ble_npl_callout_reset(&s_tick, ble_npl_time_ms_to_ticks32(1000));

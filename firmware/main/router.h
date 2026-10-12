@@ -43,6 +43,9 @@ typedef struct {
 /* Format "ctrl+alt+1", "cmd+shift+f1", "ctrl+alt+0x3a". Case-insensitive. false on failure */
 bool combo_parse(const char *text, combo_t *out);
 
+/* Used when no combos are stored */
+#define ROUTER_DEFAULT_COMBOS "ctrl+alt+1,ctrl+alt+2,ctrl+alt+3"
+
 /* Per-host combo list "ctrl+alt+1,ctrl+alt+2,ctrl+alt+3". An empty entry means no combo for that host. false on failure */
 bool combo_parse_list(const char *text, combo_t out[ROUTER_HOST_MAX]);
 
@@ -98,7 +101,6 @@ void router_release_report(router_out_t *out);
 /* Begin/end passkey entry mode. On begin, release-all must be sent to the active host (router_release_report) */
 void router_passkey_begin(void);
 void router_passkey_end(void);
-bool router_passkey_active(void);
 
 /* LED output value written by a host (Num, Caps, Scroll, Compose, Kana). Comes out as router_out_t.led on switch */
 void router_set_host_led(int host, uint8_t led);

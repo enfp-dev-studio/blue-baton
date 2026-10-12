@@ -7,29 +7,8 @@
 #include "esp_err.h"
 #include "sdkconfig.h"
 
-#define CFG_PIN_MAX 8
-#define CFG_WIFI_SSID_MAX 32
-#define CFG_WIFI_PASS_MAX 64
-#define CFG_AP_PASS_MAX 63
-/* Default board Wi-Fi password. Used for the first connection; can be changed in the web UI */
-#define CFG_DEFAULT_AP_PASS "bluebaton1"
-
 /* Open the settings store (NVS, namespace km_cfg). Call after nvs_flash_init() */
 esp_err_t cfg_init(void);
-
-/* PIN for the Wi-Fi setup API only (USB is not locked) */
-bool cfg_pin_is_set(void);
-bool cfg_pin_check(const char *pin);
-esp_err_t cfg_pin_set(const char *pin);
-
-/* Home Wi-Fi credentials. true if a value is stored */
-bool cfg_wifi_get(char *ssid, size_t ssid_len, char *pass, size_t pass_len);
-esp_err_t cfg_wifi_set(const char *ssid, const char *pass);
-esp_err_t cfg_wifi_clear(void);
-
-/* Stored board Wi-Fi password, or the default if none */
-void cfg_ap_pass_get(char *pass, size_t len);
-esp_err_t cfg_ap_pass_set(const char *pass);
 
 /* Host switch combo list (e.g. "ctrl+alt+1,ctrl+alt+2,ctrl+alt+3"). true if a value is stored */
 #define CFG_COMBO_MAX 95
@@ -42,6 +21,10 @@ esp_err_t cfg_combo_set(const char *combo);
  */
 int cfg_active_host_get(void);
 esp_err_t cfg_active_host_set(int host);
+
+/* Signature of the GATT table the bonded hosts last saw (host.c); 0 if none is stored */
+uint32_t cfg_gatt_sig_get(void);
+esp_err_t cfg_gatt_sig_set(uint32_t sig);
 
 #if CONFIG_KM_DIAG
 /* Developer builds: writes since the last call and the longest one (µs), then reset */

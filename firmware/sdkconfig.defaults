@@ -1,3 +1,6 @@
+# Target chip: ESP32-S3 (a fresh checkout would otherwise build for the ESP-IDF default, ESP32)
+CONFIG_IDF_TARGET="esp32s3"
+
 # Use NimBLE (Bluedroid off)
 CONFIG_BT_ENABLED=y
 CONFIG_BT_BLUEDROID_ENABLED=n
@@ -33,12 +36,9 @@ CONFIG_BT_NIMBLE_MAX_BONDS=8
 # 4MB flash (confirmed with esptool flash-id)
 CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
 
-# Partition table: NVS 64KB, app 3MB (holds Wi-Fi and the settings UI)
+# Partition table: NVS 64KB, app 3MB
 CONFIG_PARTITION_TABLE_CUSTOM=y
 CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
-
-# Wi-Fi setup is off by default (USB comes first for now; turn it on when switching to the server mode)
-CONFIG_KM_WIFI_ENABLE=n
 
 # NimBLE logs every notification at INFO (two console lines in the host task, ~1 ms per report)
 CONFIG_BT_NIMBLE_LOG_LEVEL_WARNING=y

@@ -523,11 +523,6 @@ void router_passkey_end(void)
     memcpy(s_suppressed, now.keys, 32);
 }
 
-bool router_passkey_active(void)
-{
-    return s_pk_active;
-}
-
 void router_set_host_led(int host, uint8_t led)
 {
     if (host >= 0 && host < ROUTER_HOST_MAX) {

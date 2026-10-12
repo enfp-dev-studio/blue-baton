@@ -12,7 +12,6 @@ const en = {
   /* ---- page (index.html, data-i18n) ---- */
   'app.title': 'Blue Baton Settings',
   'app.name': 'Blue Baton',
-  'app.subtitle': 'Settings',
   'diag.title': 'Diagnostics',
   'tray.open': 'Open Blue Baton…',
   'tray.addHost': 'Add Host…',
@@ -134,17 +133,15 @@ const en = {
   'reason.timeout': 'Signal lost',
   'reason.local': 'The board disconnected',
 
-  /* ---- top bar: board link and lock ---- */
+  /* ---- top bar: board link ---- */
   'link.connecting': 'Connecting to the board…',
   'link.disconnected': 'Board not connected',
   'link.connect': 'Connect board',
-  'link.connected': 'Connected',
   'link.info': '{transport} · v{fw}',
   'link.releaseTitle': 'Releases the USB port so other programs can use the board',
   'link.release': 'Disconnect',
   'link.notPicked': 'No board was selected.',
 
-  /* ---- PIN lock ---- */
   'link.connectHint': 'Connect the board with a USB cable, then click Connect board (Chrome or Edge).',
 
   /* ---- hosts ---- */
@@ -285,7 +282,6 @@ const ko = {
   /* ---- page (index.html, data-i18n) ---- */
   'app.title': 'Blue Baton 설정',
   'app.name': 'Blue Baton',
-  'app.subtitle': '설정',
   'diag.title': '진단',
   'tray.open': 'Blue Baton 열기…',
   'tray.addHost': '호스트 추가…',
@@ -407,17 +403,15 @@ const ko = {
   'reason.timeout': '신호가 끊겼어요',
   'reason.local': '보드가 연결을 끊었어요',
 
-  /* ---- top bar: board link and lock ---- */
+  /* ---- top bar: board link ---- */
   'link.connecting': '보드에 연결하는 중…',
   'link.disconnected': '보드가 연결되지 않았어요',
   'link.connect': '보드 연결',
-  'link.connected': '연결됨',
   'link.info': '{transport} · v{fw}',
   'link.releaseTitle': 'USB 포트를 놓습니다. 다른 프로그램이 보드를 쓸 수 있어요',
   'link.release': '연결 끊기',
   'link.notPicked': '보드를 고르지 않았어요.',
 
-  /* ---- PIN lock ---- */
   'link.connectHint': '보드를 USB 케이블로 연결한 뒤 보드 연결을 누르세요 (Chrome 또는 Edge).',
 
   /* ---- hosts ---- */

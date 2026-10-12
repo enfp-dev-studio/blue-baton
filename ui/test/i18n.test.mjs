@@ -1,4 +1,4 @@
-/* UI string tables: every language has the same keys and placeholders. Run: node --test firmware/ui/test/ */
+/* UI string tables: every language has the same keys and placeholders. Run: node --test ui/test/ */
 import assert from 'node:assert/strict';
 import test from 'node:test';
 

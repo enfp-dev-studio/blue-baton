@@ -18,11 +18,6 @@
 #define RESP_MAX 1024
 #define TASK_STACK 8192
 
-#if CONFIG_KM_WIFI_ENABLE
-#define WIFI_FEATURE_JSON "true"
-#else
-#define WIFI_FEATURE_JSON "false"
-#endif
 
 void usb_ctl_emit(const char *json)
 {
@@ -102,10 +97,9 @@ static void cmd_hello(int id)
 
     char fields[256];
     snprintf(fields, sizeof(fields),
-             ",\"fw\":\"blue-baton\",\"version\":\"%s\",\"combo_set\":%s,\"wifi_feature\":%s",
+             ",\"fw\":\"blue-baton\",\"version\":\"%s\",\"combo_set\":%s",
              KM_FW_VERSION,
-             combo_set ? "true" : "false",
-             WIFI_FEATURE_JSON);
+             combo_set ? "true" : "false");
     reply_ok(id, fields);
 }
 
@@ -140,25 +134,6 @@ static void cmd_status(int id)
     reply_ok(id, fields);
 }
 
-#if CONFIG_KM_WIFI_ENABLE
-/*
- * PIN for the Wi-Fi setup API (web_server.c). USB itself is not locked: the computer the board is plugged into is
- * trusted, as with other USB accessories. Over Wi-Fi anyone in range can reach the board, so that API needs a PIN.
- */
-static void cmd_pin_set(int id, const char *line)
-{
-    char pin[CFG_PIN_MAX + 1];
-    if (!json_get_string(line, "pin", pin, sizeof(pin)) || !is_digits(pin, 4, CFG_PIN_MAX)) {
-        reply_err_code(id, "bad_pin", "PIN must be 4 to 8 digits");
-        return;
-    }
-    if (cfg_pin_set(pin) != ESP_OK) {
-        reply_err_code(id, "failed", "Failed to save the PIN");
-        return;
-    }
-    reply_ok(id, "");
-}
-#endif
 
 /* Input monitor lease (see ble_pair_monitor). The settings UI renews it while the monitor is shown */
 static void cmd_monitor(int id, const char *line)
@@ -173,8 +148,6 @@ static void cmd_monitor(int id, const char *line)
     reply_ok(id, fields);
 }
 
-/* Default combos. Used when nothing is stored (same as DEFAULT_COMBOS in ble_pair.c) */
-#define DEFAULT_COMBOS "ctrl+alt+1,ctrl+alt+2,ctrl+alt+3"
 
 static void cmd_combo_get(int id)
 {
@@ -184,7 +157,7 @@ static void cmd_combo_get(int id)
     combo_t parsed[ROUTER_HOST_MAX];
     bool valid = stored && combo_parse_list(combo, parsed);
     char esc[200];
-    json_escape(valid ? combo : DEFAULT_COMBOS, esc, sizeof(esc));
+    json_escape(valid ? combo : ROUTER_DEFAULT_COMBOS, esc, sizeof(esc));
     char fields[280];
     snprintf(fields, sizeof(fields), ",\"combo\":\"%s\",\"default\":%s,\"stored_invalid\":%s", esc,
              valid ? "false" : "true", stored && !valid ? "true" : "false");
@@ -369,10 +342,6 @@ static void handle_line(const char *line)
         cmd_hello(id);
     } else if (strcmp(cmd, "status") == 0) {
         cmd_status(id);
-#if CONFIG_KM_WIFI_ENABLE
-    } else if (strcmp(cmd, "pin_set") == 0) {
-        cmd_pin_set(id, line);
-#endif
     } else if (strcmp(cmd, "monitor") == 0) {
         cmd_monitor(id, line);
     } else if (strcmp(cmd, "stats") == 0) {

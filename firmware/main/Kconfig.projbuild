@@ -1,19 +1,12 @@
 menu "Blue Baton settings"
 
-    config KM_WIFI_ENABLE
-        bool "Enable Wi-Fi setup (only when switching to the server mode)"
-        default n
-        help
-            When enabled, the board turns on Wi-Fi (board Wi-Fi + home Wi-Fi) and opens the settings API.
-            Keep it off when the board is plugged into the main device over USB.
-            If the main device joins the board's Wi-Fi, that device loses its internet connection.
-
     config KM_DIAG
         bool "Developer diagnostics (stats details, self-test)"
-        default y
+        default n
         help
-            Per-host delivery statistics in the stats command (acknowledgement times, signal strength, reports the
-            stack could not take, buffer use) and the selftest command. Turn off for release builds: the code is
-            compiled out and stats keeps only the basic fields.
+            Per-host delivery statistics in the stats command (times from input to completion, signal strength,
+            reports the stack could not take, settings flash writes) and the selftest command. Off in release builds
+            (the code is compiled out and stats keeps only the basic fields); tools/flash.sh builds with it on
+            (sdkconfig.dev).
 
 endmenu

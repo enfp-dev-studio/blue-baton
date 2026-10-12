@@ -9,12 +9,9 @@
 #include "cfg_store.h"
 
 #define NVS_NAMESPACE "km_cfg"
-#define KEY_PIN "pin"
-#define KEY_WIFI_SSID "wifi_ssid"
-#define KEY_WIFI_PASS "wifi_pass"
-#define KEY_AP_PASS "ap_pass"
 #define KEY_COMBO "combo"
 #define KEY_ACTIVE_HOST "active_host"
+#define KEY_GATT_SIG "gatt_sig"
 
 static const char *TAG = "cfg";
 static nvs_handle_t s_nvs;
@@ -64,13 +61,16 @@ esp_err_t cfg_init(void)
         nvs_commit(s_nvs);
         ESP_LOGW(TAG, "removed v1 paired records (no bond keys behind them)");
     }
-#if !CONFIG_KM_WIFI_ENABLE
-    /* Before 0.6 the USB settings were locked with a PIN. Only the Wi-Fi setup API uses one now */
-    if (nvs_erase_key(s_nvs, KEY_PIN) == ESP_OK) {
-        nvs_commit(s_nvs);
-        ESP_LOGW(TAG, "removed the old settings PIN (USB settings are no longer locked)");
+    /* Earlier firmware stored a settings PIN, Wi-Fi credentials and an AP password. Nothing uses them now */
+    static const char *const old_keys[] = {"pin", "wifi_ssid", "wifi_pass", "ap_pass"};
+    bool erased = false;
+    for (size_t i = 0; i < sizeof(old_keys) / sizeof(old_keys[0]); i++) {
+        erased |= nvs_erase_key(s_nvs, old_keys[i]) == ESP_OK;
     }
-#endif
+    if (erased) {
+        nvs_commit(s_nvs);
+        ESP_LOGW(TAG, "removed the old PIN and Wi-Fi settings");
+    }
     return ESP_OK;
 }
 
@@ -95,60 +95,6 @@ static esp_err_t set_str(const char *key, const char *value)
     return err;
 }
 
-bool cfg_pin_is_set(void)
-{
-    char tmp[CFG_PIN_MAX + 1];
-    return get_str(KEY_PIN, tmp, sizeof(tmp));
-}
-
-bool cfg_pin_check(const char *pin)
-{
-    char saved[CFG_PIN_MAX + 1];
-    if (!get_str(KEY_PIN, saved, sizeof(saved))) {
-        return false;
-    }
-    return strcmp(saved, pin) == 0;
-}
-
-esp_err_t cfg_pin_set(const char *pin)
-{
-    return set_str(KEY_PIN, pin);
-}
-
-bool cfg_wifi_get(char *ssid, size_t ssid_len, char *pass, size_t pass_len)
-{
-    return get_str(KEY_WIFI_SSID, ssid, ssid_len) && get_str(KEY_WIFI_PASS, pass, pass_len);
-}
-
-esp_err_t cfg_wifi_set(const char *ssid, const char *pass)
-{
-    esp_err_t err = set_str(KEY_WIFI_SSID, ssid);
-    if (err == ESP_OK) {
-        err = set_str(KEY_WIFI_PASS, pass);
-    }
-    return err;
-}
-
-esp_err_t cfg_wifi_clear(void)
-{
-    nvs_erase_key(s_nvs, KEY_WIFI_SSID);
-    nvs_erase_key(s_nvs, KEY_WIFI_PASS);
-    return nvs_commit(s_nvs);
-}
-
-void cfg_ap_pass_get(char *pass, size_t len)
-{
-    if (!get_str(KEY_AP_PASS, pass, len)) {
-        strncpy(pass, CFG_DEFAULT_AP_PASS, len - 1);
-        pass[len - 1] = '\0';
-    }
-}
-
-esp_err_t cfg_ap_pass_set(const char *pass)
-{
-    return set_str(KEY_AP_PASS, pass);
-}
-
 bool cfg_combo_get(char *combo, size_t len)
 {
     return get_str(KEY_COMBO, combo, len);
@@ -169,6 +115,24 @@ esp_err_t cfg_active_host_set(int host)
 {
     int64_t t0 = esp_timer_get_time();
     esp_err_t err = nvs_set_u8(s_nvs, KEY_ACTIVE_HOST, (uint8_t)host);
+    if (err == ESP_OK) {
+        err = nvs_commit(s_nvs);
+    }
+    write_done(t0);
+    return err;
+}
+
+uint32_t cfg_gatt_sig_get(void)
+{
+    uint32_t sig = 0;
+    nvs_get_u32(s_nvs, KEY_GATT_SIG, &sig);
+    return sig;
+}
+
+esp_err_t cfg_gatt_sig_set(uint32_t sig)
+{
+    int64_t t0 = esp_timer_get_time();
+    esp_err_t err = nvs_set_u32(s_nvs, KEY_GATT_SIG, sig);
     if (err == ESP_OK) {
         err = nvs_commit(s_nvs);
     }
