@@ -125,9 +125,7 @@ fn set_dev_api(app: &AppHandle, on: bool) {
         match devapi::DevApi::start(app.clone(), state.board.clone()) {
             Ok(api) => {
                 *slot = Some(api);
-                if let Some(path) = devapi::log_path(app) {
-                    state.board.set_log(board::Board::open_log(&path));
-                }
+                state.board.set_log(devapi::log_path(app).as_deref());
             }
             Err(e) => {
                 // Most likely tools/bridge.py is already listening on the port

@@ -1,6 +1,6 @@
 [package]
 name = "blue-baton"
-version = "0.6.0"
+version = "0.7.0"
 description = "Blue Baton menu bar app"
 edition = "2021"
 publish = false
