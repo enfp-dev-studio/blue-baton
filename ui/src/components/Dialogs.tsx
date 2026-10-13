@@ -19,7 +19,7 @@ function Steps({ items }: { items: string[] }) {
     <ol className="grid gap-2">
       {items.map((text, i) => (
         <li key={i} className="flex items-baseline gap-2.5 text-sm text-muted-foreground">
-          <span className="grid size-5 shrink-0 translate-y-[-1px] place-items-center rounded-full bg-muted text-[11px] font-bold">{i + 1}</span>
+          <span className="grid size-5 shrink-0 translate-y-[-1px] place-items-center rounded-full bg-muted text-2xs font-bold">{i + 1}</span>
           {text}
         </li>
       ))}
@@ -157,7 +157,7 @@ function FoundRow({ f, a }: { f: Found; a: Actions }) {
       <div className="min-w-0">
         <div className="flex items-center gap-2">
           <span className="truncate font-semibold">{f.name || t('common.unnamedDevice')}</span>
-          {f.paired && <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">{t('add.paired')}</span>}
+          {f.paired && <span className="rounded-full bg-muted px-2 py-0.5 text-2xs font-semibold text-muted-foreground">{t('add.paired')}</span>}
         </div>
         <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
           <span>{kindText([], f.appearance)}</span>

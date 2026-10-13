@@ -55,11 +55,11 @@ export function Group({
     <section className="grid gap-1.5">
       {(title || aside) && (
         <div className="flex flex-wrap items-baseline justify-between gap-x-3 px-1">
-          {title && <h2 className="text-[13px] font-semibold">{title}</h2>}
+          {title && <h2 className="text-ui font-semibold">{title}</h2>}
           {aside && <span className="text-xs text-muted-foreground">{aside}</span>}
         </div>
       )}
-      <div className={cn('overflow-hidden rounded-[10px] border bg-card', className)}>{children}</div>
+      <div className={cn('overflow-hidden rounded-lg border bg-card', className)}>{children}</div>
       {footer && <div className="px-1 text-xs text-muted-foreground">{footer}</div>}
     </section>
   );
@@ -74,7 +74,7 @@ export function RowMenu({ label, children }: { label: string; children: React.Re
           <Ellipsis />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-40 text-[13px]">
+      <DropdownMenuContent align="end" className="min-w-40 text-ui">
         {children}
       </DropdownMenuContent>
     </DropdownMenu>

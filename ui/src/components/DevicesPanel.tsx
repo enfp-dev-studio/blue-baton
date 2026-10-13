@@ -39,7 +39,6 @@ export function DevicesPanel({ s, a, confirm }: { s: BoardState; a: Actions; con
         <Button
           size="sm"
           variant="outline"
-          className="h-7 px-3 text-[13px]"
           onClick={a.openAdd}
           disabled={s.hostWindow.open || full}
           title={full ? t('devices.full') : s.hostWindow.open ? t('devices.addBlocked') : undefined}
@@ -79,12 +78,12 @@ function DeviceRow({ d, a, confirm }: { d: Device; a: Actions; confirm: Confirm 
       </div>
       <StateTag tone={tone} className="shrink-0">{stateText(d.state)}</StateTag>
       {primary && (
-        <Button size="xs" variant="outline" className="h-6 px-2.5 text-xs" onClick={primary.run}>
+        <Button size="xs" variant="outline" onClick={primary.run}>
           {primary.label}
         </Button>
       )}
       <RowMenu label={t('common.more')}>
-        <DropdownMenuLabel className="font-mono text-[11px] font-normal text-muted-foreground">{d.id}</DropdownMenuLabel>
+        <DropdownMenuLabel className="font-mono text-2xs font-normal text-muted-foreground">{d.id}</DropdownMenuLabel>
         {(connected || d.paired) && <DropdownMenuSeparator />}
         {connected && <DropdownMenuItem onSelect={() => a.disconnectDevice(d.addr)}>{t('devices.disconnect')}</DropdownMenuItem>}
         {d.paired && (

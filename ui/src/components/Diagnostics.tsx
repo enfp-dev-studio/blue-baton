@@ -58,8 +58,8 @@ export function Diagnostics({ s, a, ctl }: { s: BoardState; a: Actions; ctl: Con
         store('bb.diagOpen', v);
       }}
     >
-      <div className="overflow-hidden rounded-[10px] border bg-card">
-        <CollapsibleTrigger className="flex h-11 w-full items-center justify-between px-4 text-left text-[13px] font-medium outline-none hover:bg-accent/60 focus-visible:bg-accent">
+      <div className="overflow-hidden rounded-lg border bg-card">
+        <CollapsibleTrigger className="flex h-11 w-full items-center justify-between px-4 text-left text-ui font-medium outline-none hover:bg-accent/60 focus-visible:bg-accent">
           {t('diag.title')}
           <ChevronRight className={cn('size-4 text-muted-foreground transition-transform', open && 'rotate-90')} />
         </CollapsibleTrigger>
@@ -78,7 +78,7 @@ export function Diagnostics({ s, a, ctl }: { s: BoardState; a: Actions; ctl: Con
                   <Label htmlFor="log-board" className="text-xs font-normal text-muted-foreground">{t('log.boardLines')}</Label>
                 </div>
               </div>
-              <div className="max-h-80 overflow-auto whitespace-pre-wrap break-all rounded-md bg-muted p-2.5 font-mono text-[11px]">
+              <div className="max-h-80 overflow-auto whitespace-pre-wrap break-all rounded-md bg-muted p-2.5 font-mono text-2xs">
                 {rows.map((r, i) => (
                   <div key={i} className={cn(r.dir === '>' && 'text-primary', r.dir === '·' && 'text-muted-foreground')}>
                     {`${r.at.toLocaleTimeString()} ${r.dir} ${r.text}`}

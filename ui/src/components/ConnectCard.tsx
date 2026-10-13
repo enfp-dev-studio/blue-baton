@@ -14,7 +14,7 @@ export function ConnectCard({ s, a, ctl }: { s: BoardState; a: Actions; ctl: Con
       <h2 className="text-[15px] font-semibold">{t('link.disconnected')}</h2>
       <p className="mb-4 mt-1 text-xs text-muted-foreground">{ctl.inApp ? t('link.searching') : t('link.connectHint')}</p>
       {!ctl.inApp && (
-        <Button size="sm" className="h-7 px-3 text-[13px]" onClick={a.connect} disabled={s.link === 'connecting'}>
+        <Button size="sm" onClick={a.connect} disabled={s.link === 'connecting'}>
           <Usb /> {t('link.connect')}
         </Button>
       )}

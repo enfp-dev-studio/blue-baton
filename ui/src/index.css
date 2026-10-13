@@ -83,6 +83,12 @@
   --chart-5: oklch(0.7 0.17 330);
 }
 
+/* The two small sizes of a macOS window: 13 px controls and body, 11 px captions (text-ui, text-2xs) */
+@theme {
+  --text-ui: 0.8125rem;
+  --text-2xs: 0.6875rem;
+}
+
 @theme inline {
   --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Apple SD Gothic Neo", "Pretendard", "Malgun Gothic", system-ui, sans-serif;
   --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
