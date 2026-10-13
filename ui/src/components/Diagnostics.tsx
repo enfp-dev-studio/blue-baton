@@ -8,33 +8,21 @@ import { t } from '@/lib/board/i18n.js';
 import type { Actions, BoardState, Controller } from '@/lib/board/types';
 import { cn } from '@/lib/utils';
 
-function stored(key: string) {
-  try {
-    return localStorage.getItem(key) === '1';
-  } catch {
-    return false;
-  }
-}
-
-function store(key: string, on: boolean) {
-  try {
-    localStorage.setItem(key, on ? '1' : '0');
-  } catch {
-    /* storage can be unavailable (private windows) */
-  }
-}
-
 /*
  * Developer area: the input monitor (plain DOM, updated dozens of times a second) and the protocol log.
- * The board sends input content only while the monitor is open and the window is visible.
+ * Closed until opened, and closed again whenever the window goes away. The board sends input content only while
+ * it is open and the window is visible.
  */
 export function Diagnostics({ s, a, ctl }: { s: BoardState; a: Actions; ctl: Controller }) {
-  const [open, setOpen] = useState(() => stored('bb.diagOpen'));
+  const [open, setOpen] = useState(false);
   const [boardLines, setBoardLines] = useState(false);
   const holder = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (open && holder.current) holder.current.replaceChildren(ctl.monitorRoot);
   }, [open, ctl.monitorRoot]);
+  useEffect(() => {
+    if (!s.shown) setOpen(false);
+  }, [s.shown]);
   useEffect(() => {
     a.monitor(open && s.shown);
   }, [a, open, s.shown]);
@@ -42,10 +30,7 @@ export function Diagnostics({ s, a, ctl }: { s: BoardState; a: Actions; ctl: Con
   return (
     <Collapsible
       open={open}
-      onOpenChange={(v) => {
-        setOpen(v);
-        store('bb.diagOpen', v);
-      }}
+      onOpenChange={setOpen}
     >
       <div className="overflow-hidden rounded-lg border bg-card">
         <CollapsibleTrigger className="flex h-11 w-full items-center justify-between px-4 text-left text-ui font-medium outline-none hover:bg-accent/60 focus-visible:bg-accent">
