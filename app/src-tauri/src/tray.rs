@@ -83,6 +83,9 @@ impl Default for Labels {
 pub struct Model {
     /// 1-3
     pub active: u8,
+    /// PNG: the active host's name card for the macOS menu bar, 36 px high (drawn by the UI, controller.js)
+    #[serde(default)]
+    pub card: Vec<u8>,
     pub hosts: Vec<HostItem>,
     pub inputs: Vec<InputItem>,
     /// connected | disconnected
@@ -101,15 +104,28 @@ fn tray_icon() -> tauri::Result<Image<'static>> {
     Image::from_bytes(include_bytes!("../icons/tray.png"))
 }
 
-/// The baton faded (a third of its alpha): the host that gets the input is not connected
+/// macOS menu bar: the baton (without its margin) and the active host's name card side by side, both 36 px high.
+/// Faded (a third of the alpha) while that host is not connected
 #[cfg(target_os = "macos")]
-fn faded_icon() -> tauri::Result<Image<'static>> {
-    let icon = tray_icon()?;
-    let mut px = icon.rgba().to_vec();
-    for a in px.iter_mut().skip(3).step_by(4) {
-        *a /= 3;
+fn card_icon(card: &[u8], faded: bool) -> tauri::Result<Image<'static>> {
+    const GAP: usize = 5;
+    let baton = Image::from_bytes(include_bytes!("../icons/tray-tight.png"))?;
+    let card = Image::from_bytes(card)?;
+    let (bw, cw, h) = (baton.width() as usize, card.width() as usize, baton.height() as usize);
+    let w = bw + GAP + cw;
+    let mut px = vec![0u8; w * h * 4];
+    for (img, x0, iw) in [(&baton, 0, bw), (&card, bw + GAP, cw)] {
+        let src = img.rgba();
+        for y in 0..h.min(img.height() as usize) {
+            px[(y * w + x0) * 4..(y * w + x0 + iw) * 4].copy_from_slice(&src[y * iw * 4..(y + 1) * iw * 4]);
+        }
     }
-    Ok(Image::new_owned(px, icon.width(), icon.height()))
+    if faded {
+        for a in px.iter_mut().skip(3).step_by(4) {
+            *a /= 3;
+        }
+    }
+    Ok(Image::new_owned(px, w as u32, h as u32))
 }
 
 pub fn create(app: &AppHandle, dev_api_on: bool) -> tauri::Result<()> {
@@ -135,15 +151,18 @@ pub fn create(app: &AppHandle, dev_api_on: bool) -> tauri::Result<()> {
 pub fn update(app: &AppHandle, model: &Model, dev_api_on: bool) -> tauri::Result<()> {
     let Some(tray) = app.tray_by_id(TRAY_ID) else { return Ok(()) };
     tray.set_menu(Some(build_menu(app, model, dev_api_on)?))?;
-    // macOS: next to the icon, the host that gets the input (its name, or its number); the icon fades while that
-    // host is not connected
+    // macOS: the baton and a card with the name (or number) of the host that gets the input, faded while that host
+    // is not connected; just the baton while the board is not
     #[cfg(target_os = "macos")]
     {
-        let connected = model.board == "connected" && model.active > 0;
-        let ready = connected && model.hosts.iter().any(|h| h.n == model.active && h.state == "ready");
-        tray.set_icon(Some(if connected && !ready { faded_icon()? } else { tray_icon()? }))?;
+        let ready = model.hosts.iter().any(|h| h.n == model.active && h.state == "ready");
+        let icon = if model.board == "connected" && !model.card.is_empty() {
+            card_icon(&model.card, !ready)?
+        } else {
+            tray_icon()?
+        };
+        tray.set_icon(Some(icon))?;
         tray.set_icon_as_template(true)?;
-        tray.set_title(Some(if connected { host_label(model, model.active) } else { String::new() }))?;
     }
     tray.set_tooltip(Some(if model.tooltip.is_empty() { "Blue Baton".to_string() } else { model.tooltip.clone() }))?;
     Ok(())
@@ -235,11 +254,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn faded_icon_keeps_the_shape_at_a_third() {
-        let (icon, faded) = (tray_icon().unwrap(), faded_icon().unwrap());
-        assert_eq!((faded.width(), faded.height()), (icon.width(), icon.height()));
-        let pairs = icon.rgba().iter().zip(faded.rgba()).skip(3).step_by(4);
-        assert!(pairs.clone().all(|(a, f)| *f == a / 3));
-        assert!(pairs.clone().any(|(a, _)| *a == 255), "the baton is drawn");
+    fn card_icon_puts_the_card_after_the_baton() {
+        // Any 36 px high PNG will do as the card: the baton itself (37 x 36, drawn in the middle)
+        let png = include_bytes!("../icons/tray-tight.png");
+        let img = card_icon(png, false).unwrap();
+        assert_eq!((img.width(), img.height()), (37 + 5 + 37, 36));
+        let alpha = |x: usize, y: usize| img.rgba()[(y * img.width() as usize + x) * 4 + 3];
+        assert_eq!(alpha(18, 18), 255, "baton");
+        assert_eq!(alpha(39, 18), 0, "gap");
+        assert_eq!(alpha(42 + 18, 18), 255, "card");
+        let faded = card_icon(png, true).unwrap();
+        assert_eq!(faded.rgba()[(18 * faded.width() as usize + 60) * 4 + 3], 85, "faded to a third");
     }
 }

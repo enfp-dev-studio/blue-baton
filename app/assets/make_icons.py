@@ -3,6 +3,8 @@
 
   assets/icon.svg, assets/icon-1024.png   app icon (tauri icon makes the platform sizes from the PNG)
   assets/tray.svg, src-tauri/icons/tray.png   menu bar template icon: black on transparent, macOS tints it
+  src-tauri/icons/tray-tight.png   the same baton without the margin, for the macOS menu bar next to the host card
+      (the menu bar shows a tray image 18 pt high whatever its size, so the margin would only shrink it)
 
 The mark, flat black and white with one blue band: a relay baton, a tube seen from the side with its open end
 showing, filling the tile. The menu bar icon is the same baton in one colour, the band as two thin cuts. App icon on the macOS grid: an 824/1024 rounded square (superellipse) on 1024.
@@ -72,11 +74,18 @@ def tray_svg():
     return f'<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 44 44">\n  {tray_body()}\n</svg>\n'
 
 
-def rasterize(svg_path, png_path, size, scale=1):
+def tray_tight_svg():
+    # 18.5 x 18 pt (37 x 36 px at 2x). The baton's outline spans x 5.3-38.7, y 7.9-36.1 on the 44 grid; this view
+    # shows it 15 pt high
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="37" height="36" viewBox="4.6 5.05 34.8 33.9">'
+            f'{tray_body()}</svg>\n')
+
+
+def rasterize(svg_path, png_path, size, scale=1, height=None):
     with tempfile.TemporaryDirectory() as profile:
         subprocess.run([CHROME, '--headless', '--disable-gpu', '--hide-scrollbars', f'--user-data-dir={profile}',
                         '--default-background-color=00000000', f'--force-device-scale-factor={scale}',
-                        f'--window-size={size},{size}', f'--screenshot={png_path}', 'file://' + svg_path],
+                        f'--window-size={size},{height or size}', f'--screenshot={png_path}', 'file://' + svg_path],
                        check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
@@ -91,4 +100,8 @@ if __name__ == '__main__':
     write(tray, tray_svg())
     rasterize(app, os.path.join(HERE, 'icon-1024.png'), 1024)
     rasterize(tray, os.path.join(HERE, '..', 'src-tauri', 'icons', 'tray.png'), 22, scale=2)
+    with tempfile.TemporaryDirectory() as tmp:
+        tight = os.path.join(tmp, 'tray-tight.svg')
+        write(tight, tray_tight_svg())
+        rasterize(tight, os.path.join(HERE, '..', 'src-tauri', 'icons', 'tray-tight.png'), 37, height=36)
     print('icons written')

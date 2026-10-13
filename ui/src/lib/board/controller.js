@@ -443,6 +443,34 @@ export function hostLabel(s, n) {
   return s.hosts.get(n)?.nick || String(n);
 }
 
+/*
+ * The macOS menu bar card for the host that gets the input: its name (or number) cut out of a filled rounded
+ * card, as PNG bytes. Drawn here because the page has the system fonts for any script; app/src-tauri/src/tray.rs
+ * puts it after the baton and shows the result as a template image, 18 pt high (36 px here, at 2x).
+ */
+const cards = new Map();
+function hostCard(text) {
+  if (cards.has(text)) return cards.get(text);
+  const H = 36;
+  const font = '600 24px -apple-system, system-ui, sans-serif';
+  const c = document.createElement('canvas');
+  const g = c.getContext('2d');
+  g.font = font;
+  c.width = Math.max(H, Math.ceil(g.measureText(text).width) + 20);
+  c.height = H;
+  g.beginPath();
+  g.roundRect(0, 0, c.width, H, 8);
+  g.fill();
+  g.globalCompositeOperation = 'destination-out';
+  g.font = font;
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillText(text, c.width / 2, H / 2 + 1);
+  const bytes = Array.from(atob(c.toDataURL('image/png').split(',')[1]), (ch) => ch.charCodeAt(0));
+  cards.set(text, bytes);
+  return bytes;
+}
+
 /* What the tray menu shows. Labels come from the UI language so the menu matches the window */
 function trayModel(s) {
   const board = s.link === 'connected' ? 'connected' : 'disconnected';
@@ -456,6 +484,7 @@ function trayModel(s) {
   const active = s.hosts.get(s.activeHost);
   return {
     active: s.activeHost,
+    card: board === 'connected' && s.activeHost ? hostCard(hostLabel(s, s.activeHost)) : [],
     hosts,
     inputs,
     board,
