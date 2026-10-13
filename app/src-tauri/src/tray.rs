@@ -101,41 +101,15 @@ fn tray_icon() -> tauri::Result<Image<'static>> {
     Image::from_bytes(include_bytes!("../icons/tray.png"))
 }
 
-/// macOS, while the board is connected: a rounded outline holding the baton and the three host cells
-/// (assets/make_icons.py). The host that gets the input is filled; a cell whose host is not connected (or empty)
-/// is faded
+/// The baton faded (a third of its alpha): the host that gets the input is not connected
 #[cfg(target_os = "macos")]
-fn cells_icon(model: &Model) -> tauri::Result<Image<'static>> {
-    const ON: [&[u8]; 3] = [
-        include_bytes!("../icons/tray-cell-1-on.png"),
-        include_bytes!("../icons/tray-cell-2-on.png"),
-        include_bytes!("../icons/tray-cell-3-on.png"),
-    ];
-    const OFF: [&[u8]; 3] = [
-        include_bytes!("../icons/tray-cell-1-off.png"),
-        include_bytes!("../icons/tray-cell-2-off.png"),
-        include_bytes!("../icons/tray-cell-3-off.png"),
-    ];
-    const CELL_X: [usize; 3] = [35, 59, 83]; // px at 2x: GROUP_CELL_X in make_icons.py
-    let base = Image::from_bytes(include_bytes!("../icons/tray-group.png"))?;
-    let (w, h) = (base.width() as usize, base.height() as usize);
-    let mut px = base.rgba().to_vec();
-    for i in 0..3 {
-        let n = i as u8 + 1;
-        let cell = Image::from_bytes(if model.active == n { ON[i] } else { OFF[i] })?;
-        let ready = model.hosts.iter().any(|h| h.n == n && h.state == "ready");
-        let (cw, src) = (cell.width() as usize, cell.rgba());
-        for y in 0..h.min(cell.height() as usize) {
-            for x in 0..cw {
-                let s = (y * cw + x) * 4;
-                let d = (y * w + CELL_X[i] + x) * 4;
-                let a = if ready { src[s + 3] } else { src[s + 3] / 3 };
-                px[d..d + 3].copy_from_slice(&src[s..s + 3]);
-                px[d + 3] = px[d + 3].max(a);
-            }
-        }
+fn faded_icon() -> tauri::Result<Image<'static>> {
+    let icon = tray_icon()?;
+    let mut px = icon.rgba().to_vec();
+    for a in px.iter_mut().skip(3).step_by(4) {
+        *a /= 3;
     }
-    Ok(Image::new_owned(px, w as u32, h as u32))
+    Ok(Image::new_owned(px, icon.width(), icon.height()))
 }
 
 pub fn create(app: &AppHandle, dev_api_on: bool) -> tauri::Result<()> {
@@ -161,11 +135,15 @@ pub fn create(app: &AppHandle, dev_api_on: bool) -> tauri::Result<()> {
 pub fn update(app: &AppHandle, model: &Model, dev_api_on: bool) -> tauri::Result<()> {
     let Some(tray) = app.tray_by_id(TRAY_ID) else { return Ok(()) };
     tray.set_menu(Some(build_menu(app, model, dev_api_on)?))?;
-    // macOS: the host cells while the board is connected, the baton otherwise
+    // macOS: next to the icon, the host that gets the input (its name, or its number); the icon fades while that
+    // host is not connected
     #[cfg(target_os = "macos")]
     {
-        tray.set_icon(Some(if model.board == "connected" { cells_icon(model)? } else { tray_icon()? }))?;
+        let connected = model.board == "connected" && model.active > 0;
+        let ready = connected && model.hosts.iter().any(|h| h.n == model.active && h.state == "ready");
+        tray.set_icon(Some(if connected && !ready { faded_icon()? } else { tray_icon()? }))?;
         tray.set_icon_as_template(true)?;
+        tray.set_title(Some(if connected { host_label(model, model.active) } else { String::new() }))?;
     }
     tray.set_tooltip(Some(if model.tooltip.is_empty() { "Blue Baton".to_string() } else { model.tooltip.clone() }))?;
     Ok(())
@@ -256,29 +234,12 @@ fn on_menu(app: &AppHandle, id: &str) {
 mod tests {
     use super::*;
 
-    fn host(n: u8, state: &str) -> HostItem {
-        HostItem { n, state: state.into(), ..Default::default() }
-    }
-
     #[test]
-    fn cells_fill_the_active_host_and_fade_the_unconnected() {
-        let model = Model {
-            active: 2,
-            hosts: vec![host(1, "ready"), host(2, "ready"), host(3, "offline")],
-            board: "connected".into(),
-            ..Default::default()
-        };
-        let img = cells_icon(&model).unwrap();
-        let (w, h) = (img.width() as usize, img.height() as usize);
-        assert_eq!((w, h), (108, 44));
-        let alpha = |x: usize, y: usize| img.rgba()[(y * w + x) * 4 + 3];
-        assert!(alpha(54, 5) > 200 && alpha(54, 38) > 200, "the outline runs along the top and bottom");
-        assert!(alpha(1, 22) > 200, "and down the left side");
-        // Inside each cell, off the digit: filled for the active one, empty for the others
-        assert_eq!(alpha(59 + 3, 22), 255, "cell 2 is filled");
-        assert_eq!(alpha(35 + 3, 22), 0, "cell 1 is an outline");
-        // On the outline: full for a connected host, faded for one that is not
-        assert!(alpha(35 + 1, 22) > 150, "cell 1 outline is solid");
-        assert!(alpha(83 + 1, 22) < 100, "cell 3 is faded");
+    fn faded_icon_keeps_the_shape_at_a_third() {
+        let (icon, faded) = (tray_icon().unwrap(), faded_icon().unwrap());
+        assert_eq!((faded.width(), faded.height()), (icon.width(), icon.height()));
+        let pairs = icon.rgba().iter().zip(faded.rgba()).skip(3).step_by(4);
+        assert!(pairs.clone().all(|(a, f)| *f == a / 3));
+        assert!(pairs.clone().any(|(a, _)| *a == 255), "the baton is drawn");
     }
 }

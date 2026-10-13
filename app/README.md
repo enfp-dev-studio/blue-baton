@@ -7,8 +7,8 @@ A small menu bar app built with [Tauri 2](https://tauri.app), for macOS, Windows
   connected input devices, Add Host… (while a host slot is free), Settings…, Quit. It closes when you click
   anywhere else.
 - Right click opens a menu: the hosts, input devices, Open Blue Baton…, Add Host…, Launch at Login,
-  Developer API, Quit. On macOS, while the board is connected, the icon and three host cells sit in one rounded outline: the
-  active host's cell is filled, a host that is not connected is faded.
+  Developer API, Quit. On macOS the icon shows the active host's name (its number until it has one) and fades while that
+  host is not connected.
 - The settings window is the full UI (`../ui`); the panel is the same UI with `?view=panel`. Closing the window keeps the app running.
 - The app owns the board's USB serial port (`src-tauri/src/board.rs`) and reconnects after an unplug. It looks
   for USB ID 0x303A:0x1001, which every ESP32-S3/C3 board shares, and takes a port only once it answers `hello` as

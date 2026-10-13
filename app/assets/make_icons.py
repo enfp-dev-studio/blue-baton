@@ -3,9 +3,6 @@
 
   assets/icon.svg, assets/icon-1024.png   app icon (tauri icon makes the platform sizes from the PNG)
   assets/tray.svg, src-tauri/icons/tray.png   menu bar template icon: black on transparent, macOS tints it
-  src-tauri/icons/tray-group.png, tray-cell-{1,2,3}-{on,off}.png   macOS menu bar while the board is connected: a
-      rounded outline holding a smaller baton, and the three host cells that src-tauri/src/tray.rs puts inside it
-      (at GROUP_CELL_X), the active one filled, the others outlined
 
 The mark, flat black and white with one blue band: a relay baton, a tube seen from the side with its open end
 showing, filling the tile. The menu bar icon is the same baton in one colour, the band as two thin cuts. App icon on the macOS grid: an 824/1024 rounded square (superellipse) on 1024.
@@ -75,38 +72,11 @@ def tray_svg():
     return f'<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 44 44">\n  {tray_body()}\n</svg>\n'
 
 
-# The group (pt, in a menu bar slot 22 high): a rounded outline, the baton in a 15 pt box, three 10 x 12 cells
-GROUP_W, GROUP_H = 54, 22
-GROUP_CELL_X = (17.5, 29.5, 41.5)   # tray.rs: the same at 2x (35, 59, 83 px)
-CELL_W = 10
-
-
-def group_svg():
-    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{GROUP_W}" height="{GROUP_H}" viewBox="0 0 {GROUP_W} {GROUP_H}">'
-            f'<rect x="0.6" y="2.6" width="{GROUP_W - 1.2}" height="16.8" rx="4.4" fill="none" stroke="#000" stroke-width="1.2"/>'
-            f'<svg x="2" y="3.5" width="15" height="15" viewBox="0 0 44 44">{tray_body()}</svg></svg>\n')
-
-
-def cell_svg(n, on):
-    # One host cell: filled with the digit cut out (active), or an outline with the digit (the others; tray.rs fades
-    # an empty or disconnected one)
-    digit = (f'<text x="5" y="11.3" text-anchor="middle" dominant-baseline="central" font-size="8.5" font-weight="700" '
-             f'font-family="-apple-system, system-ui, Helvetica, sans-serif">{n}</text>')
-    if on:
-        body = (f'<mask id="d"><rect width="{CELL_W}" height="{GROUP_H}" fill="#fff"/><g fill="#000">{digit}</g></mask>'
-                f'<rect x="0" y="5" width="{CELL_W}" height="12" rx="2.5" mask="url(#d)"/>')
-    else:
-        body = (f'<rect x="0.5" y="5.5" width="{CELL_W - 1}" height="11" rx="2" fill="none" stroke="#000" '
-                f'stroke-width="1"/>{digit}')
-    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{CELL_W}" height="{GROUP_H}" viewBox="0 0 {CELL_W} {GROUP_H}">'
-            f'{body}</svg>\n')
-
-
-def rasterize(svg_path, png_path, size, scale=1, height=None):
+def rasterize(svg_path, png_path, size, scale=1):
     with tempfile.TemporaryDirectory() as profile:
         subprocess.run([CHROME, '--headless', '--disable-gpu', '--hide-scrollbars', f'--user-data-dir={profile}',
                         '--default-background-color=00000000', f'--force-device-scale-factor={scale}',
-                        f'--window-size={size},{height or size}', f'--screenshot={png_path}', 'file://' + svg_path],
+                        f'--window-size={size},{size}', f'--screenshot={png_path}', 'file://' + svg_path],
                        check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
@@ -121,15 +91,4 @@ if __name__ == '__main__':
     write(tray, tray_svg())
     rasterize(app, os.path.join(HERE, 'icon-1024.png'), 1024)
     rasterize(tray, os.path.join(HERE, '..', 'src-tauri', 'icons', 'tray.png'), 22, scale=2)
-    with tempfile.TemporaryDirectory() as tmp:
-        svg = os.path.join(tmp, 'tray-group.svg')
-        write(svg, group_svg())
-        rasterize(svg, os.path.join(HERE, '..', 'src-tauri', 'icons', 'tray-group.png'), GROUP_W, scale=2, height=GROUP_H)
-        for n in (1, 2, 3):
-            for on in (True, False):
-                name = f'tray-cell-{n}-{"on" if on else "off"}'
-                svg = os.path.join(tmp, name + '.svg')
-                write(svg, cell_svg(n, on))
-                rasterize(svg, os.path.join(HERE, '..', 'src-tauri', 'icons', name + '.png'), CELL_W, scale=2,
-                          height=GROUP_H)
     print('icons written')
