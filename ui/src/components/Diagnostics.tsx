@@ -33,7 +33,7 @@ export function Diagnostics({ s, a, ctl }: { s: BoardState; a: Actions; ctl: Con
       onOpenChange={setOpen}
     >
       <div className="overflow-hidden rounded-lg border bg-card">
-        <CollapsibleTrigger className="flex h-11 w-full items-center justify-between px-4 text-left text-ui font-medium outline-none hover:bg-accent/60 focus-visible:bg-accent">
+        <CollapsibleTrigger className="flex h-11 w-full items-center justify-between px-3 text-left text-ui outline-none hover:bg-accent/60 focus-visible:bg-accent">
           {t('diag.title')}
           <ChevronRight className={cn('size-4 text-muted-foreground transition-transform', open && 'rotate-90')} />
         </CollapsibleTrigger>

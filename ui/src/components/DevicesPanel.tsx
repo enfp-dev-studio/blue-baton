@@ -61,7 +61,7 @@ function DeviceRow({ d, a, confirm }: { d: Device; a: Actions; confirm: Confirm 
         ? { label: t('devices.autoOn'), run: () => a.connectDevice(d.id) }
         : null;
   return (
-    <li data-device={d.addr} className="group flex min-h-[52px] items-center gap-3 py-2 pl-4 pr-2">
+    <li data-device={d.addr} className="group flex min-h-[52px] items-center gap-3 px-3 py-2">
       <span
         className={cn(
           'grid size-7 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground transition-shadow',

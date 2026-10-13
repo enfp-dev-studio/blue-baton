@@ -84,7 +84,8 @@ export function RowMenu({ label, children }: { label: string; children: React.Re
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button size="icon-sm" variant="ghost" className="size-7 text-muted-foreground" aria-label={label} title={label}>
+        {/* -mr-2: the dots, not the invisible button around them, line up with the other rows' right edge */}
+        <Button size="icon-sm" variant="ghost" className="-mr-2 size-7 text-muted-foreground" aria-label={label} title={label}>
           <Ellipsis />
         </Button>
       </DropdownMenuTrigger>

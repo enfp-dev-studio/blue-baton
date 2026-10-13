@@ -75,14 +75,14 @@ function HostRow({ n, s, a, host, confirm, rename }: RowProps) {
   return (
     <li
       data-host={n}
-      className={cn('flex items-center gap-2 pr-2 transition-colors', on && 'bg-primary/[0.07]', 'data-live:bg-primary/[0.12]')}
+      className={cn('flex items-center gap-2 pr-3 transition-colors', on && 'bg-primary/[0.07]', 'data-live:bg-primary/[0.12]')}
       style={{ height: ROW }}
     >
       <RadioGroupPrimitive.Item
         value={String(n)}
         disabled={host?.state !== 'ready'}
         title={host?.state === 'ready' ? t('hosts.pickTitle') : undefined}
-        className="flex h-full min-w-0 flex-1 items-center gap-3 pl-4 text-left outline-none focus-visible:bg-accent enabled:hover:bg-accent/60"
+        className="flex h-full min-w-0 flex-1 items-center gap-3 pl-3 text-left outline-none focus-visible:bg-accent enabled:hover:bg-accent/60"
       >
         <HostBadge label={hostLabel(s, n)} on={on} />
         <span className="min-w-0 flex-1 leading-tight">
