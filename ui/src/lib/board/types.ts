@@ -75,6 +75,8 @@ export interface BoardState {
   devices: Map<string, Device>;
   found: Map<string, Found>;
   showAll: boolean;
+  /** This window is on screen */
+  shown: boolean;
   addOpen: boolean;
   prompt: Prompt | null;
   notice: { kind: 'error' | 'info'; text: string; at: number } | null;

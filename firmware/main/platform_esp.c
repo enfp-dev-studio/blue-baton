@@ -112,8 +112,34 @@ esp_err_t plat_ctl_start(void (*on_line)(const char *line))
     return xTaskCreate(ctl_task, "usb_ctl", CTL_TASK_STACK, NULL, 5, NULL) == pdPASS ? ESP_OK : ESP_ERR_NO_MEM;
 }
 
+#if CONFIG_KM_DIAG
+static portMUX_TYPE s_ctl_diag_lock = portMUX_INITIALIZER_UNLOCKED;
+static uint32_t s_ctl_lines, s_ctl_total_us, s_ctl_max_us;
+
+void plat_ctl_diag_take(uint32_t *lines, uint32_t *total_us, uint32_t *max_us)
+{
+    taskENTER_CRITICAL(&s_ctl_diag_lock);
+    *lines = s_ctl_lines;
+    *total_us = s_ctl_total_us;
+    *max_us = s_ctl_max_us;
+    s_ctl_lines = s_ctl_total_us = s_ctl_max_us = 0;
+    taskEXIT_CRITICAL(&s_ctl_diag_lock);
+}
+#endif
+
 void plat_ctl_write(const char *prefix, const char *text)
 {
+#if CONFIG_KM_DIAG
+    int64_t t0 = esp_timer_get_time();
+#endif
     printf("%s%s\n", prefix, text);
     fflush(stdout);
+#if CONFIG_KM_DIAG
+    uint32_t us = (uint32_t)(esp_timer_get_time() - t0);
+    taskENTER_CRITICAL(&s_ctl_diag_lock);
+    s_ctl_lines++;
+    s_ctl_total_us += us;
+    s_ctl_max_us = us > s_ctl_max_us ? us : s_ctl_max_us;
+    taskEXIT_CRITICAL(&s_ctl_diag_lock);
+#endif
 }

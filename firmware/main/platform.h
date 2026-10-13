@@ -15,6 +15,7 @@
 
 #include "esp_err.h"
 #include "esp_log.h"
+#include "sdkconfig.h"
 
 /* Microseconds since boot, monotonic */
 int64_t plat_now_us(void);
@@ -41,3 +42,7 @@ void plat_timer_stop(plat_timer_t *t);
 esp_err_t plat_ctl_start(void (*on_line)(const char *line));
 /* Send one line: prefix, then text, in one write so lines from different tasks do not mix */
 void plat_ctl_write(const char *prefix, const char *text);
+#if CONFIG_KM_DIAG
+/* Developer builds: lines sent, and the total and longest time inside plat_ctl_write since the last call, then reset */
+void plat_ctl_diag_take(uint32_t *lines, uint32_t *total_us, uint32_t *max_us);
+#endif

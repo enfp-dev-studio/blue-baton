@@ -17,7 +17,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Manager, WindowEvent};
+use tauri::{AppHandle, Emitter, Manager, WindowEvent};
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 use tauri_plugin_notification::NotificationExt;
 use tauri_plugin_positioner::{Position, WindowExt};
@@ -64,12 +64,16 @@ pub(crate) fn show_main(app: &AppHandle) {
         let _ = w.unminimize();
         let _ = w.show();
         let _ = w.set_focus();
+        // The page stops what it only does on screen (the input monitor, the 5 s refresh) on this, rather than on
+        // its own visibility: not every system web view marks a page hidden when its window is
+        let _ = w.emit("main-shown", true);
     }
 }
 
 fn hide_main(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.hide();
+        let _ = w.emit("main-shown", false);
     }
 }
 

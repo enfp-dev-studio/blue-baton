@@ -37,6 +37,7 @@ export class Store {
       devices: new Map(),
       found: new Map(),
       showAll: false,
+      shown: true,
       prompt: null,                /* {type: numcmp|passkey_request|passkey_display, addr, code} */
       notice: null,                /* {kind: error|info, text} */
       log: [],

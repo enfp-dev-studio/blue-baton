@@ -24,16 +24,6 @@ function store(key: string, on: boolean) {
   }
 }
 
-function useVisible() {
-  const [visible, setVisible] = useState(() => document.visibilityState === 'visible');
-  useEffect(() => {
-    const on = () => setVisible(document.visibilityState === 'visible');
-    document.addEventListener('visibilitychange', on);
-    return () => document.removeEventListener('visibilitychange', on);
-  }, []);
-  return visible;
-}
-
 /*
  * Developer area: the input monitor (plain DOM, updated dozens of times a second) and the protocol log.
  * The board sends input content only while the monitor is open and the window is visible.
@@ -42,13 +32,12 @@ export function Diagnostics({ s, a, ctl }: { s: BoardState; a: Actions; ctl: Con
   const [open, setOpen] = useState(() => stored('bb.diagOpen'));
   const [boardLines, setBoardLines] = useState(false);
   const holder = useRef<HTMLDivElement>(null);
-  const visible = useVisible();
   useEffect(() => {
     if (open && holder.current) holder.current.replaceChildren(ctl.monitorRoot);
   }, [open, ctl.monitorRoot]);
   useEffect(() => {
-    a.monitor(open && visible);
-  }, [a, open, visible]);
+    a.monitor(open && s.shown);
+  }, [a, open, s.shown]);
   const rows = open ? s.log.filter((r) => boardLines || r.dir !== '·').slice(-200) : [];
   return (
     <Collapsible

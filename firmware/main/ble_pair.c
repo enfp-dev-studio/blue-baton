@@ -1153,6 +1153,11 @@ static void emit_route(const router_out_t *o)
 
 static void route_out(const router_out_t *out, int switched_from)
 {
+    if (out->pk_event != ROUTER_PK_NONE) {
+        host_passkey_event(out);   /* Host pairing: passkey typed on the keyboard */
+    }
+    host_send(out, switched_from);   /* On a switch: release-all to the previous host, then the new host */
+    /* Then the lines for the settings app, which wait for the USB write */
     if (switched_from >= 0) {
         char buf[96];
         snprintf(buf, sizeof(buf), "{\"event\":\"host_switch\",\"host\":%d,\"from\":%d}", router_active_host() + 1,
@@ -1161,7 +1166,7 @@ static void route_out(const router_out_t *out, int switched_from)
     }
     bool monitor = monitor_on();
     if (out->pre_valid && monitor) {
-        /* Send the held combo modifiers first (for Ctrl+C: Ctrl, then Ctrl+C) */
+        /* The held combo modifiers first (for Ctrl+C: Ctrl, then Ctrl+C) */
         router_out_t pre = *out;
         memcpy(pre.keys, out->pre_keys, sizeof(pre.keys));
         pre.buttons_changed = false;
@@ -1171,10 +1176,6 @@ static void route_out(const router_out_t *out, int switched_from)
     if (monitor && (switched_from >= 0 || out->keys_changed || out->buttons_changed || out->consumer_changed)) {
         emit_route(out);
     }
-    if (out->pk_event != ROUTER_PK_NONE) {
-        host_passkey_event(out);   /* Host pairing: passkey typed on the keyboard */
-    }
-    host_send(out, switched_from);   /* On a switch: release-all to the previous host, then the new host */
     if (switched_from >= 0) {
         ble_pair_leds_update();   /* The keyboard shows the new host's Caps Lock etc. */
         /* Kept across restarts (power, firmware update). Saved after the reports, since a flash write holds up this task */
@@ -1920,11 +1921,12 @@ static int gap_event(struct ble_gap_event *event, void *arg)
         }
         uint8_t data[64];
         os_mbuf_copydata(event->notify_rx.om, 0, len, data);
+        /* To the host first: the lines for the settings app wait for the USB write */
+        route_report(p, event->notify_rx.attr_handle, data, len);
         emit_activity(p);
         if (monitor_on()) {
             emit_report(p, event->notify_rx.attr_handle, data, len);
         }
-        route_report(p, event->notify_rx.attr_handle, data, len);
         break;
     }
 

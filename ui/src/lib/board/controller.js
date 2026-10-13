@@ -327,10 +327,37 @@ export function createController(params = new URLSearchParams(location.search), 
     },
   };
 
-  /* Values without events (such as the radio state) are resynced every 5 s, only while the window is shown */
-  const shown = () => typeof document === 'undefined' || document.visibilityState === 'visible';
-  setInterval(() => shown() && refresh(), 5000);
-  if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => shown() && refresh());
+  /*
+   * Whether this window is on screen (store.state.shown): the page's visibility, and for the settings window in the
+   * app also the app's own show and hide of it (not every system web view marks the page hidden). Values without
+   * events (such as the radio state) are resynced every 5 s, only while it is
+   */
+  let pageVisible = typeof document === 'undefined' || document.visibilityState === 'visible';
+  let windowShown = true;
+  const setShown = () => {
+    const v = pageVisible && windowShown;
+    if (v === store.state.shown) return;
+    store.set({ shown: v });
+    if (v) refresh();
+  };
+  setInterval(() => store.state.shown && refresh(), 5000);
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', () => {
+      pageVisible = document.visibilityState === 'visible';
+      setShown();
+    });
+  }
+  if (app && isMain) {
+    app.event.listen('main-shown', (e) => {
+      windowShown = !!e.payload;
+      setShown();
+    });
+    /* The settings window starts hidden (tauri.conf.json) until the app shows it */
+    app.window.getCurrentWindow().isVisible().then((v) => {
+      windowShown = v;
+      setShown();
+    }).catch(() => {});
+  }
 
   /*
    * Reconnect after a drop: the bridge and the app grab the port again after flashing, so retry after a
