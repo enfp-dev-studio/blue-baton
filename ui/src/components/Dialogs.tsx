@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { REGEXP_ONLY_DIGITS } from 'input-otp';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -27,10 +27,60 @@ function Steps({ items }: { items: string[] }) {
   );
 }
 
-/* Focused as soon as it appears, so the code can be typed right away; sends itself at the sixth digit */
+/*
+ * Focused as soon as it appears, so the code can be typed right away; sends itself at the sixth digit. The code is
+ * read off another screen, so coming back to this window must not need a click on the field: the field takes the
+ * focus back when the window does, digits typed anywhere in the window go into it, and pasting anywhere takes the
+ * first six digits of the clipboard and sends them.
+ */
 function CodeInput({ value, onChange, onComplete, label }: { value: string; onChange: (v: string) => void; onComplete: (v: string) => void; label: string }) {
+  const input = useRef<HTMLInputElement>(null);
+  const current = useRef(value);
+  current.current = value;
+  useEffect(() => {
+    const own = (t: EventTarget | null) => t === input.current;
+    const focus = () => setTimeout(() => input.current?.focus(), 0);
+    const set = (v: string) => {
+      current.current = v; /* before React re-renders, so fast typing does not drop a digit */
+      onChange(v);
+      if (v.length === 6) onComplete(v);
+      focus();
+    };
+    const key = (e: KeyboardEvent) => {
+      if (own(e.target) || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (/^[0-9]$/.test(e.key) && current.current.length < 6) {
+        e.preventDefault();
+        set(current.current + e.key);
+      } else if (e.key === 'Backspace' && current.current) {
+        e.preventDefault();
+        set(current.current.slice(0, -1));
+      }
+    };
+    const paste = (e: ClipboardEvent) => {
+      if (own(e.target)) return;
+      const digits = (e.clipboardData?.getData('text') || '').replace(/\D/g, '');
+      if (digits.length < 6) return;
+      e.preventDefault();
+      set(digits.slice(0, 6));
+    };
+    const click = (e: MouseEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (!el?.closest('button, a, input, textarea, select, [role="menuitem"]')) focus();
+    };
+    window.addEventListener('focus', focus);
+    document.addEventListener('keydown', key, true);
+    document.addEventListener('paste', paste, true);
+    document.addEventListener('mouseup', click, true);
+    return () => {
+      window.removeEventListener('focus', focus);
+      document.removeEventListener('keydown', key, true);
+      document.removeEventListener('paste', paste, true);
+      document.removeEventListener('mouseup', click, true);
+    };
+  }, [onChange, onComplete]);
   return (
     <InputOTP
+      ref={input}
       autoFocus
       maxLength={6}
       pattern={REGEXP_ONLY_DIGITS}
