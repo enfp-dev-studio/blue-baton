@@ -157,19 +157,18 @@ export function DeviceIcon({ kinds, appearance, className }: { kinds?: string[];
 }
 
 /*
- * The app icon at UI size (app/assets/make_icons.py draws the full one, same geometry on 1024): a hollow baton passed
- * at speed. Tile in the text colour and baton in the background colour, so it follows the theme
+ * The app icon at UI size (app/assets/make_icons.py draws the full one, same geometry on 1024): a hollow baton with a
+ * band. Tile in the text colour, baton in the background colour and band in the accent, so it follows the theme
  */
 export function Logo({ className }: { className?: string }) {
   return (
     <svg viewBox="100 100 824 824" className={className} aria-hidden="true">
       <rect x="100" y="100" width="824" height="824" rx="185" className="fill-foreground" />
       <g transform="rotate(-35 512 512)" className="fill-background">
-        <rect x="186" y="437" width="112" height="62" rx="31" />
-        <rect x="156" y="525" width="142" height="62" rx="31" />
-        <path d="M392 428 H800 V596 H392 A40 84 0 0 1 392 428 Z" />
-        <ellipse cx="800" cy="512" rx="40" ry="84" />
-        <ellipse cx="800" cy="512" rx="22" ry="54" className="fill-foreground" />
+        <path d="M219 392 H805 V632 H219 A57 120 0 0 1 219 392 Z" />
+        <path d="M370 392 A57 120 0 0 0 370 632 H450 A57 120 0 0 1 450 392 Z" className="fill-primary" />
+        <ellipse cx="805" cy="512" rx="57" ry="120" />
+        <ellipse cx="805" cy="512" rx="32" ry="78" className="fill-foreground" />
       </g>
     </svg>
   );

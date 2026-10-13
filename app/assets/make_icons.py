@@ -4,8 +4,8 @@
   assets/icon.svg, assets/icon-1024.png   app icon (tauri icon makes the platform sizes from the PNG)
   assets/tray.svg, src-tauri/icons/tray.png   menu bar template icon: black on transparent, macOS tints it
 
-The mark, flat black and white: a relay baton (a tube, its open end showing) passed at speed, two speed lines
-behind it. App icon on the macOS grid: an 824/1024 rounded square (superellipse) on 1024.
+The mark, flat black and white with one blue band: a relay baton, a tube seen from the side with its open end
+showing, filling the tile. The menu bar icon is the same baton in one colour, the band as two thin cuts. App icon on the macOS grid: an 824/1024 rounded square (superellipse) on 1024.
 Chrome: $CHROME, or the default macOS install path.
 """
 import math, os, subprocess, tempfile
@@ -29,15 +29,17 @@ def squircle(cx, cy, half, n=5.0, steps=256):
 ANGLE = -35   # baton tilt, degrees
 
 
-def baton(fill, hole):
+BLUE = '#3d6bff'   # the band: the one colour on the black-and-white mark
+
+
+def baton(fill, hole, band):
     """The baton along the x axis, centred on (512, 512) before the tilt: a tube seen from the side, its leading end
-    open (a ring with the hole in it), its back end the outer half of the same ellipse, two speed lines behind it.
-    Flat: one colour for everything, the hole in the background colour"""
-    return f'''<rect x="186" y="437" width="112" height="62" rx="31" fill="{fill}"/>
-    <rect x="156" y="525" width="142" height="62" rx="31" fill="{fill}"/>
-    <path d="M392 428 H800 V596 H392 A40 84 0 0 1 392 428 Z" fill="{fill}"/>
-    <ellipse cx="800" cy="512" rx="40" ry="84" fill="{fill}"/>
-    <ellipse cx="800" cy="512" rx="22" ry="54" fill="{hole}"/>'''
+    open (a ring with the hole in it), its back end the outer half of the same ellipse, a coloured band around it.
+    Seen from the open end, so the band's edges curve the way the back end does. Flat: no gradients or shadows"""
+    return f'''<path d="M219 392 H805 V632 H219 A57 120 0 0 1 219 392 Z" fill="{fill}"/>
+    <path d="M370 392 A57 120 0 0 0 370 632 H450 A57 120 0 0 1 450 392 Z" fill="{band}"/>
+    <ellipse cx="805" cy="512" rx="57" ry="120" fill="{fill}"/>
+    <ellipse cx="805" cy="512" rx="32" ry="78" fill="{hole}"/>'''
 
 
 def app_svg():
@@ -45,7 +47,7 @@ def app_svg():
     return f'''<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <path d="{squircle(512, 512, 412)}" fill="#000"/>
   <g transform="rotate({ANGLE} 512 512)">
-    {baton('#fff', '#000')}
+    {baton('#fff', '#000', BLUE)}
   </g>
 </svg>
 '''
@@ -53,11 +55,16 @@ def app_svg():
 
 def tray_svg():
     # 22 x 22 pt menu bar icon, drawn on a 44 grid. Template image: only the alpha matters, so the hole is cut out
+    # One colour only, so the band shows as its two edges cut out of the baton
     return f'''<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 44 44">
+  <defs>
+    <mask id="band">
+      <rect x="-10" y="-10" width="64" height="64" fill="#fff"/>
+      <path d="M14.8 15.5 A3.2 6.5 0 0 0 14.8 28.5 M18.9 15.5 A3.2 6.5 0 0 0 18.9 28.5" fill="none" stroke="#000" stroke-width="1.3"/>
+    </mask>
+  </defs>
   <g transform="rotate({ANGLE} 22 22)">
-    <rect x="4" y="18.5" width="5" height="3" rx="1.5"/>
-    <rect x="3" y="23" width="6" height="3" rx="1.5"/>
-    <path fill-rule="evenodd" d="M15 16 H35 A3 6 0 0 1 35 28 H15 A3 6 0 0 1 15 16 Z M35 18.6 A1.4 3.4 0 0 0 35 25.4 A1.4 3.4 0 0 0 35 18.6 Z"/>
+    <path mask="url(#band)" fill-rule="evenodd" d="M7.2 15.5 H36.8 A3.2 6.5 0 0 1 36.8 28.5 H7.2 A3.2 6.5 0 0 1 7.2 15.5 Z M36.8 18.2 A1.6 3.8 0 0 0 36.8 25.8 A1.6 3.8 0 0 0 36.8 18.2 Z"/>
   </g>
 </svg>
 '''
