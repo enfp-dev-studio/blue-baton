@@ -180,3 +180,21 @@ test('host pairing with a wrong passkey fails, and host_remove frees the slot', 
   await assert.rejects(c.request('host_remove', { host: 1 }), (e) => e.code === 'not_found');
   await t.close();
 });
+
+test('host names and numbers: host_nick, host_move keeps the active host, bad_nick', async () => {
+  const { t, c, waitFor } = setup();
+  await t.open();
+  await c.request('host_nick', { host: 1, nick: '회사 맥' });
+  await waitFor((e) => e.event === 'host_nick' && e.host === 1);
+  assert.equal((await c.request('host_list')).hosts[0].nick, '회사 맥');
+  await assert.rejects(c.request('host_nick', { host: 1, nick: '123456789' }), (e) => e.code === 'bad_nick');
+  await assert.rejects(c.request('host_nick', { host: 1, nick: 'a\nb' }), (e) => e.code === 'bad_nick');
+  await assert.rejects(c.request('host_nick', { host: 2, nick: 'x' }), (e) => e.code === 'not_found');
+  await c.request('host_move', { host: 1, to: 3 });
+  await waitFor((e) => e.event === 'host_moved' && e.host === 1 && e.to === 3);
+  const hosts = (await c.request('host_list')).hosts;
+  assert.deepEqual(hosts.map((h) => [h.host, h.nick, h.active]), [[3, '회사 맥', true]]);
+  assert.equal((await c.request('status')).active_host, 3);
+  await assert.rejects(c.request('host_move', { host: 1, to: 2 }), (e) => e.code === 'not_found');
+  await t.close();
+});

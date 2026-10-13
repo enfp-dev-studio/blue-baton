@@ -150,7 +150,7 @@ esp_err_t cfg_gatt_sig_set(uint32_t sig)
  */
 #define KEY_PAIRED_V1 "paired"
 #define KEY_PAIRED "paired_meta"
-#define PAIRED_VERSION 3
+#define PAIRED_VERSION 4
 
 typedef struct {
     uint8_t version;
@@ -172,6 +172,47 @@ typedef struct {
     uint8_t count;
     paired_v2_t items[CFG_PAIRED_MAX];
 } paired_blob_v2_t;
+
+/* v3 format (no nick field) */
+typedef struct {
+    uint8_t type;
+    uint8_t val[6];
+    char name[24];
+    uint8_t kinds;
+    uint32_t last_seq;
+    uint8_t role;
+    uint8_t host_index;
+} paired_v3_t;
+
+typedef struct {
+    uint8_t version;
+    uint8_t count;
+    paired_v3_t items[CFG_PAIRED_MAX];
+} paired_blob_v3_t;
+
+static bool paired_load_v3(paired_blob_t *b)
+{
+    paired_blob_v3_t old;
+    size_t len = sizeof(old);
+    if (nvs_get_blob(s_nvs, KEY_PAIRED, &old, &len) != ESP_OK || len != sizeof(old) || old.version != 3 ||
+        old.count > CFG_PAIRED_MAX) {
+        return false;
+    }
+    memset(b, 0, sizeof(*b));
+    b->version = PAIRED_VERSION;
+    b->count = old.count;
+    for (int i = 0; i < old.count; i++) {
+        cfg_paired_t *n = &b->items[i];
+        n->type = old.items[i].type;
+        memcpy(n->val, old.items[i].val, 6);
+        memcpy(n->name, old.items[i].name, sizeof(n->name));
+        n->kinds = old.items[i].kinds;
+        n->last_seq = old.items[i].last_seq;
+        n->role = old.items[i].role;
+        n->host_index = old.items[i].host_index;
+    }
+    return true;
+}
 
 static bool paired_load_v2(paired_blob_t *b)
 {
@@ -205,9 +246,14 @@ static void paired_load(paired_blob_t *b)
         b->version == PAIRED_VERSION && b->count <= CFG_PAIRED_MAX) {
         return;
     }
-    if (paired_load_v2(b)) {
+    if (paired_load_v3(b)) {
         paired_save(b);   /* Save the migrated format right away */
-        ESP_LOGI(TAG, "paired meta v2 -> v3 (%u records)", b->count);
+        ESP_LOGI(TAG, "paired meta v3 -> v4 (%u records)", b->count);
+        return;
+    }
+    if (paired_load_v2(b)) {
+        paired_save(b);
+        ESP_LOGI(TAG, "paired meta v2 -> v4 (%u records)", b->count);
         return;
     }
     memset(b, 0, sizeof(*b));
@@ -257,6 +303,21 @@ esp_err_t cfg_paired_put(const cfg_paired_t *rec)
     }
     b.items[b.count++] = *rec;
     return paired_save(&b);
+}
+
+esp_err_t cfg_paired_swap_hosts(uint8_t a, uint8_t b)
+{
+    paired_blob_t blob;
+    paired_load(&blob);
+    bool changed = false;
+    for (int i = 0; i < blob.count; i++) {
+        cfg_paired_t *r = &blob.items[i];
+        if (r->role == CFG_ROLE_HOST && (r->host_index == a || r->host_index == b)) {
+            r->host_index = r->host_index == a ? b : a;
+            changed = true;
+        }
+    }
+    return changed && a != b ? paired_save(&blob) : ESP_OK;
 }
 
 esp_err_t cfg_paired_remove(uint8_t type, const uint8_t val[6])

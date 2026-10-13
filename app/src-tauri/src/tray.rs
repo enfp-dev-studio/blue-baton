@@ -21,6 +21,9 @@ pub const TRAY_ID: &str = "main";
 #[derive(Deserialize, Clone, Default)]
 pub struct HostItem {
     pub n: u8,
+    /// What the host is called: the name the user gave it, otherwise its number
+    #[serde(default)]
+    pub label: String,
     pub name: String,
     /// ready | connected | secured | pairing | offline | empty
     pub state: String,
@@ -124,13 +127,20 @@ pub fn update(app: &AppHandle, model: &Model, dev_api_on: bool) -> tauri::Result
     let ready = model.board == "connected"
         && model.hosts.iter().any(|h| h.n == model.active && h.state == "ready");
     // macOS shows the title next to the icon: the host that gets the input
-    let title = if model.board == "connected" && model.active > 0 { model.active.to_string() } else { String::new() };
+    let title = if model.board == "connected" && model.active > 0 { host_label(model, model.active) } else { String::new() };
     #[cfg(target_os = "macos")]
     tray.set_title(Some(if ready { title } else if title.is_empty() { String::new() } else { format!("{title}?") }))?;
     #[cfg(not(target_os = "macos"))]
     let _ = (ready, title);
     tray.set_tooltip(Some(if model.tooltip.is_empty() { "Blue Baton".to_string() } else { model.tooltip.clone() }))?;
     Ok(())
+}
+
+fn host_label(model: &Model, n: u8) -> String {
+    match model.hosts.iter().find(|h| h.n == n) {
+        Some(h) if !h.label.is_empty() => h.label.clone(),
+        _ => n.to_string(),
+    }
 }
 
 fn build_menu(app: &AppHandle, model: &Model, dev_api_on: bool) -> tauri::Result<Menu<Wry>> {
@@ -143,11 +153,12 @@ fn build_menu(app: &AppHandle, model: &Model, dev_api_on: bool) -> tauri::Result
     if connected {
         for n in 1..=3u8 {
             let host = model.hosts.iter().find(|h| h.n == n);
+            let tag = host_label(model, n);
             let (label, enabled) = match host {
-                Some(h) if h.state == "empty" => (format!("{n}   {}", l.empty), false),
-                Some(h) if h.state == "ready" => (format!("{n}   {}", h.name), true),
-                Some(h) => (format!("{n}   {}  ·  {}", h.name, l.offline), true),
-                None => (format!("{n}   {}", l.empty), false),
+                Some(h) if h.state == "empty" => (format!("{tag}   {}", l.empty), false),
+                Some(h) if h.state == "ready" => (format!("{tag}   {}", h.name), true),
+                Some(h) => (format!("{tag}   {}  ·  {}", h.name, l.offline), true),
+                None => (format!("{tag}   {}", l.empty), false),
             };
             let item = CheckMenuItem::with_id(app, format!("host-{n}"), label, enabled, model.active == n, None::<&str>)?;
             menu.append(&item)?;

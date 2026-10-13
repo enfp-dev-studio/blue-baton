@@ -43,6 +43,33 @@ int main(void)
     check_len("only continuation bytes", "\x80\x80", 2, 0);
     check_len("bad lead byte dropped", "a\xFF", 2, 1);
 
+    /* Characters in a host name (utf8_char_count) */
+    struct { const char *name, *s; int want; } counts[] = {
+        {"ascii", "Mac", 3},
+        {"empty", "", 0},
+        {"hangul", ko, 3},
+        {"emoji", emoji, 2},
+        {"mixed", "Mac\xEA\xB0\x80", 4},
+        {"control char", "a\nb", -1},
+        {"DEL", "a\x7F", -1},
+        {"cut character", "a\xEA\xB0", -1},
+        {"stray continuation", "\x80", -1},
+        {"overlong slash", "\xC0\xAF", -1},
+        {"overlong 3-byte", "\xE0\x80\xAF", -1},
+        {"surrogate", "\xED\xA0\x80", -1},
+        {"past U+10FFFF", "\xF4\x90\x80\x80", -1},
+        {"bad lead", "\xFF", -1},
+    };
+    for (size_t i = 0; i < sizeof(counts) / sizeof(counts[0]); i++) {
+        int got = utf8_char_count(counts[i].s);
+        if (got == counts[i].want) {
+            s_pass++;
+        } else {
+            printf("FAIL  utf8_char_count %-26s got %d want %d\n", counts[i].name, got, counts[i].want);
+            s_fail++;
+        }
+    }
+
     char out[64];
     /* Control characters become spaces (so the line-based protocol is not broken) */
     json_escape("a\"b\\c\n", out, sizeof(out));

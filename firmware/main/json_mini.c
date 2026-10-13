@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 #include <ctype.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -167,4 +168,29 @@ int utf8_complete_len(const char *s, int len)
     unsigned char lead = (unsigned char)s[start];
     int need = lead < 0x80 ? 1 : (lead & 0xE0) == 0xC0 ? 2 : (lead & 0xF0) == 0xE0 ? 3 : (lead & 0xF8) == 0xF0 ? 4 : 0;
     return need != 0 && len - start >= need ? len : start;
+}
+
+int utf8_char_count(const char *s)
+{
+    int n = 0;
+    for (const unsigned char *p = (const unsigned char *)s; *p; n++) {
+        unsigned char c = *p++;
+        int more = c < 0x80 ? 0 : (c & 0xE0) == 0xC0 ? 1 : (c & 0xF0) == 0xE0 ? 2 : (c & 0xF8) == 0xF0 ? 3 : -1;
+        if (more < 0 || c < 0x20 || c == 0x7F || c == 0xC0 || c == 0xC1 || c > 0xF4) {
+            return -1;
+        }
+        uint32_t code = more ? c & (0x3F >> more) : c;
+        for (int i = 0; i < more; i++, p++) {
+            if ((*p & 0xC0) != 0x80) {
+                return -1;
+            }
+            code = (code << 6) | (*p & 0x3F);
+        }
+        /* Overlong forms, UTF-16 surrogates and code points past U+10FFFF are not UTF-8 */
+        static const uint32_t min[] = {0, 0x80, 0x800, 0x10000};
+        if (code < min[more] || (code >= 0xD800 && code <= 0xDFFF) || code > 0x10FFFF) {
+            return -1;
+        }
+    }
+    return n;
 }

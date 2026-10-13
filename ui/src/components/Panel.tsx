@@ -5,7 +5,8 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { Plus, Settings } from 'lucide-react';
 import { RadioGroup as RadioGroupPrimitive } from 'radix-ui';
 import { Button } from '@/components/ui/button';
-import { DeviceIcon, Keycaps, Logo, StateTag } from '@/components/parts';
+import { DeviceIcon, HostBadge, Keycaps, Logo, StateTag } from '@/components/parts';
+import { hostLabel } from '@/lib/board/controller.js';
 import { hostStateText, hostStateTone, stateText, stateTone, t } from '@/lib/board/i18n.js';
 import type { Controller, Tone } from '@/lib/board/types';
 import { useBoard } from '@/lib/useBoard';
@@ -98,9 +99,7 @@ export function Panel({ ctl }: { ctl: Controller }) {
                             value={String(n)}
                             className="relative flex size-full items-center gap-2.5 rounded-md px-2.5 text-left outline-none hover:bg-accent focus-visible:bg-accent"
                           >
-                            <span className={cn('grid size-5 shrink-0 place-items-center rounded-sm text-2xs font-semibold', on ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground')}>
-                              {n}
-                            </span>
+                            <HostBadge label={hostLabel(s, n)} on={on} />
                             <span className="min-w-0 flex-1 leading-tight">
                               <span className={cn('block truncate', on && 'font-medium')}>{h.name || t('hosts.unnamed')}</span>
                               {h.state !== 'ready' && <StateTag tone={hostStateTone(h.state) as Tone} className="text-2xs">{hostStateText(h.state)}</StateTag>}

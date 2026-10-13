@@ -14,7 +14,7 @@ echo "== firmware C: hid_input + router + host_report (input normalization, host
 cc -std=gnu11 -Wall -Wextra -Werror -g -fsanitize=address,undefined \
    -o "${OUT}_router" test_router.c ../main/hid_input.c ../main/router.c ../main/host_report.c
 "${OUT}_router"
-echo "== firmware C: json_mini (UTF-8 name trimming, JSON escape)"
+echo "== firmware C: json_mini (UTF-8 name trimming and counting, JSON escape)"
 cc -std=c11 -Wall -Wextra -Werror -g -fsanitize=address,undefined \
    -o "${OUT}_text" test_text.c ../main/json_mini.c
 "${OUT}_text"

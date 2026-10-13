@@ -535,3 +535,14 @@ uint8_t router_host_led(int host)
 {
     return host >= 0 && host < ROUTER_HOST_MAX ? s_led[host] : 0;
 }
+
+void router_swap_hosts(int a, int b)
+{
+    if (a < 0 || a >= ROUTER_HOST_MAX || b < 0 || b >= ROUTER_HOST_MAX) {
+        return;
+    }
+    uint8_t led = s_led[a];
+    s_led[a] = s_led[b];
+    s_led[b] = led;
+    s_active = s_active == a ? b : s_active == b ? a : s_active;
+}

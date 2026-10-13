@@ -422,7 +422,7 @@ class MockBoard {
         return this.reply(id);
       case 'host_list': {
         const hosts = [...this.hosts.entries()].sort((x, y) => x[0] - y[0]).map(([n, h]) => ({
-          host: n, addr: h.addr, name: h.name, connected: h.connected, state: h.connected ? h.state : 'offline', active: this.activeHost === n,
+          host: n, addr: h.addr, name: h.name, nick: h.nick || '', connected: h.connected, state: h.connected ? h.state : 'offline', active: this.activeHost === n,
         }));
         return this.reply(id, { hosts });
       }
@@ -434,6 +434,34 @@ class MockBoard {
         if (h.connected) this.ev({ event: 'host_disconnected', host: req.host, addr: h.addr, reason: 534 });
         this.hosts.delete(req.host);
         return this.ev({ event: 'host_removed', host: req.host });
+      }
+      case 'host_move': {
+        const ok = (x) => x >= 1 && x <= 3;
+        if (!ok(req.host) || !ok(req.to)) return this.fail(id, 'bad_host', 'host and to must be 1 to 3');
+        const h = this.hosts.get(req.host);
+        if (!h) return this.fail(id, 'not_found', 'No host is paired at that number');
+        this.reply(id);
+        if (req.host === req.to) return;
+        const other = this.hosts.get(req.to);
+        this.hosts.delete(req.host);
+        this.hosts.delete(req.to);
+        this.hosts.set(req.to, h);
+        if (other) this.hosts.set(req.host, other);
+        if (this.activeHost === req.host) this.activeHost = req.to;
+        else if (this.activeHost === req.to) this.activeHost = req.host;
+        return this.ev({ event: 'host_moved', host: req.host, to: req.to });
+      }
+      case 'host_nick': {
+        if (!(req.host >= 1 && req.host <= 3)) return this.fail(id, 'bad_host', 'host must be 1 to 3');
+        const nick = typeof req.nick === 'string' ? req.nick : null;
+        if (nick === null || [...nick].length > 8 || /[\u0000-\u001f\u007f]/.test(nick)) {
+          return this.fail(id, 'bad_nick', 'nick must be up to 8 characters');
+        }
+        const h = this.hosts.get(req.host);
+        if (!h) return this.fail(id, 'not_found', 'No host is paired at that number');
+        h.nick = nick;
+        this.reply(id);
+        return this.ev({ event: 'host_nick', host: req.host, nick });
       }
       case 'host_passkey':
         if (!/^\d{6}$/.test(req.code || '')) return this.fail(id, 'bad_code', 'Passkey must be 6 digits');

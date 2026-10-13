@@ -197,9 +197,9 @@ static void cmd_host_pair(int id, const char *line)
 
 static void cmd_host_list(int id)
 {
-    static char list[700];
+    static char list[1000];
     ble_pair_host_list_json(list, sizeof(list));
-    static char buf[760];
+    static char buf[1060];
     snprintf(buf, sizeof(buf), "{\"id\":%d,\"ok\":true,\"hosts\":%s}", id, list);
     usb_ctl_emit(buf);
 }
@@ -212,6 +212,46 @@ static void cmd_host_remove(int id, const char *line)
         return;
     }
     esp_err_t err = ble_pair_host_remove(host - 1);
+    if (err == ESP_ERR_NOT_FOUND) {
+        reply_err_code(id, "not_found", "No host is paired at that number");
+        return;
+    }
+    reply_ble(id, err);
+}
+
+static void cmd_host_move(int id, const char *line)
+{
+    int host = 0, to = 0;
+    if (!json_get_int(line, "host", &host) || host < 1 || host > 3 || !json_get_int(line, "to", &to) || to < 1 ||
+        to > 3) {
+        reply_err_code(id, "bad_host", "host and to must be 1 to 3");
+        return;
+    }
+    esp_err_t err = ble_pair_host_move(host - 1, to - 1);
+    if (err == ESP_ERR_NOT_FOUND) {
+        reply_err_code(id, "not_found", "No host is paired at that number");
+        return;
+    }
+    reply_ble(id, err);
+}
+
+static void cmd_host_nick(int id, const char *line)
+{
+    int host = 0;
+    char nick[CFG_NICK_MAX + 1];
+    if (!json_get_int(line, "host", &host) || host < 1 || host > 3) {
+        reply_err_code(id, "bad_host", "host must be 1 to 3");
+        return;
+    }
+    if (!json_get_string(line, "nick", nick, sizeof(nick))) {
+        reply_err_code(id, "bad_nick", "nick must be up to 8 characters");
+        return;
+    }
+    esp_err_t err = ble_pair_host_nick(host - 1, nick);
+    if (err == ESP_ERR_INVALID_ARG) {
+        reply_err_code(id, "bad_nick", "nick must be up to 8 characters");
+        return;
+    }
     if (err == ESP_ERR_NOT_FOUND) {
         reply_err_code(id, "not_found", "No host is paired at that number");
         return;
@@ -367,6 +407,10 @@ static void handle_line(const char *line)
         cmd_host_list(id);
     } else if (strcmp(cmd, "host_remove") == 0) {
         cmd_host_remove(id, line);
+    } else if (strcmp(cmd, "host_move") == 0) {
+        cmd_host_move(id, line);
+    } else if (strcmp(cmd, "host_nick") == 0) {
+        cmd_host_nick(id, line);
     } else if (strcmp(cmd, "host_passkey") == 0) {
         cmd_host_passkey(id, line);
     } else if (strcmp(cmd, "pair_scan") == 0) {

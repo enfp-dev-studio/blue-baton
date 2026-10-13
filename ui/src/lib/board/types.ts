@@ -7,6 +7,8 @@ export interface Host {
   host: number;
   addr: string;
   name: string;
+  /** The name the user gave it, shown instead of the number ('' for none) */
+  nick: string;
   state: 'ready' | 'connected' | 'secured' | 'pairing' | 'offline';
   connected: boolean;
 }
@@ -95,6 +97,8 @@ export interface Actions {
   setCombos(list: string[]): Promise<boolean>;
   hostPasskey(code: string): Promise<void>;
   removeHost(n: number): Promise<void>;
+  moveHost(n: number, to: number): Promise<void>;
+  renameHost(n: number, nick: string): Promise<boolean>;
   disconnectDevice(addr: string): Promise<void>;
   removeDevice(d: Device): Promise<void>;
   accept(yes: boolean): Promise<void>;

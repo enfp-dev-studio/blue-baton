@@ -1604,6 +1604,77 @@ esp_err_t host_remove(int index)
     return ESP_ERR_NOT_FOUND;
 }
 
+static bool host_record(int index, cfg_paired_t *out)
+{
+    cfg_paired_t recs[CFG_PAIRED_MAX];
+    int n = cfg_paired_list(recs, CFG_PAIRED_MAX);
+    for (int i = 0; i < n; i++) {
+        if (recs[i].role == CFG_ROLE_HOST && recs[i].host_index == index + 1) {
+            *out = recs[i];
+            return true;
+        }
+    }
+    return false;
+}
+
+esp_err_t host_move(int index, int to)
+{
+    cfg_paired_t m;
+    if (index < 0 || index >= ROUTER_HOST_MAX || to < 0 || to >= ROUTER_HOST_MAX) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (!host_record(index, &m)) {
+        return ESP_ERR_NOT_FOUND;
+    }
+    if (index == to) {
+        return ESP_OK;
+    }
+    esp_err_t err = cfg_paired_swap_hosts((uint8_t)(index + 1), (uint8_t)(to + 1));
+    if (err != ESP_OK) {
+        return err;
+    }
+    for (int i = 0; i < HOST_LINK_MAX; i++) {
+        host_link_t *l = &s_links[i];
+        if (l->used && (l->index == index || l->index == to)) {
+            l->index = l->index == index ? to : index;
+        }
+    }
+#if CONFIG_KM_DIAG
+    if (s_selftest_host == index || s_selftest_host == to) {
+        s_selftest_host = s_selftest_host == index ? to : index;
+    }
+#endif
+    router_swap_hosts(index, to);
+    cfg_active_host_set(router_active_host());
+    char buf[64];
+    snprintf(buf, sizeof(buf), "{\"event\":\"host_moved\",\"host\":%d,\"to\":%d}", index + 1, to + 1);
+    emit(buf);
+    return ESP_OK;
+}
+
+esp_err_t host_nick(int index, const char *nick)
+{
+    cfg_paired_t m;
+    int chars = utf8_char_count(nick);
+    if (chars < 0 || chars > CFG_NICK_CHARS || strlen(nick) > CFG_NICK_MAX) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (!host_record(index, &m)) {
+        return ESP_ERR_NOT_FOUND;
+    }
+    snprintf(m.nick, sizeof(m.nick), "%s", nick);
+    esp_err_t err = cfg_paired_put(&m);
+    if (err != ESP_OK) {
+        return err;
+    }
+    char esc[2 * CFG_NICK_MAX + 1];
+    char buf[128];
+    json_escape(nick, esc, sizeof(esc));
+    snprintf(buf, sizeof(buf), "{\"event\":\"host_nick\",\"host\":%d,\"nick\":\"%s\"}", index + 1, esc);
+    emit(buf);
+    return ESP_OK;
+}
+
 size_t host_list_json(char *buf, size_t len)
 {
     cfg_paired_t recs[CFG_PAIRED_MAX];
@@ -1618,14 +1689,16 @@ size_t host_list_json(char *buf, size_t len)
             host_link_t *l = link_by_index(idx - 1);
             char id[18];
             char name[48];
-            char item[200];
+            char nick[2 * CFG_NICK_MAX + 1];
+            char item[320];
             val_to_str(recs[i].val, id);
             json_escape(recs[i].name, name, sizeof(name));
+            json_escape(recs[i].nick, nick, sizeof(nick));
             static const char *names[] = {"pairing", "connected", "secured", "ready"};
             int m = snprintf(item, sizeof(item),
-                             "%s{\"host\":%d,\"addr\":\"%s\",\"name\":\"%s\",\"connected\":%s,\"state\":\"%s\","
-                             "\"active\":%s}",
-                             first ? "" : ",", idx, id, name, l ? "true" : "false", l ? names[l->state] : "offline",
+                             "%s{\"host\":%d,\"addr\":\"%s\",\"name\":\"%s\",\"nick\":\"%s\",\"connected\":%s,"
+                             "\"state\":\"%s\",\"active\":%s}",
+                             first ? "" : ",", idx, id, name, nick, l ? "true" : "false", l ? names[l->state] : "offline",
                              router_active_host() == idx - 1 ? "true" : "false");
             if (m < 0 || w + (size_t)m + 2 > len) {
                 break;

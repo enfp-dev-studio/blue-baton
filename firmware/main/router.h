@@ -106,3 +106,7 @@ void router_passkey_end(void);
 /* LED output value written by a host (Num, Caps, Scroll, Compose, Kana). Comes out as router_out_t.led on switch */
 void router_set_host_led(int host, uint8_t led);
 uint8_t router_host_led(int host);
+
+/* Hosts a and b (from 0) trade numbers: the LED state each wrote and the active host go with them. Switch combos stay
+ * with the numbers */
+void router_swap_hosts(int a, int b);

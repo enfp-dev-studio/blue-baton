@@ -392,6 +392,18 @@ static void test_router(void)
     press(0, LCTRL | LALT, k, 1, &o, &from);
     CHECK(from == 0 && o.led_changed && o.led == 0x02, "led follows the active host");
 
+    /* Hosts trade numbers: the active host and the LED state go with them, the combos stay with the numbers */
+    setup_router();
+    router_set_host_led(1, 0x02);
+    router_swap_hosts(0, 1);
+    CHECK(router_active_host() == 1 && router_host_led(0) == 0x02 && router_host_led(1) == 0, "swap moves active and led");
+    press(0, LCTRL | LALT, NULL, 0, &o, &from);
+    k[0] = K1;
+    press(0, LCTRL | LALT, k, 1, &o, &from);
+    CHECK(from == 1 && router_active_host() == 0 && o.led == 0x02, "combo 1 goes to the host now numbered 1");
+    router_swap_hosts(2, 1);
+    CHECK(router_active_host() == 0, "swap of other hosts leaves the active one");
+
     /* The "release-all" sent to the previous host on a switch */
     router_release_report(&o);
     CHECK(out_empty(&o) && o.buttons == 0 && o.keys_changed && o.buttons_changed, "release report");

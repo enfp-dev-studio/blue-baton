@@ -21,5 +21,8 @@ bool json_get_bool(const char *json, const char *key, bool *out);
 /* Escape a string for a JSON response. Non-ASCII text such as Korean (UTF-8) is left as is */
 void json_escape(const char *in, char *out, size_t out_len);
 
+/* Number of characters in a UTF-8 string, or -1 if it is not well-formed UTF-8 or has a control character */
+int utf8_char_count(const char *s);
+
 /* For a UTF-8 string cut at a byte length, the length without the incomplete trailing character (so a truncated name stays valid in JSON) */
 int utf8_complete_len(const char *s, int len);

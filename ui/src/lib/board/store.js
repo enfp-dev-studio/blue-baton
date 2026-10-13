@@ -122,7 +122,7 @@ export class Store {
   /* host_list reply */
   applyHosts(list) {
     const s = this.state;
-    s.hosts = new Map(list.map((x) => [x.host, { ...x, state: x.connected ? x.state : 'offline' }]));
+    s.hosts = new Map(list.map((x) => [x.host, { ...x, nick: x.nick || '', state: x.connected ? x.state : 'offline' }]));
     this.changed();
   }
 

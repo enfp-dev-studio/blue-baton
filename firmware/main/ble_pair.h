@@ -102,6 +102,12 @@ size_t ble_pair_host_list_json(char *buf, size_t len);
 /* Remove one host (index from 0) */
 esp_err_t ble_pair_host_remove(int index);
 
+/* Host index (from 0) takes number to; the host there, if any, takes its number. No reconnect */
+esp_err_t ble_pair_host_move(int index, int to);
+
+/* The name shown for a host instead of its number ("" for none) */
+esp_err_t ble_pair_host_nick(int index, const char *nick);
+
 /* Passkey shown on the host screen, entered from the GUI */
 esp_err_t ble_pair_host_passkey(uint32_t code);
 

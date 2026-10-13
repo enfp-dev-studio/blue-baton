@@ -18,7 +18,7 @@ import { WebSerialTransport } from './transport/webserial.js';
 
 const REFRESH_ON = new Set(['ble_ready', 'paired', 'hid_ready', 'disconnected', 'unpaired', 'unpaired_all',
   'autoconnect', 'device_name', 'failed', 'ble_reset',
-  'host_paired', 'host_ready', 'host_disconnected', 'host_removed', 'host_name']);
+  'host_paired', 'host_ready', 'host_disconnected', 'host_removed', 'host_name', 'host_moved', 'host_nick']);
 
 /* Events that need the user while the window may be hidden (menu bar app): bring the window forward */
 const NEEDS_USER = new Set(['host_passkey_request', 'passkey_request', 'numcmp', 'passkey_display']);
@@ -104,9 +104,9 @@ export function createController(params = new URLSearchParams(location.search), 
     } else if (ev.event === 'host_pair_failed') {
       store.notice('error', t('notice.hostPairFailed'));
     } else if (ev.event === 'host_repair_blocked') {
-      store.notice('error', t('notice.hostRepairBlocked', { host: ev.host }));
+      store.notice('error', t('notice.hostRepairBlocked', { host: hostLabel(store.state, ev.host) }));
     } else if (ev.event === 'host_online' && !ev.online) {
-      store.notice('info', t('notice.hostOffline', { host: ev.host }));
+      store.notice('info', t('notice.hostOffline', { host: hostLabel(store.state, ev.host) }));
     }
     if (REFRESH_ON.has(ev.event)) {
       clearTimeout(refreshTimer);
@@ -297,6 +297,14 @@ export function createController(params = new URLSearchParams(location.search), 
     async removeHost(n) {
       await run(() => client.request('host_remove', { host: n }));
     },
+    /* Host n takes number to; the host there takes n. The links stay up */
+    async moveHost(n, to) {
+      await run(() => client.request('host_move', { host: n, to }));
+    },
+    /* '' shows the number again */
+    async renameHost(n, nick) {
+      return !!(await run(() => client.request('host_nick', { host: n, nick })));
+    },
     async disconnectDevice(addr) {
       await run(() => client.request('disconnect', { addr }));
     },
@@ -397,12 +405,17 @@ export function createController(params = new URLSearchParams(location.search), 
   return { store, actions, monitorRoot, inApp, needsSerial, useMock, role };
 }
 
+/* What a host is called on screen: the name the user gave it, otherwise its number */
+export function hostLabel(s, n) {
+  return s.hosts.get(n)?.nick || String(n);
+}
+
 /* What the tray menu shows. Labels come from the UI language so the menu matches the window */
 function trayModel(s) {
   const board = s.link === 'connected' ? 'connected' : 'disconnected';
   const hosts = [1, 2, 3].map((n) => {
     const h = s.hosts.get(n);
-    return { n, name: h ? h.name || t('hosts.unnamed') : '', state: h ? h.state : 'empty' };
+    return { n, label: hostLabel(s, n), name: h ? h.name || t('hosts.unnamed') : '', state: h ? h.state : 'empty' };
   });
   const inputs = [...s.devices.values()]
     .filter((d) => d.state !== 'offline')

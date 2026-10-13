@@ -45,7 +45,8 @@ wake), Linux as a host, and the Windows and Linux builds of the app.
 
    When the computer shows a 6-digit code, enter it in the app (or type it on a keyboard connected to the board).
 5. **Switch** with `Ctrl+Alt+1`, `2`, `3` (on a Mac keyboard: Control+Option), or from the menu bar icon. The combos
-   can be changed in the app.
+   can be changed in the app. A host's row menu renames it (up to 8 characters, shown instead of its number) and moves
+   it up or down without reconnecting.
 
 ## Updates
 

@@ -2046,7 +2046,7 @@ typedef enum {
     OP_SCAN, OP_CONNECT, OP_DISCONNECT, OP_ACCEPT, OP_PASSKEY, OP_CANCEL,
     OP_REMOVE, OP_CLEAR, OP_LIST, OP_PEERS, OP_PAIRED, OP_STATUS, OP_RADIO, OP_BONDS,
     OP_COMBOS, OP_HOST_SELECT, OP_HOST_GET,
-    OP_HOST_PAIR, OP_HOST_LIST, OP_HOST_REMOVE, OP_HOST_PASSKEY, OP_STATS, OP_SELFTEST,
+    OP_HOST_PAIR, OP_HOST_LIST, OP_HOST_REMOVE, OP_HOST_MOVE, OP_HOST_NICK, OP_HOST_PASSKEY, OP_STATS, OP_SELFTEST,
 } op_t;
 
 typedef struct {
@@ -2455,6 +2455,10 @@ static esp_err_t op_dispatch(req_t *r)
         return ESP_OK;
     case OP_HOST_REMOVE:
         return host_remove((int)r->num);
+    case OP_HOST_MOVE:
+        return host_move((int)r->num, r->count);
+    case OP_HOST_NICK:
+        return host_nick((int)r->num, r->addr);
     case OP_HOST_PASSKEY:
         return host_passkey(r->num);
     case OP_SELFTEST:
@@ -2694,6 +2698,18 @@ size_t ble_pair_stats_json(char *buf, size_t len)
 esp_err_t ble_pair_host_remove(int index)
 {
     req_t r = {.op = OP_HOST_REMOVE, .num = (uint32_t)index};
+    return host_call(&r);
+}
+
+esp_err_t ble_pair_host_move(int index, int to)
+{
+    req_t r = {.op = OP_HOST_MOVE, .num = (uint32_t)index, .count = to};
+    return host_call(&r);
+}
+
+esp_err_t ble_pair_host_nick(int index, const char *nick)
+{
+    req_t r = {.op = OP_HOST_NICK, .num = (uint32_t)index, .addr = nick};
     return host_call(&r);
 }
 

@@ -42,7 +42,13 @@ esp_err_t host_passkey(uint32_t code);
 /* Remove one host (index from 0) */
 esp_err_t host_remove(int index);
 
-/* [{host, addr, name, connected, state, active}] */
+/* Host index (from 0) takes number to, and the host at to, if any, takes index's number. Its link stays up */
+esp_err_t host_move(int index, int to);
+
+/* The name shown for a host instead of its number: up to CFG_NICK_CHARS characters of UTF-8; "" for none */
+esp_err_t host_nick(int index, const char *nick);
+
+/* [{host, addr, name, nick, connected, state, active}] */
 size_t host_list_json(char *buf, size_t len);
 
 /* Host link intervals and mouse pacing statistics as a JSON object. Resets the statistics. Host task only */

@@ -7,6 +7,20 @@ import { kindIcon, t } from '@/lib/board/i18n.js';
 import type { Tone } from '@/lib/board/types';
 import { cn } from '@/lib/utils';
 
+/* A host's number, or the name the user gave it instead (up to 8 characters) */
+export function HostBadge({ label, on }: { label: string; on: boolean }) {
+  return (
+    <span
+      className={cn(
+        'inline-flex h-5 min-w-5 shrink-0 items-center justify-center whitespace-nowrap rounded-sm px-1 text-2xs font-semibold',
+        on ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
+      )}
+    >
+      {label}
+    </span>
+  );
+}
+
 /* Status as a dot and a word, colored by tone */
 export function StateTag({ tone, children, className }: { tone: Tone; children: React.ReactNode; className?: string }) {
   return (

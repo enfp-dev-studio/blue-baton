@@ -2,10 +2,13 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { Input } from '@/components/ui/input';
 import { RadioGroup as RadioGroupPrimitive } from 'radix-ui';
-import { Group, Keycaps, RowMenu, StateTag, comboLabel } from '@/components/parts';
+import { Group, HostBadge, Keycaps, RowMenu, StateTag, comboLabel } from '@/components/parts';
 import { DEFAULT_COMBOS, comboFromEvent, modifiers, sameCombo } from '@/lib/board/combo.js';
+import { hostLabel } from '@/lib/board/controller.js';
 import { hostStateText, hostStateTone, t, tParts } from '@/lib/board/i18n.js';
 import type { Actions, BoardState, Host, Tone } from '@/lib/board/types';
 import { cn } from '@/lib/utils';
@@ -20,7 +23,10 @@ const ROW = 52;
  */
 export function HostsPanel({ s, a, confirm }: { s: BoardState; a: Actions; confirm: Confirm }) {
   const active = s.hosts.get(s.activeHost);
+  const [renaming, setRenaming] = useState<Renaming | null>(null);
+  const rename = (n: number) => setRenaming({ n, nick: s.hosts.get(n)?.nick || '' });
   return (
+    <>
     <Group
       title={t('hosts.title')}
       aside={
@@ -52,15 +58,19 @@ export function HostsPanel({ s, a, confirm }: { s: BoardState; a: Actions; confi
             </li>
           )}
           {[1, 2, 3].map((n) => (
-            <HostRow key={n} n={n} s={s} a={a} host={s.hosts.get(n)} confirm={confirm} />
+            <HostRow key={n} n={n} s={s} a={a} host={s.hosts.get(n)} confirm={confirm} rename={rename} />
           ))}
         </ul>
       </RadioGroupPrimitive.Root>
     </Group>
+    <RenameDialog req={renaming} a={a} onClose={() => setRenaming(null)} />
+    </>
   );
 }
 
-function HostRow({ n, s, a, host, confirm }: { n: number; s: BoardState; a: Actions; host?: Host; confirm: Confirm }) {
+type RowProps = { n: number; s: BoardState; a: Actions; host?: Host; confirm: Confirm; rename: (n: number) => void };
+
+function HostRow({ n, s, a, host, confirm, rename }: RowProps) {
   const on = !!host && s.activeHost === n;
   return (
     <li
@@ -74,14 +84,7 @@ function HostRow({ n, s, a, host, confirm }: { n: number; s: BoardState; a: Acti
         title={host ? t('hosts.pickTitle') : undefined}
         className="flex h-full min-w-0 flex-1 items-center gap-3 pl-4 text-left outline-none focus-visible:bg-accent enabled:hover:bg-accent/60"
       >
-        <span
-          className={cn(
-            'grid size-5 shrink-0 place-items-center rounded-sm text-2xs font-semibold',
-            on ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
-          )}
-        >
-          {n}
-        </span>
+        <HostBadge label={hostLabel(s, n)} on={on} />
         <span className="min-w-0 flex-1 leading-tight">
           <span className={cn('block truncate', host ? 'font-medium' : 'text-muted-foreground')}>
             {host ? host.name || t('hosts.unnamed') : t('hosts.empty')}
@@ -92,6 +95,14 @@ function HostRow({ n, s, a, host, confirm }: { n: number; s: BoardState; a: Acti
       <ComboButton n={n} s={s} a={a} />
       {host ? (
         <RowMenu label={t('common.more')}>
+          <DropdownMenuItem onSelect={() => rename(n)}>{t('hosts.rename')}</DropdownMenuItem>
+          <DropdownMenuItem disabled={n === 1} onSelect={() => a.moveHost(n, n - 1)}>
+            {t('hosts.moveUp')}
+          </DropdownMenuItem>
+          <DropdownMenuItem disabled={n === 3} onSelect={() => a.moveHost(n, n + 1)}>
+            {t('hosts.moveDown')}
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
           <DropdownMenuItem
             variant="destructive"
             onSelect={() =>
@@ -143,7 +154,7 @@ function ComboButton({ n, s, a }: { n: number; s: BoardState; a: Actions }) {
       }
       const other = s.combos.findIndex((c, i) => i !== n - 1 && sameCombo(c, r.combo));
       if (other >= 0) {
-        toast(t('combo.taken', { n: other + 1 }), { id: 'combo' });
+        toast(t('combo.taken', { n: hostLabel(s, other + 1) }), { id: 'combo' });
         return;
       }
       save(r.combo);
@@ -182,5 +193,66 @@ function ComboButton({ n, s, a }: { n: number; s: BoardState; a: Actions }) {
     >
       <Keycaps combo={s.combos[n - 1]} />
     </button>
+  );
+}
+
+/*
+ * The name shown instead of the host's number, up to 8 characters (what the board stores). Empty shows the number
+ * again. Over 8 the Save button is off rather than cutting the text, so typing with an input method (Korean, Japanese)
+ * is never broken off in the middle of a character.
+ */
+const NICK_CHARS = 8;
+
+type Renaming = { n: number; nick: string };
+
+function RenameDialog({ req, a, onClose }: { req: Renaming | null; a: Actions; onClose: () => void }) {
+  const [value, setValue] = useState('');
+  useEffect(() => {
+    if (req) setValue(req.nick);
+  }, [req]);
+  const n = req?.n ?? 0;
+  const nick = value.trim();
+  const chars = [...nick].length;
+  const ok = chars <= NICK_CHARS;
+  const save = async () => {
+    if (ok && (await a.renameHost(n, nick))) onClose();
+  };
+  return (
+    <Dialog open={!!req} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-xs" aria-describedby={undefined}>
+        <DialogHeader>
+          <DialogTitle>{t('hosts.renameTitle')}</DialogTitle>
+        </DialogHeader>
+        <form
+          className="relative"
+          onSubmit={(e) => {
+            e.preventDefault();
+            save();
+          }}
+        >
+          <Input
+            autoFocus
+            value={value}
+            placeholder={n ? String(n) : undefined}
+            aria-label={t('hosts.renameTitle')}
+            aria-invalid={!ok}
+            onChange={(e) => setValue(e.target.value)}
+            className="pr-12"
+          />
+          <span
+            className={cn(
+              'pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs tabular-nums',
+              ok ? 'text-muted-foreground' : 'text-destructive',
+            )}
+          >
+            {chars}/{NICK_CHARS}
+          </span>
+        </form>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>{t('common.cancel')}</Button>
+          <Button disabled={!ok} onClick={save}>{t('common.save')}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -1,8 +1,8 @@
-# USB Control Protocol (firmware 0.7)
+# USB Control Protocol (firmware 0.7.1)
 
 The board connects over USB to the main machine, and that machine's settings app (`app/`, or the UI in `ui/` via the local bridge or Web Serial) controls the board with this protocol.
 
-Changes from earlier versions are collected at the end under "0.6 → 0.7 changes", "0.5 → 0.6 changes", "0.4 → 0.5 changes" and "0.3 → 0.4 changes".
+Changes from earlier versions are collected at the end under "0.7 → 0.7.1 changes", "0.6 → 0.7 changes", "0.5 → 0.6 changes", "0.4 → 0.5 changes" and "0.3 → 0.4 changes".
 
 ## Basic rules
 
@@ -51,6 +51,8 @@ Changes from earlier versions are collected at the end under "0.6 → 0.7 change
 | `host_pair` | `on` | Open or close the host pairing window. When opened, it accepts connections and pairing from new hosts for 180 seconds. It closes by itself once one host pairs. If 3 hosts are already paired, `code:"hosts_full"`. Opening it stops input device scanning and user connection attempts |
 | `host_list` | none | List of paired hosts (`hosts`). See "host_list entries" below |
 | `host_remove` | `host` (1–3) | Delete the bond of the host at that number. Disconnects it if connected. "Blue Baton" must also be removed on that computer before it can be added again |
+| `host_move` | `host` (1–3), `to` (1–3) | The host at `host` takes number `to`, and the host at `to`, if any, takes `host`. Links stay up. The switch combos stay with the numbers (the combo for 1 goes to whichever host is 1); the active host stays the same computer under its new number. Event `host_moved` |
+| `host_nick` | `host` (1–3), `nick` | The name shown for that host instead of its number, up to 8 characters of UTF-8 (no control characters); `""` clears it. Saved on the board. If invalid, `code:"bad_nick"`. Event `host_nick` |
 | `host_passkey` | `code` (6-digit string) | Answer `host_passkey_request` from the GUI (instead of typing on a keyboard attached to the router) |
 | `pair_scan` | `on` | Turn new-device scanning on/off. Once on, it stops by itself after 60 seconds (`scan_stopped` `reason:"timeout"`). Auto-reconnect pauses while scanning. If a user connection attempt is in progress, it is abandoned (`connect_failed` `status:"cancelled"`) and the scan starts right away |
 | `pair_list` | `all` (optional, default false) | Found devices list (`devices`). HID devices only by default; with `all:true`, every connectable device. Currently connected devices are excluded |
@@ -68,7 +70,7 @@ Failure `code`
 | code | Meaning |
 |---|---|
 | `busy` | Not possible right now (BLE not ready, already connected, or another connection attempt in progress) |
-| `not_found` | No device with that address (in neither the found list nor the paired list), or no host at that number (`host_remove`) |
+| `not_found` | No device with that address (in neither the found list nor the paired list), or no host at that number (`host_remove`, `host_move`, `host_nick`) |
 | `no_slot` | All input device slots (2 concurrent) are in use |
 | `inputs_full` | `pair_connect` to a new device while 2 input devices are paired already. Remove one first |
 | `bad_addr` | Address missing or malformed |
@@ -77,6 +79,7 @@ Failure `code`
 | `hosts_full` | All 3 host slots are in use |
 | `bad_host` | Host number is not 1–3 |
 | `bad_code` | Passkey is not 6 digits |
+| `bad_nick` | Host name is over 8 characters or not valid UTF-8 text |
 | `bad_combo` | Switch combo missing or malformed |
 | `bad_request` | Missing or malformed argument (`cmd`, `on`, `accept`) |
 | `unknown_cmd` | Unknown command |
@@ -118,11 +121,12 @@ paired:  [{"addr":"00:00:5E:00:53:17","type":1,"name":"Xiaoxin Mplus 5.0","kinds
 ### host_list entries
 
 ```text
-hosts: [{"host":1,"addr":"00:00:5E:00:53:30","name":"Example’s MacBook Pro","connected":true,"state":"ready","active":true}]
+hosts: [{"host":1,"addr":"00:00:5E:00:53:30","name":"Example’s MacBook Pro","nick":"Work","connected":true,"state":"ready","active":true}]
 ```
 
 - `addr`: the host's identity address, saved at pairing (shown even when the host connects with an RPA, as Macs do)
 - `name`: the host's GAP Device Name (the computer name on a Mac). Read each time the host connects and becomes ready
+- `nick`: the name the user gave it (`host_nick`), `""` for none
 - `state`: `offline`, `connected` (before encryption), `secured` (before subscription), `ready` (reports can be sent)
 
 ## Events (sent by the board on its own)
@@ -178,6 +182,8 @@ hosts: [{"host":1,"addr":"00:00:5E:00:53:30","name":"Example’s MacBook Pro","c
 | `host_sec_request` | `host`, `addr`, `rc` | A bonded host did not start encryption within 1 s, so the board sent a Security Request (`rc` 0 = sent). A fallback; normally the host encrypts by itself |
 | `host_disconnected` | `host`, `addr`, `reason` | A host disconnected (also when its link drops before it is fully connected; `reason` is then a NimBLE status). The board advertises fast (20 ms) for 30 seconds, then at 152.5 ms |
 | `host_removed` | `host` | One host was removed |
+| `host_moved` | `host`, `to` | The host at `host` is now `to`, and the host that was at `to`, if any, is now `host` |
+| `host_nick` | `host`, `nick` | A host's name changed |
 
 ## Flows
 
@@ -227,6 +233,13 @@ Only while the window is open does the board present itself as a keyboard (IO ca
   - The previous host receives a "release-all". Pressing the combo of the host already in use swallows the combo without switching
   - When an input device disconnects, the keys it was holding are treated as released
   - The active host is kept across restarts (power, firmware update)
+
+## 0.7 → 0.7.1 changes
+
+- New commands `host_move` (hosts trade numbers without reconnecting) and `host_nick` (a short name for a host), with
+  events `host_moved` and `host_nick` and the error `bad_nick`. `host_list` entries have `nick`.
+- The paired-device records are stored in a new format (v4, adds the host name); records from 0.7 are converted at
+  boot.
 
 ## 0.6 → 0.7 changes
 

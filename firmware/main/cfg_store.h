@@ -38,6 +38,8 @@ void cfg_diag_take(uint32_t *writes, uint32_t *max_us);
  * The key is the identity address (type 0 public, 1 random + 6 bytes). Holds up to the bond count.
  */
 #define CFG_PAIRED_MAX CONFIG_BT_NIMBLE_MAX_BONDS
+#define CFG_NICK_CHARS 8   /* A host's name: up to 8 characters, */
+#define CFG_NICK_MAX 32    /* so at most 32 bytes of UTF-8 */
 typedef struct {
     uint8_t type;       /* identity address type (0 public, 1 random) */
     uint8_t val[6];     /* NimBLE address bytes (stored in reverse order) */
@@ -46,6 +48,7 @@ typedef struct {
     uint32_t last_seq;  /* Last connection order. Larger is more recent */
     uint8_t role;       /* CFG_ROLE_*: input device or host (the NimBLE store does not know the role) */
     uint8_t host_index; /* Host number 1-3 for a host, otherwise 0 */
+    char nick[CFG_NICK_MAX + 1];  /* Host: the name the user gave it, shown instead of its number; "" for none */
 } cfg_paired_t;
 
 #define CFG_ROLE_UNKNOWN 0
@@ -57,3 +60,5 @@ int cfg_paired_list(cfg_paired_t *out, int max);     /* Returns the number of re
 esp_err_t cfg_paired_put(const cfg_paired_t *rec);
 esp_err_t cfg_paired_remove(uint8_t type, const uint8_t val[6]);
 esp_err_t cfg_paired_clear(void);
+/* The hosts numbered a and b (1-3) trade numbers, in one write. Either may be unused */
+esp_err_t cfg_paired_swap_hosts(uint8_t a, uint8_t b);
