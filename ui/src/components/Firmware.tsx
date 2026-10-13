@@ -37,7 +37,7 @@ export function FirmwareGroup({ s, a, confirm }: { s: BoardState; a: Actions; co
         {order < 0 && (
           <div className="flex shrink-0 items-center gap-2">
             <span className="text-xs text-muted-foreground">{t('fw.updateAvailable', { version: s.fwBundled })}</span>
-            <Button size="sm" disabled={!!s.fwJob} onClick={update}>
+            <Button size="sm" variant="outline" disabled={!!s.fwJob} onClick={update}>
               {t('fw.update')}
             </Button>
           </div>
