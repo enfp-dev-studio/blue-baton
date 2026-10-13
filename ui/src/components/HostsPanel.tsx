@@ -236,6 +236,10 @@ function RenameDialog({ req, a, onClose }: { req: Renaming | null; a: Actions; o
             placeholder={n ? String(n) : undefined}
             aria-label={t('hosts.renameTitle')}
             aria-invalid={!ok}
+            autoCapitalize="none"
+            autoCorrect="off"
+            autoComplete="off"
+            spellCheck={false}
             onChange={(e) => setValue(e.target.value)}
             className="pr-12"
           />
