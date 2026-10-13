@@ -32,7 +32,7 @@ export function App({ ctl }: { ctl: Controller }) {
     <TooltipProvider>
       <div className="min-h-screen">
         <Header s={s} a={a} ctl={ctl} />
-        <main className="mx-auto grid max-w-[680px] gap-6 px-4 pb-14 pt-5">
+        <main className="mx-auto grid max-w-[680px] gap-6 px-4 pb-8 pt-5">
           {!ready && (s.appBoard === 'other' && s.fwBundled ? <FirmwareInstall s={s} a={a} confirm={setConfirm} /> : <ConnectCard s={s} a={a} ctl={ctl} />)}
           {ready && (
             <>

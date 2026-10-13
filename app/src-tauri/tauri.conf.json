@@ -16,8 +16,8 @@
         "label": "main",
         "title": "Blue Baton",
         "url": "index.html",
-        "width": 960,
-        "height": 800,
+        "width": 600,
+        "height": 790,
         "minWidth": 380,
         "minHeight": 520,
         "visible": false
