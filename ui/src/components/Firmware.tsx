@@ -28,7 +28,7 @@ export function FirmwareGroup({ s, a, confirm }: { s: BoardState; a: Actions; co
       action: () => a.writeFirmware(true),
     });
   return (
-    <Group title={t('fw.title')}>
+    <Group n={3} title={t('fw.title')}>
       <div className="flex min-h-[44px] items-center justify-between gap-3 px-3 py-2">
         <div className="min-w-0">
           <div className="text-ui">{t('fw.current', { version: s.fw })}</div>

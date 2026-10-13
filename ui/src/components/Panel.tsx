@@ -52,7 +52,7 @@ export function Panel({ ctl }: { ctl: Controller }) {
   const at = hosts.indexOf(s.activeHost);
   return (
     <div className="p-2.5">
-      <div ref={card} className="overflow-hidden rounded-xl border bg-popover text-ui text-popover-foreground shadow-[0_10px_32px_rgb(0_0_0/0.22)]">
+      <div ref={card} className="overflow-hidden border-[1.5px] border-foreground bg-popover text-ui text-popover-foreground shadow-hard">
         <div className="flex items-center gap-2 px-3.5 pb-2 pt-3">
           <Logo className="size-5 shrink-0" />
           <span className="font-semibold">{t('app.name')}</span>
@@ -84,9 +84,9 @@ export function Panel({ ctl }: { ctl: Controller }) {
                     {at >= 0 && (
                       <li
                         aria-hidden="true"
-                        className="pointer-events-none absolute left-0 top-0 h-[44px] w-full translate-y-[calc(var(--to)*44px)] rounded-md bg-primary/10 transition-[translate] duration-500 ease-[cubic-bezier(0.22,0.9,0.24,1)] motion-reduce:transition-none"
+                        className="pointer-events-none absolute left-0 top-0 h-[44px] w-full translate-y-[calc(var(--to)*44px)] bg-primary transition-[translate] duration-500 ease-[cubic-bezier(0.22,0.9,0.24,1)] motion-reduce:transition-none"
                       >
-                        <span className="absolute left-0 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-r-full bg-primary" />
+                        <span className="absolute left-0 top-1/2 h-6 w-[4px] -translate-y-1/2 bg-primary-foreground" />
                       </li>
                     )}
                     {hosts.map((n) => {
@@ -96,9 +96,12 @@ export function Panel({ ctl }: { ctl: Controller }) {
                         <li key={n} data-host={n} style={{ height: ROW }}>
                           <RadioGroupPrimitive.Item
                             value={String(n)}
-                            className="relative flex size-full items-center gap-2.5 rounded-md px-2.5 text-left outline-none hover:bg-accent focus-visible:bg-accent"
+                            className={cn(
+                              'relative flex size-full items-center gap-2.5 px-2.5 text-left outline-none',
+                              on ? 'text-primary-foreground' : 'hover:bg-accent focus-visible:bg-accent',
+                            )}
                           >
-                            <span className={cn('grid size-5 shrink-0 place-items-center rounded-sm text-2xs font-semibold', on ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground')}>
+                            <span className={cn('grid size-5 shrink-0 place-items-center rounded-sm text-2xs font-semibold', on ? 'bg-primary-foreground text-primary' : 'border border-foreground')}>
                               {n}
                             </span>
                             <span className="min-w-0 flex-1 leading-tight">
@@ -122,7 +125,7 @@ export function Panel({ ctl }: { ctl: Controller }) {
                 <ul className="grid list-none p-0">
                   {inputs.map((d) => (
                     <li key={d.id} data-device={d.addr} className="group flex h-9 items-center gap-2.5 rounded-md px-2.5">
-                      <span className="grid size-5 shrink-0 place-items-center rounded-sm text-muted-foreground transition-shadow group-data-live:text-primary">
+                      <span className="grid size-5 shrink-0 place-items-center rounded-sm text-muted-foreground transition-shadow group-data-live:bg-primary group-data-live:text-primary-foreground">
                         <DeviceIcon kinds={d.kinds} appearance={d.appearance} className="size-4" />
                       </span>
                       <span className="min-w-0 flex-1 truncate">{d.name || t('common.unnamedDevice')}</span>

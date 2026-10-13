@@ -22,7 +22,7 @@ export function StateTag({ tone, children, className }: { tone: Tone; children: 
     >
       <span
         className={cn(
-          'size-1.5 shrink-0 rounded-full',
+          'size-2 shrink-0',
           tone === 'ok' && 'bg-ok',
           tone === 'busy' && 'animate-blink bg-busy motion-reduce:animate-none',
           tone === 'bad' && 'bg-destructive',
@@ -35,16 +35,18 @@ export function StateTag({ tone, children, className }: { tone: Tone; children: 
 }
 
 /*
- * A titled group of rows with hairline separators, as in macOS System Settings. `aside` sits at the right of the
- * title; `footer` under the group.
+ * A titled box of rows with ink lines between them. `n` numbers the box in the title ("01 / Hosts"); `aside` sits at
+ * the right of the title; `footer` under the box.
  */
 export function Group({
+  n,
   title,
   aside,
   footer,
   children,
   className,
 }: {
+  n?: number;
   title?: React.ReactNode;
   aside?: React.ReactNode;
   footer?: React.ReactNode;
@@ -55,11 +57,16 @@ export function Group({
     <section className="grid gap-1.5">
       {(title || aside) && (
         <div className="flex flex-wrap items-baseline justify-between gap-x-3 px-1">
-          {title && <h2 className="text-ui font-semibold">{title}</h2>}
-          {aside && <span className="text-xs text-muted-foreground">{aside}</span>}
+          {title && (
+            <h2 className="text-2xs font-bold tracking-[0.08em] uppercase">
+              {n !== undefined && <span className="text-muted-foreground">{String(n).padStart(2, '0')} / </span>}
+              {title}
+            </h2>
+          )}
+          {aside && <span className="text-2xs text-muted-foreground uppercase">{aside}</span>}
         </div>
       )}
-      <div className={cn('overflow-hidden rounded-lg border bg-card', className)}>{children}</div>
+      <div className={cn('overflow-hidden border-[1.5px] border-foreground bg-card', className)}>{children}</div>
       {footer && <div className="px-1 text-xs text-muted-foreground">{footer}</div>}
     </section>
   );
@@ -107,7 +114,7 @@ export function Keycaps({ combo, className }: { combo?: string; className?: stri
   if (!combo) return <span className={cn('text-xs text-muted-foreground', className)}>{t('hosts.noCombo')}</span>;
   const keys = combo.split('+').map((k) => k.trim()).filter(Boolean);
   return (
-    <kbd className={cn('whitespace-nowrap font-sans text-xs tracking-[0.12em] text-muted-foreground', className)} title={combo}>
+    <kbd className={cn('whitespace-nowrap border border-foreground bg-card px-1.5 py-0.5 font-mono text-2xs font-bold tracking-[0.12em] text-card-foreground', className)} title={combo}>
       {comboLabel(keys)}
     </kbd>
   );
@@ -156,30 +163,20 @@ export function DeviceIcon({ kinds, appearance, className }: { kinds?: string[];
   return <Icon className={className} strokeWidth={1.8} />;
 }
 
-/* The mark: a baton (capsule) passed between two hands (dots) */
-/* The app icon at UI size (app/assets/make_icons.py draws the full one): a hollow baton passed at speed */
+/*
+ * The app icon at UI size (app/assets/make_icons.py draws the full one, same geometry on 1024): a hollow baton passed
+ * at speed. Ink tile and paper baton, so it follows the theme
+ */
 export function Logo({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 32 32" className={className} aria-hidden="true">
-      <defs>
-        <linearGradient id="bb-bg" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#2c3d8a" />
-          <stop offset="1" stopColor="#0f1538" />
-        </linearGradient>
-        <linearGradient id="bb-tube" x1="0" y1="-2.2" x2="0" y2="2.2" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="#c9d6ff" />
-          <stop offset="0.5" stopColor="#3d6bff" />
-          <stop offset="1" stopColor="#1a32a8" />
-        </linearGradient>
-      </defs>
-      <rect x="1" y="1" width="30" height="30" rx="9" fill="url(#bb-bg)" />
-      <g transform="translate(17.6 15) rotate(-33)">
-        <rect x="-12.6" y="-1.9" width="4.2" height="1.2" rx="0.6" fill="#9db3ff" opacity="0.7" />
-        <rect x="-11.4" y="0.8" width="3" height="1.2" rx="0.6" fill="#9db3ff" opacity="0.5" />
-        <ellipse cx="-7.2" cy="0" rx="0.8" ry="2.2" fill="url(#bb-tube)" />
-        <rect x="-7.2" y="-2.2" width="14.4" height="4.4" fill="url(#bb-tube)" />
-        <ellipse cx="7.2" cy="0" rx="0.8" ry="2.2" fill="#dfe6ff" />
-        <ellipse cx="7.3" cy="0" rx="0.5" ry="1.5" fill="#16246e" />
+    <svg viewBox="100 100 824 824" className={className} aria-hidden="true">
+      <rect x="100" y="100" width="824" height="824" rx="185" className="fill-foreground" />
+      <g transform="rotate(-35 512 512)" className="fill-background">
+        <rect x="186" y="437" width="112" height="62" rx="31" />
+        <rect x="156" y="525" width="142" height="62" rx="31" />
+        <path d="M392 428 H800 V596 H392 A40 84 0 0 1 392 428 Z" />
+        <ellipse cx="800" cy="512" rx="40" ry="84" />
+        <ellipse cx="800" cy="512" rx="22" ry="54" className="fill-foreground" />
       </g>
     </svg>
   );
