@@ -19,7 +19,7 @@
 #define CTL_TASK_STACK 8192
 #define OUT_BUF_BYTES 8192     /* Lines waiting for the computer to read them */
 #define OUT_TASK_STACK 4096
-#define OUT_TASK_CORE 1        /* NimBLE and the Bluetooth controller run on core 0 */
+#define OUT_TASK_CORE (portNUM_PROCESSORS - 1)   /* The other core where there are two: NimBLE and the controller run on core 0 */
 
 int64_t plat_now_us(void)
 {
