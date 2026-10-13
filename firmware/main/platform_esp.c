@@ -8,6 +8,7 @@
 #include "esp_system.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/ringbuf.h"
 #include "freertos/task.h"
 #include "nimble/nimble_port.h"
 #include "nimble/nimble_port_freertos.h"
@@ -16,6 +17,9 @@
 
 #define CTL_LINE_MAX 256
 #define CTL_TASK_STACK 8192
+#define OUT_BUF_BYTES 8192     /* Lines waiting for the computer to read them */
+#define OUT_TASK_STACK 4096
+#define OUT_TASK_CORE 1        /* NimBLE and the Bluetooth controller run on core 0 */
 
 int64_t plat_now_us(void)
 {
@@ -85,6 +89,72 @@ void plat_timer_stop(plat_timer_t *t)
 
 /* ---------- Control channel: USB Serial/JTAG console (stdin/stdout) ---------- */
 
+/*
+ * Lines out. A USB write waits until the computer reads it (no USB Serial/JTAG driver: the console writes straight
+ * to the FIFO), so writers only copy the line into a buffer and a task on the other core writes it out. The
+ * Bluetooth task never waits on USB. If the computer stops reading and the buffer fills, new lines are dropped.
+ */
+static RingbufHandle_t s_out;
+static uint32_t s_out_dropped;
+
+static void out_task(void *arg)
+{
+    while (1) {
+        size_t n;
+        char *line = xRingbufferReceive(s_out, &n, portMAX_DELAY);
+        if (line) {
+            fwrite(line, 1, n, stdout);
+            fflush(stdout);
+            vRingbufferReturnItem(s_out, line);
+        }
+    }
+}
+
+#if CONFIG_KM_DIAG
+static portMUX_TYPE s_ctl_diag_lock = portMUX_INITIALIZER_UNLOCKED;
+static uint32_t s_ctl_lines, s_ctl_total_us, s_ctl_max_us;
+
+void plat_ctl_diag_take(uint32_t *lines, uint32_t *total_us, uint32_t *max_us, uint32_t *dropped)
+{
+    taskENTER_CRITICAL(&s_ctl_diag_lock);
+    *lines = s_ctl_lines;
+    *total_us = s_ctl_total_us;
+    *max_us = s_ctl_max_us;
+    *dropped = s_out_dropped;
+    s_ctl_lines = s_ctl_total_us = s_ctl_max_us = s_out_dropped = 0;
+    taskEXIT_CRITICAL(&s_ctl_diag_lock);
+}
+#endif
+
+void plat_ctl_write(const char *prefix, const char *text)
+{
+#if CONFIG_KM_DIAG
+    int64_t t0 = esp_timer_get_time();
+#endif
+    size_t np = strlen(prefix), nt = strlen(text);
+    char *slot = NULL;
+    if (!s_out) {
+        printf("%s%s\n", prefix, text);   /* Before the output task starts (boot) */
+        fflush(stdout);
+    } else if (xRingbufferSendAcquire(s_out, (void **)&slot, np + nt + 1, 0) == pdTRUE) {
+        memcpy(slot, prefix, np);
+        memcpy(slot + np, text, nt);
+        slot[np + nt] = '\n';
+        xRingbufferSendComplete(s_out, slot);
+    } else {
+        s_out_dropped++;
+    }
+#if CONFIG_KM_DIAG
+    uint32_t us = (uint32_t)(esp_timer_get_time() - t0);
+    taskENTER_CRITICAL(&s_ctl_diag_lock);
+    s_ctl_lines++;
+    s_ctl_total_us += us;
+    s_ctl_max_us = us > s_ctl_max_us ? us : s_ctl_max_us;
+    taskEXIT_CRITICAL(&s_ctl_diag_lock);
+#endif
+}
+
+
 static void (*s_on_line)(const char *line);
 
 static void ctl_task(void *arg)
@@ -109,37 +179,11 @@ static void ctl_task(void *arg)
 esp_err_t plat_ctl_start(void (*on_line)(const char *line))
 {
     s_on_line = on_line;
+    RingbufHandle_t out = xRingbufferCreate(OUT_BUF_BYTES, RINGBUF_TYPE_NOSPLIT);
+    if (!out || xTaskCreatePinnedToCore(out_task, "usb_out", OUT_TASK_STACK, NULL, 4, NULL, OUT_TASK_CORE) != pdPASS) {
+        return ESP_ERR_NO_MEM;
+    }
+    s_out = out;
     return xTaskCreate(ctl_task, "usb_ctl", CTL_TASK_STACK, NULL, 5, NULL) == pdPASS ? ESP_OK : ESP_ERR_NO_MEM;
 }
 
-#if CONFIG_KM_DIAG
-static portMUX_TYPE s_ctl_diag_lock = portMUX_INITIALIZER_UNLOCKED;
-static uint32_t s_ctl_lines, s_ctl_total_us, s_ctl_max_us;
-
-void plat_ctl_diag_take(uint32_t *lines, uint32_t *total_us, uint32_t *max_us)
-{
-    taskENTER_CRITICAL(&s_ctl_diag_lock);
-    *lines = s_ctl_lines;
-    *total_us = s_ctl_total_us;
-    *max_us = s_ctl_max_us;
-    s_ctl_lines = s_ctl_total_us = s_ctl_max_us = 0;
-    taskEXIT_CRITICAL(&s_ctl_diag_lock);
-}
-#endif
-
-void plat_ctl_write(const char *prefix, const char *text)
-{
-#if CONFIG_KM_DIAG
-    int64_t t0 = esp_timer_get_time();
-#endif
-    printf("%s%s\n", prefix, text);
-    fflush(stdout);
-#if CONFIG_KM_DIAG
-    uint32_t us = (uint32_t)(esp_timer_get_time() - t0);
-    taskENTER_CRITICAL(&s_ctl_diag_lock);
-    s_ctl_lines++;
-    s_ctl_total_us += us;
-    s_ctl_max_us = us > s_ctl_max_us ? us : s_ctl_max_us;
-    taskEXIT_CRITICAL(&s_ctl_diag_lock);
-#endif
-}

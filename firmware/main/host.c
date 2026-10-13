@@ -524,15 +524,16 @@ static void diag_superseded(host_link_t *l)
 /* Global fields of stats, then reset */
 static size_t diag_stats_json(char *buf, size_t len)
 {
-    uint32_t nvs_writes, nvs_max_us, usb_lines, usb_total_us, usb_max_us;
+    uint32_t nvs_writes, nvs_max_us, usb_lines, usb_total_us, usb_max_us, usb_dropped;
     cfg_diag_take(&nvs_writes, &nvs_max_us);
-    plat_ctl_diag_take(&usb_lines, &usb_total_us, &usb_max_us);
+    plat_ctl_diag_take(&usb_lines, &usb_total_us, &usb_max_us, &usb_dropped);
     size_t w = snprintf(buf, len,
                         ",\"mbufs\":%d,\"mbufs_free_min\":%d,\"nvs_writes\":%lu,\"nvs_max_us\":%lu,\"usb_lines\":%lu,"
-                        "\"usb_avg_us\":%lu,\"usb_max_us\":%lu",
+                        "\"usb_avg_us\":%lu,\"usb_max_us\":%lu,\"usb_dropped\":%lu",
                         os_msys_count(), s_msys_free_min == (1 << 30) ? os_msys_num_free() : s_msys_free_min,
                         (unsigned long)nvs_writes, (unsigned long)nvs_max_us, (unsigned long)usb_lines,
-                        (unsigned long)(usb_lines ? usb_total_us / usb_lines : 0), (unsigned long)usb_max_us);
+                        (unsigned long)(usb_lines ? usb_total_us / usb_lines : 0), (unsigned long)usb_max_us,
+                        (unsigned long)usb_dropped);
     s_msys_free_min = 1 << 30;
     return w < len ? w : len;
 }
