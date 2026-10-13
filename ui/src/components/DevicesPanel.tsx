@@ -10,8 +10,7 @@ type Confirm = (opts: { title: string; body: string; action: () => void }) => vo
 
 function subline(d: Device) {
   if (d.state === 'failed') return FAIL_STAGE[d.error as string] || t('devices.failed');
-  if (d.state === 'ready') return d.bond === 'restored' ? t('devices.restored') : d.bond === 'new' ? t('devices.newBond') : '';
-  if (d.state === 'offline') return d.auto ? reasonText(d.lastReason) || t('devices.autoHint') : t('devices.autoOff');
+  if (d.state === 'offline') return d.auto ? reasonText(d.lastReason) : t('devices.autoOff');
   return '';
 }
 

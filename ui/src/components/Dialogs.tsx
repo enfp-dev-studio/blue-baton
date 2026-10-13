@@ -14,19 +14,6 @@ import { cn } from '@/lib/utils';
 const HOST_WINDOW_S = 180;
 const SCAN_S = 60;
 
-function Steps({ items }: { items: string[] }) {
-  return (
-    <ol className="grid gap-2">
-      {items.map((text, i) => (
-        <li key={i} className="flex items-baseline gap-2.5 text-sm text-muted-foreground">
-          <span className="grid size-5 shrink-0 translate-y-[-1px] place-items-center rounded-full bg-muted text-2xs font-bold">{i + 1}</span>
-          {text}
-        </li>
-      ))}
-    </ol>
-  );
-}
-
 /*
  * Focused as soon as it appears, so the code can be typed right away; sends itself at the sixth digit. The code is
  * read off another screen, so coming back to this window must not need a click on the field: the field takes the
@@ -107,18 +94,17 @@ export function HostPairingDialog({ s, a }: { s: BoardState; a: Actions }) {
   useEffect(() => setCode(''), [p?.addr]);
   return (
     <Dialog open={s.hostWindow.open} onOpenChange={(open) => !open && a.closeHostWindow()}>
-      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto overflow-x-hidden sm:max-w-lg">
+      <DialogContent aria-describedby={undefined} className="max-h-[calc(100dvh-2rem)] overflow-y-auto overflow-x-hidden sm:max-w-lg">
         <DialogHeader className="flex-row items-center gap-4 space-y-0 text-left">
           {s.hostWindow.open && <CountdownRing until={s.hostWindow.until} total={HOST_WINDOW_S} />}
           <div className="grid gap-1">
             <DialogTitle>{t('hosts.windowTitle')}</DialogTitle>
-            <DialogDescription>{t('hosts.windowHint')}</DialogDescription>
           </div>
         </DialogHeader>
-        <Steps items={[t('hosts.stepMac'), t('hosts.stepWindows'), t('hosts.stepCode')]} />
+        <p className="text-sm text-muted-foreground">{t('hosts.step')}</p>
         {c && (
           <StateTag tone="busy" className="text-sm">
-            {c.state === 'securing' ? t('hosts.verifying') : t('hosts.candidate', { addr: c.addr })}
+            {c.state === 'securing' ? t('hosts.verifying') : t('hosts.candidate')}
           </StateTag>
         )}
         {p && (
@@ -129,7 +115,7 @@ export function HostPairingDialog({ s, a }: { s: BoardState; a: Actions }) {
               if (code.length === 6) a.hostPasskey(code);
             }}
           >
-            <p className="text-sm">{t('hosts.passkeyEither')}</p>
+            <p className="text-sm font-medium">{t('hosts.codeLabel')}</p>
             {p.len > 0 ? (
               /* Typed on the board's keyboard: the board keeps the digits, the app only learns how many */
               <div className="flex gap-2" aria-label={t('hosts.passkeyDigits', { n: p.len })}>
@@ -145,6 +131,7 @@ export function HostPairingDialog({ s, a }: { s: BoardState; a: Actions }) {
             ) : (
               <CodeInput value={code} onChange={setCode} onComplete={(v) => a.hostPasskey(v)} label={t('hosts.passkeyLabel')} />
             )}
+            <p className="text-xs text-muted-foreground">{t('hosts.codeBoard')}</p>
           </form>
         )}
         <DialogFooter>
@@ -244,15 +231,14 @@ export function AddDeviceDialog({ s, a }: { s: BoardState; a: Actions }) {
   const found = [...s.found.values()].filter((f) => s.showAll || f.hid !== false).sort((x, y) => y.rssi - x.rssi);
   return (
     <Dialog open={s.addOpen} onOpenChange={(open) => !open && a.closeAdd()}>
-      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto overflow-x-hidden sm:max-w-xl">
+      <DialogContent aria-describedby={undefined} className="max-h-[calc(100dvh-2rem)] overflow-y-auto overflow-x-hidden sm:max-w-xl">
         <DialogHeader className="flex-row items-center gap-4 space-y-0 text-left">
           {s.scanning && <CountdownRing key={s.scanUntil} until={s.scanUntil} total={SCAN_S} />}
           <div className="grid gap-1">
             <DialogTitle>{t('add.title')}</DialogTitle>
-            <DialogDescription>{t('add.hint')}</DialogDescription>
           </div>
         </DialogHeader>
-        <Steps items={[t('add.step1'), t('add.step2')]} />
+        <p className="text-sm text-muted-foreground">{t('add.step1')}</p>
         <Prompt s={s} a={a} />
         <div className="flex flex-wrap items-center gap-4">
           <ScanButton s={s} a={a} />
@@ -267,7 +253,7 @@ export function AddDeviceDialog({ s, a }: { s: BoardState; a: Actions }) {
               {found.map((f) => <FoundRow key={f.addr} f={f} a={a} />)}
             </ul>
           ) : (
-            <p className="py-3 text-sm text-muted-foreground">{s.scanning ? t('add.searching') : t('add.idleHint')}</p>
+            s.scanning && <p className="py-3 text-sm text-muted-foreground">{t('add.searching')}</p>
           )}
         </div>
       </DialogContent>

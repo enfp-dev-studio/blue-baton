@@ -29,17 +29,11 @@ export function HostsPanel({ s, a, confirm }: { s: BoardState; a: Actions; confi
           : s.hosts.size ? undefined : t('hosts.noneActive')
       }
       footer={
-        <span>
-          {t('hosts.hint')}
-          {!s.combosDefault && (
-            <>
-              {' · '}
-              <Button variant="link" className="h-auto p-0 text-xs" onClick={() => a.setCombos(DEFAULT_COMBOS)}>
-                {t('combo.reset')}
-              </Button>
-            </>
-          )}
-        </span>
+        !s.combosDefault && (
+          <Button variant="link" className="h-auto p-0 text-xs" onClick={() => a.setCombos(DEFAULT_COMBOS)}>
+            {t('combo.reset')}
+          </Button>
+        )
       }
     >
       <RadioGroupPrimitive.Root
