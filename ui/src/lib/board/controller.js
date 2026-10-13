@@ -444,8 +444,8 @@ export function hostLabel(s, n) {
 }
 
 /*
- * The macOS menu bar card for the host that gets the input: its name (or number) cut out of a filled rounded
- * card, as PNG bytes. Drawn here because the page has the system fonts for any script; app/src-tauri/src/tray.rs
+ * The macOS menu bar card for the host that gets the input: its name (or number) in a rounded outline, as PNG
+ * bytes. Drawn here because the page has the system fonts for any script; app/src-tauri/src/tray.rs
  * puts it after the baton and shows the result as a template image, 18 pt high (36 px here, at 2x).
  */
 const cards = new Map();
@@ -458,10 +458,10 @@ function hostCard(text) {
   g.font = font;
   c.width = Math.max(H, Math.ceil(g.measureText(text).width) + 20);
   c.height = H;
+  g.lineWidth = 2.4;
   g.beginPath();
-  g.roundRect(0, 0, c.width, H, 8);
-  g.fill();
-  g.globalCompositeOperation = 'destination-out';
+  g.roundRect(1.2, 1.2, c.width - 2.4, H - 2.4, 7);
+  g.stroke();
   g.font = font;
   g.textAlign = 'center';
   g.textBaseline = 'middle';

@@ -52,11 +52,14 @@ export class Store {
     return () => this.listeners.delete(fn);
   }
 
-  /* However many events arrive at once, render at most once per frame */
+  /*
+   * However many changes one batch of events makes, listeners run once, right after it. Not on an animation frame:
+   * a hidden window gets none, and the tray menu follows the store while the settings window is closed
+   */
   changed() {
     if (this.scheduled) return;
     this.scheduled = true;
-    requestAnimationFrame(() => {
+    queueMicrotask(() => {
       this.scheduled = false;
       this.version++;   /* React reads this (useSyncExternalStore): the state object itself is updated in place */
       for (const fn of this.listeners) fn(this.state);
