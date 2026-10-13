@@ -7,7 +7,7 @@
  * ?mock mock board, ?bridge local bridge (tools/bridge.py), anything else USB through Web Serial.
  */
 
-import { FAIL_STAGE, errorText, t } from './i18n.js';
+import { errorText, failStageText, onLangChange, t } from './i18n.js';
 import { InputMonitor } from './inputs.js';
 import { BoardClient } from './protocol.js';
 import { Store } from './store.js';
@@ -42,6 +42,12 @@ export function createController(params = new URLSearchParams(location.search), 
   const isMain = role === 'main';
 
   store.state.transport = transport.label;
+  /* A new language redraws the window and the tray menu; the input monitor (plain DOM) builds itself again */
+  onLangChange(() => {
+    monitor.relabel();
+    store.state.transport = transport.label;
+    store.changed();
+  });
   store.state.addOpen = false;
 
   /* ---- From the board ---- */
@@ -91,7 +97,7 @@ export function createController(params = new URLSearchParams(location.search), 
       const d = store.deviceByAddr(ev.addr) || store.state.found.get(ev.addr);
       const why = ev.stage === 'security' && !d?.paired
         ? t('notice.pairFailed')
-        : FAIL_STAGE[ev.stage] || t('notice.failed');
+        : failStageText(ev.stage) || t('notice.failed');
       store.notice('error', `${d?.name || ev.addr}: ${why}`);
     } else if (ev.event === 'connect_failed') {
       /* cancelled: the user switched to something else (a scan, for example). Nothing to report */

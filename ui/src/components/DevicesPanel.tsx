@@ -2,14 +2,14 @@
 import { Button } from '@/components/ui/button';
 import { DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { DeviceIcon, Group, RowMenu, StateTag } from '@/components/parts';
-import { FAIL_STAGE, kindText, reasonText, stateText, stateTone, t } from '@/lib/board/i18n.js';
+import { failStageText, kindText, reasonText, stateText, stateTone, t } from '@/lib/board/i18n.js';
 import type { Actions, BoardState, Device, Tone } from '@/lib/board/types';
 import { cn } from '@/lib/utils';
 
 type Confirm = (opts: { title: string; body: string; action: () => void }) => void;
 
 function subline(d: Device) {
-  if (d.state === 'failed') return FAIL_STAGE[d.error as string] || t('devices.failed');
+  if (d.state === 'failed') return failStageText(d.error) || t('devices.failed');
   if (d.state === 'offline') return d.auto ? reasonText(d.lastReason) : t('devices.autoOff');
   return '';
 }

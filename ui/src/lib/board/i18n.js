@@ -6,7 +6,8 @@
  * Language: ?lang=… in the URL wins; then the language picked at the bottom of the settings window (kept in the
  * app's local storage, so every window of the app uses it); then the first system language there is a file for;
  * English otherwise. Chinese goes to zh-CN (Simplified) or, for Taiwan, Hong Kong, Macau or Hant, zh-TW
- * (Traditional). The choice is fixed when the page loads.
+ * (Traditional). A new pick applies in place (nothing reloads, so the board link stays open): every window of the app
+ * switches, and onLangChange listeners redraw what they show.
  *
  * Every file has the same keys and placeholders (test/i18n.test.mjs). To add a language: add its file, list it in
  * STRINGS, and in app/src-tauri/Info.plist (CFBundleLocalizations) and tauri.conf.json (NSIS installer languages).
@@ -56,21 +57,38 @@ export function chosenLang() {
   }
 }
 
-/* Pick a language ('' follows the system). Every window of the app reloads in it */
+const systemLangs = () => (navigator.languages?.length ? navigator.languages : [navigator.language]);
+
+/* Also runs under Node (tests import modules that use t()), so the browser globals are optional */
+export let lang = inBrowser ? pickLang(location.search, systemLangs(), chosenLang()) : 'en';
+
+const listeners = new Set();
+
+/* fn runs after the language changes */
+export function onLangChange(fn) {
+  listeners.add(fn);
+  return () => listeners.delete(fn);
+}
+
+function applyLang(saved) {
+  const next = pickLang(location.search, systemLangs(), saved);
+  if (next === lang) return;
+  lang = next;
+  i18next.changeLanguage(lang);
+  localizePage();
+  for (const fn of listeners) fn();
+}
+
+/* Pick a language ('' follows the system) */
 export function chooseLang(code) {
   try {
     if (code) localStorage.setItem(SAVED_KEY, code);
     else localStorage.removeItem(SAVED_KEY);
   } catch {
-    /* storage off: only this load changes */
+    /* storage off: only this window changes */
   }
-  location.reload();
+  applyLang(code);
 }
-
-/* Also runs under Node (tests import modules that use t()), so the browser globals are optional */
-export const lang = inBrowser
-  ? pickLang(location.search, navigator.languages?.length ? navigator.languages : [navigator.language], chosenLang())
-  : 'en';
 
 i18next.init({
   resources: Object.fromEntries(Object.entries(STRINGS).map(([code, table]) => [code, { translation: table }])),
@@ -85,7 +103,7 @@ i18next.init({
 /* The other windows (the panel under the menu bar icon) follow a pick made in the settings window */
 if (inBrowser) {
   window.addEventListener('storage', (e) => {
-    if (e.key === SAVED_KEY) location.reload();
+    if (e.key === SAVED_KEY) applyLang(chosenLang());
   });
 }
 
@@ -120,15 +138,6 @@ export function tParts(key, params = {}) {
   return out;
 }
 
-/* All keys under a prefix as a plain object, e.g. group('radio.') -> { idle, scan, ... } */
-/** @returns {Record<string, string>} */
-function group(prefix) {
-  const out = {};
-  for (const key of Object.keys(en)) {
-    if (key.startsWith(prefix)) out[key.slice(prefix.length)] = lookup(key);
-  }
-  return out;
-}
 
 /* Static page text: <html lang>, and every element with data-i18n="key" gets that string */
 export function localizePage(doc = document) {
@@ -136,20 +145,16 @@ export function localizePage(doc = document) {
   for (const el of doc.querySelectorAll('[data-i18n]')) el.textContent = t(el.dataset.i18n);
 }
 
-const ERRORS = group('error.');
-
 export function errorText(e) {
   if (!e) return '';
   if (e.name === 'NotFoundError') return t('link.notPicked');
   const code = e.code || e.message;
   if (code === 'error' && e.detail) return e.detail;   /* firmware 0.4 and earlier: generic code with board text */
-  return ERRORS[code] || e.detail || e.message || String(e);
+  return lookup(`error.${code}`) || e.detail || e.message || String(e);
 }
 
-const STATES = group('state.');
-
 export function stateText(state) {
-  return STATES[state] ?? state;
+  return lookup(`state.${state}`) ?? state;
 }
 
 export function stateTone(state) {
@@ -158,8 +163,6 @@ export function stateTone(state) {
   if (state === 'offline') return 'idle';
   return 'busy';
 }
-
-const KINDS = group('kind.');
 
 /* Device kind label. Devices we have connected to use the Report Map verdict (kinds); new ones use the advertised appearance */
 /*
@@ -172,7 +175,7 @@ export function kindText(kinds, appearance) {
   if (a === 962) return t('appearance.mouse');
   if (kinds && kinds.length) {
     const main = ['keyboard', 'mouse', 'game'].find((k) => kinds.includes(k)) || kinds[0];
-    return KINDS[main] || main;
+    return lookup(`kind.${main}`) || main;
   }
   if (a === 963) return t('appearance.joystick');
   if (a === 964) return t('appearance.gamepad');
@@ -188,9 +191,14 @@ export function kindIcon(kinds, appearance) {
   return 'device';
 }
 
-export const RADIO = group('radio.');
+export function radioText(radio) {
+  return lookup(`radio.${radio}`) ?? radio;
+}
 
-export const FAIL_STAGE = group('fail.');
+/* Where pairing failed, or undefined for an unknown stage */
+export function failStageText(stage) {
+  return lookup(`fail.${stage}`);
+}
 
 /* The HCI disconnect reasons we commonly see */
 export function reasonText(reason) {
@@ -200,10 +208,8 @@ export function reasonText(reason) {
   return '';
 }
 
-const HOST_STATES = group('hostState.');
-
 export function hostStateText(state) {
-  return HOST_STATES[state] ?? state;
+  return lookup(`hostState.${state}`) ?? state;
 }
 
 export function hostStateTone(state) {

@@ -8,8 +8,12 @@
 import { t } from '../i18n.js';
 
 export class BridgeTransport {
+  /* Shown in the header, in the current language */
+  get label() {
+    return t('transport.bridge');
+  }
+
   constructor(base = '') {
-    this.label = t('transport.bridge');
     this.base = base;
     this.es = null;
     this.onLine = () => {};

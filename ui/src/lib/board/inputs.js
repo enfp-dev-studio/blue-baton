@@ -23,6 +23,8 @@ export class InputMonitor {
     this.mouseCount = 0;
     this.thisSec = 0;
     this.rows = new Map();     /* device|handle -> table row */
+    this.lastMap = null;       /* the last Report Map shown */
+    this.root = root;
     this.build(root);
     setInterval(() => {
       this.el.rate.textContent = this.thisSec;
@@ -75,6 +77,13 @@ export class InputMonitor {
     );
   }
 
+  /* Built again in a new language. The decoder keeps its Report Maps; the counters on screen start over */
+  relabel() {
+    this.rows.clear();
+    this.build(this.root);
+    if (this.lastMap) this.showMap(...this.lastMap);
+  }
+
   flash(el) {
     el.setAttribute('data-hit', '');
     clearTimeout(el._t);
@@ -102,6 +111,11 @@ export class InputMonitor {
 
   onMap(ev) {
     const layouts = this.decoder.addMap(ev);
+    this.lastMap = [ev, layouts];
+    this.showMap(ev, layouts);
+  }
+
+  showMap(ev, layouts) {
     const parts = [...layouts].map(([id, l]) => t('inputs.layout', { id, bits: l.bits, fields: l.fields.length }));
     this.el.maps.textContent = t('inputs.mapInfo', {
       addr: ev.addr,

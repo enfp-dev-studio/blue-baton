@@ -572,8 +572,12 @@ class MockBoard {
 }
 
 export class MockTransport {
+  /* Shown in the header, in the current language */
+  get label() {
+    return t('transport.mock');
+  }
+
   constructor(params = new URLSearchParams()) {
-    this.label = t('transport.mock');
     this.opts = { fast: params.has('fast') };
     this.board = null;
     this.onLine = () => {};

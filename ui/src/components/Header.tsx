@@ -2,13 +2,13 @@
 import { Usb } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Logo, StateTag } from '@/components/parts';
-import { RADIO, t } from '@/lib/board/i18n.js';
+import { radioText, t } from '@/lib/board/i18n.js';
 import type { Actions, BoardState, Controller } from '@/lib/board/types';
 
 /* A quiet toolbar: the name, and the board link with what the radio is doing when it is more than waiting */
 export function Header({ s, a, ctl }: { s: BoardState; a: Actions; ctl: Controller }) {
   const connected = s.link === 'connected';
-  const radioNote = connected && (s.radio === 'scan' || s.radio === 'connect') ? RADIO[s.radio] : '';
+  const radioNote = connected && (s.radio === 'scan' || s.radio === 'connect') ? radioText(s.radio) : '';
   return (
     <header className="sticky top-0 z-20 border-b bg-background/85 backdrop-blur-xl backdrop-saturate-150">
       <div className="mx-auto flex h-12 max-w-[680px] items-center justify-between gap-4 px-4">

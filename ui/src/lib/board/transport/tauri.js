@@ -11,8 +11,12 @@ export class TauriTransport {
     return typeof window !== 'undefined' && !!window.__TAURI__?.core;
   }
 
+  /* Shown in the header, in the current language */
+  get label() {
+    return t('transport.app');
+  }
+
   constructor() {
-    this.label = t('transport.app');
     this.open_ = false;
     this.listening = null;
     this.onLine = () => {};
