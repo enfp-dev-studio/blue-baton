@@ -101,8 +101,8 @@ fn tray_icon() -> tauri::Result<Image<'static>> {
     Image::from_bytes(include_bytes!("../icons/tray.png"))
 }
 
-/// macOS, while the board is connected: the three host cells instead of the baton (assets/make_icons.py). The
-/// host that gets the input is filled; a cell whose host is not connected (or empty) is faded
+/// macOS, while the board is connected: the baton, then the three host cells (assets/make_icons.py). The host
+/// that gets the input is filled; a cell whose host is not connected (or empty) is faded
 #[cfg(target_os = "macos")]
 fn cells_icon(model: &Model) -> tauri::Result<Image<'static>> {
     const ON: [&[u8]; 3] = [
@@ -115,7 +115,9 @@ fn cells_icon(model: &Model) -> tauri::Result<Image<'static>> {
         include_bytes!("../icons/tray-cell-2-off.png"),
         include_bytes!("../icons/tray-cell-3-off.png"),
     ];
-    const GAP: usize = 4; // px at 2x
+    const GAP: usize = 4; // px at 2x, between cells
+    const AFTER_ICON: usize = 2; // the baton image has its own margin
+    let icon = tray_icon()?;
     let cells: Vec<Image> = (0..3)
         .map(|i| {
             let n = i as u8 + 1;
@@ -123,8 +125,14 @@ fn cells_icon(model: &Model) -> tauri::Result<Image<'static>> {
         })
         .collect::<tauri::Result<_>>()?;
     let (cw, h) = (cells[0].width() as usize, cells[0].height() as usize);
-    let w = cw * 3 + GAP * 2;
+    let iw = icon.width() as usize;
+    let left = iw + AFTER_ICON;
+    let w = left + cw * 3 + GAP * 2;
     let mut px = vec![0u8; w * h * 4];
+    let src = icon.rgba();
+    for y in 0..h.min(icon.height() as usize) {
+        px[y * w * 4..(y * w + iw) * 4].copy_from_slice(&src[y * iw * 4..(y + 1) * iw * 4]);
+    }
     for (i, cell) in cells.iter().enumerate() {
         let n = i as u8 + 1;
         let ready = model.hosts.iter().any(|h| h.n == n && h.state == "ready");
@@ -132,7 +140,7 @@ fn cells_icon(model: &Model) -> tauri::Result<Image<'static>> {
         for y in 0..h {
             for x in 0..cw {
                 let s = (y * cw + x) * 4;
-                let d = (y * w + i * (cw + GAP) + x) * 4;
+                let d = (y * w + left + i * (cw + GAP) + x) * 4;
                 px[d..d + 4].copy_from_slice(&src[s..s + 4]);
                 if !ready {
                     px[d + 3] /= 3;
@@ -275,13 +283,15 @@ mod tests {
         };
         let img = cells_icon(&model).unwrap();
         let (w, h) = (img.width() as usize, img.height() as usize);
-        assert_eq!((w, h), (24 * 3 + 4 * 2, 44));
+        let left = 44 + 2;
+        assert_eq!((w, h), (left + 24 * 3 + 4 * 2, 44));
         let alpha = |x: usize, y: usize| img.rgba()[(y * w + x) * 4 + 3];
+        assert_eq!(alpha(22, 22), 255, "the baton is at the left");
         // Inside each cell, off the digit: filled for the active one, empty for the others
-        assert_eq!(alpha(28 + 3, 22), 255, "cell 2 is filled");
-        assert_eq!(alpha(3, 22), 0, "cell 1 is an outline");
+        assert_eq!(alpha(left + 28 + 3, 22), 255, "cell 2 is filled");
+        assert_eq!(alpha(left + 3, 22), 0, "cell 1 is an outline");
         // On the outline: full for a connected host, faded for one that is not
-        assert!(alpha(1, 22) > 200, "cell 1 outline is solid");
-        assert!(alpha(56 + 1, 22) < 100, "cell 3 is faded");
+        assert!(alpha(left + 1, 22) > 200, "cell 1 outline is solid");
+        assert!(alpha(left + 56 + 1, 22) < 100, "cell 3 is faded");
     }
 }
