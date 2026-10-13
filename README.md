@@ -21,11 +21,33 @@ wake), Linux as a host, and the Windows and Linux builds of the app.
 ## What you need
 
 - An ESP32-S3 board with at least 4 MB of flash, connected by the chip's own USB port (on boards with two ports, the
-  one marked USB, not UART). Tested with an ESP32-S3 SuperMini.
+  one marked USB, not UART). Tested with an ESP32-S3 SuperMini. Other chips: [Boards](#boards).
 - Bluetooth LE keyboard and mouse. Bluetooth Classic-only devices do not work: the ESP32-S3 has only Bluetooth LE.
 - Up to three computers with Bluetooth LE.
 - One of them runs the Blue Baton app, with the board plugged into it by USB. The cable powers the board, and the
   app is where you pair devices and change settings.
+
+## Boards
+
+| Chip or board | Releases and the app | Builds | Run on a real board |
+|---|---|---|---|
+| ESP32-S3 SuperMini (4 MB flash) | Yes | Yes | Yes (developed and measured on it) |
+| Other ESP32-S3 boards (4 MB or more flash, the chip's own USB port) | Yes, the same firmware | Yes | No |
+| ESP32-C3 | No: build it yourself | Yes | No |
+| ESP32-C5 | No: build it yourself | Yes | No |
+| ESP32-C6 | No: build it yourself | Yes | No |
+| ESP32-H2 | No: build it yourself | Yes | No |
+| ESP32 (original) | No | Yes | No |
+| ESP32-S2 | No | Yes, but the chip has no Bluetooth radio | No |
+| nRF52840, Raspberry Pi Pico W, Raspberry Pi | No | No | No |
+
+- ESP32-C3, C5, C6 and H2 use the same ESP-IDF, NimBLE and USB port as the S3, but have one core (clock: C3 and C6
+  160 MHz, H2 96 MHz, C5 240 MHz like the S3). Latency and link stability have not been measured on them. Build and
+  install (from `firmware/`): `idf.py -B build-esp32c3 -DIDF_TARGET=esp32c3 build`, then
+  `idf.py -B build-esp32c3 -p <port> flash`. Reports from these boards are welcome.
+- The original ESP32 has no USB Serial/JTAG, which is how the app reaches the board (its console is on the UART). The
+  ESP32-S2 has no Bluetooth radio. nRF52840, Pico W and Raspberry Pi use other Bluetooth stacks: the firmware's
+  Bluetooth part would have to be written again for them.
 
 ## Getting started
 

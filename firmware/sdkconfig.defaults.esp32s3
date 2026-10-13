@@ -1,0 +1,3 @@
+# ESP32-S3 only, added by ESP-IDF after sdkconfig.defaults: full clock and the larger instruction cache for the BLE path
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
+CONFIG_ESP32S3_INSTRUCTION_CACHE_32KB=y
