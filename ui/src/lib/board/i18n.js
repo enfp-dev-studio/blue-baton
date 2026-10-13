@@ -162,14 +162,18 @@ export function stateTone(state) {
 const KINDS = group('kind.');
 
 /* Device kind label. Devices we have connected to use the Report Map verdict (kinds); new ones use the advertised appearance */
+/*
+ * What the device is, in one word: what it says it is (GAP Appearance), else the main kind of input it sends. A
+ * keyboard that also has mouse or media reports is still a keyboard
+ */
 export function kindText(kinds, appearance) {
-  if (kinds && kinds.length) {
-    const main = kinds.filter((k) => k === 'keyboard' || k === 'mouse' || k === 'game');
-    return (main.length ? main : kinds).map((k) => KINDS[k] || k).join(' · ');
-  }
   const a = appearance || 0;
   if (a === 961) return t('appearance.keyboard');
   if (a === 962) return t('appearance.mouse');
+  if (kinds && kinds.length) {
+    const main = ['keyboard', 'mouse', 'game'].find((k) => kinds.includes(k)) || kinds[0];
+    return KINDS[main] || main;
+  }
   if (a === 963) return t('appearance.joystick');
   if (a === 964) return t('appearance.gamepad');
   if (a >= 960 && a <= 1023) return t('appearance.input');

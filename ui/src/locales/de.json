@@ -132,7 +132,7 @@
   "hosts.noneActive": "Noch kein Host verbunden",
   "hosts.stepMac": "macOS: Klicke in Systemeinstellungen → Bluetooth neben „Blue Baton“ auf „Verbinden“",
   "hosts.stepWindows": "Windows: Einstellungen → Bluetooth und Geräte → Gerät hinzufügen → Bluetooth → „Blue Baton“",
-  "hosts.stepCode": "Wenn ein 6-stelliger Code erscheint, gib ihn wie unten beschrieben ein",
+  "hosts.stepCode": "Zeigt der Computer einen 6-stelligen Code, erscheint hier ein Feld für die Eingabe",
   "hosts.verifying": "Wird überprüft …",
   "hosts.candidate": "Ein Computer ({addr}) hat sich verbunden. Warten auf Kopplung …",
   "hosts.passkeyHelp": "Gib den am Computer angezeigten 6-stelligen Code auf einer mit dem Board verbundenen Tastatur ein und drücke dann Enter.",

@@ -132,7 +132,7 @@
   "hosts.noneActive": "Aucun hôte n’est encore connecté",
   "hosts.stepMac": "macOS : Réglages Système → Bluetooth, cliquez sur Se connecter à côté de « Blue Baton »",
   "hosts.stepWindows": "Windows : Paramètres → Bluetooth et appareils → Ajouter un appareil → Bluetooth → « Blue Baton »",
-  "hosts.stepCode": "Lorsqu’un code à 6 chiffres s’affiche, saisissez-le comme indiqué ci-dessous",
+  "hosts.stepCode": "Quand l’ordinateur affiche un code à 6 chiffres, un champ de saisie apparaît ici",
   "hosts.verifying": "Vérification…",
   "hosts.candidate": "Un ordinateur ({addr}) s’est connecté. En attente du jumelage…",
   "hosts.passkeyHelp": "Tapez le code à 6 chiffres affiché sur l’ordinateur à l’aide d’un clavier connecté à la carte, puis appuyez sur Enter.",

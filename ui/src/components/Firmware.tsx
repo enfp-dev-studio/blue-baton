@@ -11,12 +11,13 @@ import type { Actions, BoardState } from '@/lib/board/types';
 type Confirm = (req: ConfirmRequest) => void;
 
 /*
- * The board's firmware against the one that comes with the app (app/src-tauri/src/firmware.rs). An older board
- * gets an update that keeps its pairings; a newer one (a development board, or an old app) only a note.
+ * The board's firmware version, against the one that comes with the app (app/src-tauri/src/firmware.rs) when there
+ * is one: an older board gets an update that keeps its pairings; a newer one (a development board, or an old app)
+ * only a note.
  */
 export function FirmwareGroup({ s, a, confirm }: { s: BoardState; a: Actions; confirm: Confirm }) {
-  if (!s.fwBundled || !s.fw) return null;
-  const order = compareVersions(s.fw, s.fwBundled);
+  if (!s.fw) return null;
+  const order = s.fwBundled ? compareVersions(s.fw, s.fwBundled) : NaN;
   const update = () =>
     confirm({
       title: t('fw.updateConfirmTitle', { version: s.fwBundled }),

@@ -132,7 +132,7 @@
   "hosts.noneActive": "接続されているホストはまだありません",
   "hosts.stepMac": "macOS：システム設定 → Bluetooth で、「Blue Baton」の横にある「接続」をクリック",
   "hosts.stepWindows": "Windows：設定 → Bluetooth とデバイス → デバイスの追加 → Bluetooth → 「Blue Baton」",
-  "hosts.stepCode": "6桁のコードが表示されたら、下の説明に従って入力してください",
+  "hosts.stepCode": "コンピューターに6桁のコードが表示されると、ここに入力欄が表示されます",
   "hosts.verifying": "確認中…",
   "hosts.candidate": "コンピューター（{addr}）が接続しました。ペアリングを待っています…",
   "hosts.passkeyHelp": "コンピューターに表示された6桁のコードを、ボードに接続したキーボードで入力し、Enter キーを押してください。",

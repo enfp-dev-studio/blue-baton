@@ -132,7 +132,7 @@
   "hosts.noneActive": "Aún no hay ningún host conectado",
   "hosts.stepMac": "macOS: en Ajustes del Sistema → Bluetooth, haz clic en Conectar junto a “Blue Baton”",
   "hosts.stepWindows": "Windows: Configuración → Bluetooth y dispositivos → Agregar dispositivo → Bluetooth → “Blue Baton”",
-  "hosts.stepCode": "Cuando aparezca un código de 6 dígitos, escríbelo como se indica abajo",
+  "hosts.stepCode": "Cuando el equipo muestre un código de 6 dígitos, aquí aparecerá un campo para escribirlo",
   "hosts.verifying": "Verificando…",
   "hosts.candidate": "Se conectó un equipo ({addr}). Esperando el enlace…",
   "hosts.passkeyHelp": "Escribe el código de 6 dígitos que muestra el equipo en un teclado conectado a la placa y pulsa Enter.",

@@ -75,7 +75,7 @@ function DeviceRow({ d, a, confirm }: { d: Device; a: Actions; confirm: Confirm 
       </span>
       <div className="min-w-0 flex-1 leading-tight">
         <div className="truncate font-medium">{d.name || t('common.unnamedDevice')}</div>
-        {sub && <div className="truncate text-xs text-muted-foreground">{sub}</div>}
+        {sub && <div className="line-clamp-2 text-xs text-muted-foreground">{sub}</div>}
       </div>
       <StateTag tone={tone} className="shrink-0">{stateText(d.state)}</StateTag>
       {primary && (

@@ -132,7 +132,7 @@
   "hosts.noneActive": "尚未连接任何主机",
   "hosts.stepMac": "macOS：打开“系统设置”→“蓝牙”，点击“Blue Baton”旁边的“连接”",
   "hosts.stepWindows": "Windows：“设置”→“蓝牙和其他设备”→“添加设备”→“蓝牙”→“Blue Baton”",
-  "hosts.stepCode": "出现 6 位数字代码时，请按下方说明输入",
+  "hosts.stepCode": "电脑显示 6 位数字配对码后，这里会出现输入框",
   "hosts.verifying": "正在验证…",
   "hosts.candidate": "一台电脑（{addr}）已连接，正在等待配对…",
   "hosts.passkeyHelp": "在连接到开发板的键盘上输入电脑显示的 6 位数字代码，然后按 Enter。",

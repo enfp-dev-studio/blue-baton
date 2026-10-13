@@ -132,7 +132,7 @@
   "hosts.noneActive": "尚未連線任何主機",
   "hosts.stepMac": "macOS：系統設定 → 藍牙，按一下「Blue Baton」旁的「連線」",
   "hosts.stepWindows": "Windows：設定 → 藍牙與裝置 → 新增裝置 → 藍牙 →「Blue Baton」",
-  "hosts.stepCode": "出現 6 位數代碼時，請依照下方說明輸入",
+  "hosts.stepCode": "電腦顯示 6 位數配對碼後，這裡會出現輸入欄位",
   "hosts.verifying": "正在驗證…",
   "hosts.candidate": "有電腦（{addr}）已連線，正在等待配對…",
   "hosts.passkeyHelp": "請用連接到開發板的鍵盤輸入電腦上顯示的 6 位數代碼，然後按下 Enter。",
