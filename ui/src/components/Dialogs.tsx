@@ -129,24 +129,22 @@ export function HostPairingDialog({ s, a }: { s: BoardState; a: Actions }) {
               if (code.length === 6) a.hostPasskey(code);
             }}
           >
-            <p className="text-sm">{t('hosts.passkeyHelp')}</p>
-            <div className="flex gap-2" aria-label={t('hosts.passkeyDigits', { n: p.len })}>
-              {[0, 1, 2, 3, 4, 5].map((i) => (
-                <span
-                  key={i}
-                  className={cn('grid h-11 w-9 place-items-center rounded-lg border-[1.5px]', i < p.len ? 'border-primary bg-primary/10' : 'bg-muted')}
-                >
-                  {i < p.len && <span className="size-2 rounded-full bg-primary" />}
-                </span>
-              ))}
-            </div>
-            <p className="text-sm text-muted-foreground">{t('hosts.passkeyFallback')}</p>
-            <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm">{t('hosts.passkeyEither')}</p>
+            {p.len > 0 ? (
+              /* Typed on the board's keyboard: the board keeps the digits, the app only learns how many */
+              <div className="flex gap-2" aria-label={t('hosts.passkeyDigits', { n: p.len })}>
+                {[0, 1, 2, 3, 4, 5].map((i) => (
+                  <span
+                    key={i}
+                    className={cn('grid size-11 place-items-center rounded-md border', i < p.len ? 'border-primary bg-primary/10' : 'bg-muted')}
+                  >
+                    {i < p.len && <span className="size-2 rounded-full bg-primary" />}
+                  </span>
+                ))}
+              </div>
+            ) : (
               <CodeInput value={code} onChange={setCode} onComplete={(v) => a.hostPasskey(v)} label={t('hosts.passkeyLabel')} />
-              <Button type="submit" disabled={code.length !== 6}>
-                {t('common.send')}
-              </Button>
-            </div>
+            )}
           </form>
         )}
         <DialogFooter>
