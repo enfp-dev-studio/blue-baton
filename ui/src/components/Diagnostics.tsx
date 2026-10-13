@@ -80,7 +80,7 @@ export function Diagnostics({ s, a, ctl }: { s: BoardState; a: Actions; ctl: Con
               </div>
               <div className="max-h-80 overflow-auto whitespace-pre-wrap break-all rounded-md bg-muted p-2.5 font-mono text-2xs">
                 {rows.map((r, i) => (
-                  <div key={i} className={cn(r.dir === '>' && 'font-bold', r.dir === '·' && 'text-muted-foreground')}>
+                  <div key={i} className={cn(r.dir === '>' && 'text-primary', r.dir === '·' && 'text-muted-foreground')}>
                     {`${r.at.toLocaleTimeString()} ${r.dir} ${r.text}`}
                   </div>
                 ))}

@@ -19,7 +19,7 @@ function Steps({ items }: { items: string[] }) {
     <ol className="grid gap-2">
       {items.map((text, i) => (
         <li key={i} className="flex items-baseline gap-2.5 text-sm text-muted-foreground">
-          <span className="grid size-5 shrink-0 translate-y-[-1px] place-items-center border border-foreground text-2xs font-bold">{i + 1}</span>
+          <span className="grid size-5 shrink-0 translate-y-[-1px] place-items-center rounded-full bg-muted text-2xs font-bold">{i + 1}</span>
           {text}
         </li>
       ))}

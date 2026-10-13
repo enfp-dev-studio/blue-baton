@@ -22,7 +22,7 @@ export function StateTag({ tone, children, className }: { tone: Tone; children: 
     >
       <span
         className={cn(
-          'size-2 shrink-0',
+          'size-1.5 shrink-0 rounded-full',
           tone === 'ok' && 'bg-ok',
           tone === 'busy' && 'animate-blink bg-busy motion-reduce:animate-none',
           tone === 'bad' && 'bg-destructive',
@@ -35,18 +35,16 @@ export function StateTag({ tone, children, className }: { tone: Tone; children: 
 }
 
 /*
- * A titled box of rows with ink lines between them. `n` numbers the box in the title ("01 / Hosts"); `aside` sits at
- * the right of the title; `footer` under the box.
+ * A titled group of rows with hairline separators, as in macOS System Settings. `aside` sits at the right of the
+ * title; `footer` under the group.
  */
 export function Group({
-  n,
   title,
   aside,
   footer,
   children,
   className,
 }: {
-  n?: number;
   title?: React.ReactNode;
   aside?: React.ReactNode;
   footer?: React.ReactNode;
@@ -57,16 +55,11 @@ export function Group({
     <section className="grid gap-1.5">
       {(title || aside) && (
         <div className="flex flex-wrap items-baseline justify-between gap-x-3 px-1">
-          {title && (
-            <h2 className="text-2xs font-bold tracking-[0.08em] uppercase">
-              {n !== undefined && <span className="text-muted-foreground">{String(n).padStart(2, '0')} / </span>}
-              {title}
-            </h2>
-          )}
-          {aside && <span className="text-2xs text-muted-foreground uppercase">{aside}</span>}
+          {title && <h2 className="text-ui font-semibold">{title}</h2>}
+          {aside && <span className="text-xs text-muted-foreground">{aside}</span>}
         </div>
       )}
-      <div className={cn('overflow-hidden border-[1.5px] border-foreground bg-card', className)}>{children}</div>
+      <div className={cn('overflow-hidden rounded-lg border bg-card', className)}>{children}</div>
       {footer && <div className="px-1 text-xs text-muted-foreground">{footer}</div>}
     </section>
   );
@@ -114,7 +107,7 @@ export function Keycaps({ combo, className }: { combo?: string; className?: stri
   if (!combo) return <span className={cn('text-xs text-muted-foreground', className)}>{t('hosts.noCombo')}</span>;
   const keys = combo.split('+').map((k) => k.trim()).filter(Boolean);
   return (
-    <kbd className={cn('whitespace-nowrap border border-foreground bg-card px-1.5 py-0.5 font-mono text-2xs font-bold tracking-[0.12em] text-card-foreground', className)} title={combo}>
+    <kbd className={cn('whitespace-nowrap font-sans text-xs tracking-[0.12em] text-muted-foreground', className)} title={combo}>
       {comboLabel(keys)}
     </kbd>
   );
@@ -165,7 +158,7 @@ export function DeviceIcon({ kinds, appearance, className }: { kinds?: string[];
 
 /*
  * The app icon at UI size (app/assets/make_icons.py draws the full one, same geometry on 1024): a hollow baton passed
- * at speed. Ink tile and paper baton, so it follows the theme
+ * at speed. Tile in the text colour and baton in the background colour, so it follows the theme
  */
 export function Logo({ className }: { className?: string }) {
   return (

@@ -2,110 +2,100 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-/*
- * Blue Baton theme for shadcn/ui: paper and ink with one acid accent. Square corners, 1.5 px ink borders, hard
- * offset shadows, a monospaced body and a heavy grotesque for titles. Light and dark.
- */
+/* Blue Baton theme for shadcn/ui: macOS-like neutral grays with one accent (baton blue), light and dark */
 @custom-variant dark (&:is(.dark *));
 
 :root {
   color-scheme: light;
-  --radius: 0px;
-  --background: #f7f6f0;
-  --foreground: #171715;
-  --card: #ffffff;
-  --card-foreground: #171715;
-  --popover: #ffffff;
-  --popover-foreground: #171715;
-  --primary: #d4ff3f;
-  --primary-foreground: #171715;
-  --secondary: #ecebe3;
-  --secondary-foreground: #171715;
-  --muted: #ecebe3;
-  --muted-foreground: #5e5d57;
-  --accent: #ecebe3;
-  --accent-foreground: #171715;
-  --destructive: #e0383e;
-  --border: #171715;
-  --input: #171715;
-  --ring: #171715;
-  --ok: #1d8a4c;
-  --busy: #b06f00;
-  --glow: rgb(212 255 63 / 0.55);
-  --line: rgb(23 23 21 / 0.18);
-  --sidebar: #ffffff;
-  --sidebar-foreground: #171715;
-  --sidebar-primary: #d4ff3f;
-  --sidebar-primary-foreground: #171715;
-  --sidebar-accent: #ecebe3;
-  --sidebar-accent-foreground: #171715;
-  --sidebar-border: #171715;
-  --sidebar-ring: #171715;
-  --chart-1: #171715;
-  --chart-2: #d4ff3f;
-  --chart-3: #1d8a4c;
-  --chart-4: #b06f00;
-  --chart-5: #e0383e;
+  --radius: 0.625rem;
+  --background: oklch(0.955 0.002 264);
+  --foreground: oklch(0.2 0.006 264);
+  --card: oklch(0.995 0 0);
+  --card-foreground: oklch(0.2 0.006 264);
+  --popover: oklch(0.985 0.001 264);
+  --popover-foreground: oklch(0.2 0.006 264);
+  --primary: oklch(0.55 0.21 264);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.935 0.003 264);
+  --secondary-foreground: oklch(0.25 0.006 264);
+  --muted: oklch(0.935 0.003 264);
+  --muted-foreground: oklch(0.52 0.008 264);
+  --accent: oklch(0.2 0.006 264 / 0.055);
+  --accent-foreground: oklch(0.2 0.006 264);
+  --destructive: oklch(0.58 0.21 27);
+  --border: oklch(0.2 0.006 264 / 0.1);
+  --input: oklch(0.2 0.006 264 / 0.16);
+  --ring: oklch(0.55 0.21 264);
+  --ok: oklch(0.6 0.16 148);
+  --busy: oklch(0.68 0.15 68);
+  --glow: oklch(0.55 0.21 264 / 0.22);
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.2 0.006 264);
+  --sidebar-primary: oklch(0.55 0.21 264);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.935 0.003 264);
+  --sidebar-accent-foreground: oklch(0.25 0.006 264);
+  --sidebar-border: oklch(0.2 0.006 264 / 0.1);
+  --sidebar-ring: oklch(0.55 0.21 264);
+  --chart-1: oklch(0.55 0.21 264);
+  --chart-2: oklch(0.65 0.15 200);
+  --chart-3: oklch(0.6 0.14 152);
+  --chart-4: oklch(0.7 0.14 70);
+  --chart-5: oklch(0.6 0.18 330);
 }
 
-/* Dark: ink paper, light ink lines, the same acid accent */
+/* Dark: the neutral grays of macOS dark mode, with the same baton blue */
 .dark {
   color-scheme: dark;
-  --background: #121211;
-  --foreground: #f2f1ea;
-  --card: #1b1b19;
-  --card-foreground: #f2f1ea;
-  --popover: #1b1b19;
-  --popover-foreground: #f2f1ea;
-  --primary: #d4ff3f;
-  --primary-foreground: #171715;
-  --secondary: #2a2a27;
-  --secondary-foreground: #f2f1ea;
-  --muted: #2a2a27;
-  --muted-foreground: #a3a29a;
-  --accent: #2a2a27;
-  --accent-foreground: #f2f1ea;
-  --destructive: #ff5a5f;
-  --border: #e8e7df;
-  --input: #e8e7df;
-  --ring: #d4ff3f;
-  --ok: #4fd18b;
-  --busy: #f0b13c;
-  --glow: rgb(212 255 63 / 0.35);
-  --line: rgb(242 241 234 / 0.2);
-  --sidebar: #1b1b19;
-  --sidebar-foreground: #f2f1ea;
-  --sidebar-primary: #d4ff3f;
-  --sidebar-primary-foreground: #171715;
-  --sidebar-accent: #2a2a27;
-  --sidebar-accent-foreground: #f2f1ea;
-  --sidebar-border: #e8e7df;
-  --sidebar-ring: #d4ff3f;
-  --chart-1: #f2f1ea;
-  --chart-2: #d4ff3f;
-  --chart-3: #4fd18b;
-  --chart-4: #f0b13c;
-  --chart-5: #ff5a5f;
+  --background: oklch(0.205 0.002 264);
+  --foreground: oklch(0.93 0.002 264);
+  --card: oklch(0.255 0.003 264);
+  --card-foreground: oklch(0.93 0.002 264);
+  --popover: oklch(0.25 0.003 264);
+  --popover-foreground: oklch(0.93 0.002 264);
+  --primary: oklch(0.66 0.17 264);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.3 0.003 264);
+  --secondary-foreground: oklch(0.92 0.002 264);
+  --muted: oklch(0.3 0.003 264);
+  --muted-foreground: oklch(0.68 0.005 264);
+  --accent: oklch(1 0 0 / 0.07);
+  --accent-foreground: oklch(0.93 0.002 264);
+  --destructive: oklch(0.68 0.19 25);
+  --border: oklch(1 0 0 / 0.09);
+  --input: oklch(1 0 0 / 0.15);
+  --ring: oklch(0.66 0.17 264);
+  --ok: oklch(0.74 0.17 150);
+  --busy: oklch(0.8 0.14 75);
+  --glow: oklch(0.66 0.17 264 / 0.3);
+  --sidebar: oklch(0.255 0.003 264);
+  --sidebar-foreground: oklch(0.93 0.002 264);
+  --sidebar-primary: oklch(0.66 0.17 264);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.3 0.003 264);
+  --sidebar-accent-foreground: oklch(0.93 0.002 264);
+  --sidebar-border: oklch(1 0 0 / 0.09);
+  --sidebar-ring: oklch(0.66 0.17 264);
+  --chart-1: oklch(0.66 0.17 264);
+  --chart-2: oklch(0.7 0.13 200);
+  --chart-3: oklch(0.72 0.14 152);
+  --chart-4: oklch(0.78 0.13 75);
+  --chart-5: oklch(0.7 0.17 330);
 }
 
-/* Two small sizes: 13 px controls and body, 11 px captions (text-ui, text-2xs) */
+/* The two small sizes of a macOS window: 13 px controls and body, 11 px captions (text-ui, text-2xs) */
 @theme {
   --text-ui: 0.8125rem;
   --text-2xs: 0.6875rem;
 }
 
 @theme inline {
-  /* Body: monospaced (CJK falls back to the system font). Titles: a heavy grotesque */
-  --font-sans: ui-monospace, "SF Mono", Menlo, Consolas, "Apple SD Gothic Neo", "Malgun Gothic", monospace;
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Apple SD Gothic Neo", "Pretendard", "Malgun Gothic", system-ui, sans-serif;
   --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  --font-display: "Helvetica Neue", Arial, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
-  --radius-sm: var(--radius);
-  --radius-md: var(--radius);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
-  --radius-xl: var(--radius);
-  --shadow-hard: 4px 4px 0 0 var(--foreground);
-  --shadow-hard-sm: 2px 2px 0 0 var(--foreground);
-  --color-line: var(--line);
+  --radius-xl: calc(var(--radius) + 4px);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);

@@ -21,7 +21,7 @@ export function DevicesPanel({ s, a, confirm }: { s: BoardState; a: Actions; con
   const full = inputs >= s.inputsMax;
   return (
     <div className="grid gap-2">
-      <Group n={2} title={t('devices.title')} aside={t('devices.summary', { n: inputs, max: s.inputsMax })}>
+      <Group title={t('devices.title')} aside={t('devices.summary', { n: inputs, max: s.inputsMax })}>
         {list.length ? (
           <ul className="list-none divide-y p-0">
             {list.map((d) => (
@@ -66,7 +66,7 @@ function DeviceRow({ d, a, confirm }: { d: Device; a: Actions; confirm: Confirm 
       <span
         className={cn(
           'grid size-7 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground transition-shadow',
-          tone === 'ok' && 'bg-primary text-primary-foreground',
+          tone === 'ok' && 'bg-primary/12 text-primary',
           'group-data-live:shadow-[0_0_0_3px_var(--glow)]',
         )}
       >

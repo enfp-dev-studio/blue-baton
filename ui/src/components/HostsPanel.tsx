@@ -22,7 +22,6 @@ export function HostsPanel({ s, a, confirm }: { s: BoardState; a: Actions; confi
   const active = s.hosts.get(s.activeHost);
   return (
     <Group
-      n={1}
       title={t('hosts.title')}
       aside={
         active
@@ -55,7 +54,7 @@ export function HostsPanel({ s, a, confirm }: { s: BoardState; a: Actions; confi
               aria-hidden="true"
               className="pointer-events-none absolute left-0 top-0 z-10 flex h-[52px] items-center translate-y-[calc(var(--to)*52px)] transition-[translate] duration-500 ease-[cubic-bezier(0.22,0.9,0.24,1)] motion-reduce:transition-none"
             >
-              <span className="h-7 w-[4px] bg-primary-foreground" />
+              <span className="h-7 w-[3px] rounded-r-full bg-primary" />
             </li>
           )}
           {[1, 2, 3].map((n) => (
@@ -72,7 +71,7 @@ function HostRow({ n, s, a, host, confirm }: { n: number; s: BoardState; a: Acti
   return (
     <li
       data-host={n}
-      className={cn('flex items-center gap-2 pr-2 transition-colors', on && 'bg-primary text-primary-foreground', 'data-live:bg-primary/70')}
+      className={cn('flex items-center gap-2 pr-2 transition-colors', on && 'bg-primary/[0.07]', 'data-live:bg-primary/[0.12]')}
       style={{ height: ROW }}
     >
       <RadioGroupPrimitive.Item
@@ -84,7 +83,7 @@ function HostRow({ n, s, a, host, confirm }: { n: number; s: BoardState; a: Acti
         <span
           className={cn(
             'grid size-5 shrink-0 place-items-center rounded-sm text-2xs font-semibold',
-            on ? 'bg-primary-foreground text-primary' : 'border border-foreground',
+            on ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
           )}
         >
           {n}
@@ -93,11 +92,7 @@ function HostRow({ n, s, a, host, confirm }: { n: number; s: BoardState; a: Acti
           <span className={cn('block truncate', host ? 'font-medium' : 'text-muted-foreground')}>
             {host ? host.name || t('hosts.unnamed') : t('hosts.empty')}
           </span>
-          {host && (
-            <StateTag tone={hostStateTone(host.state) as Tone} className={cn(on && 'text-primary-foreground [&>span:first-child]:bg-primary-foreground')}>
-              {hostStateText(host.state)}
-            </StateTag>
-          )}
+          {host && <StateTag tone={hostStateTone(host.state) as Tone}>{hostStateText(host.state)}</StateTag>}
         </span>
       </RadioGroupPrimitive.Item>
       <ComboButton n={n} s={s} a={a} />
@@ -175,7 +170,7 @@ function ComboButton({ n, s, a }: { n: number; s: BoardState; a: Actions }) {
         onBlur={() => setRec(false)}
         onClick={() => setRec(false)}
         title={t('combo.recordHint')}
-        className="h-7 bg-primary px-2 text-xs font-bold text-primary-foreground outline-none ring-[1.5px] ring-foreground"
+        className="h-7 rounded-md bg-primary/10 px-2 text-xs font-medium text-primary outline-none ring-[1.5px] ring-primary"
       >
         {held.length ? `${comboLabel(held)}…` : t('combo.record')}
       </button>

@@ -10,11 +10,11 @@ export function Header({ s, a, ctl }: { s: BoardState; a: Actions; ctl: Controll
   const connected = s.link === 'connected';
   const radioNote = connected && (s.radio === 'scan' || s.radio === 'connect') ? RADIO[s.radio] : '';
   return (
-    <header className="sticky top-0 z-20 border-b-[1.5px] border-foreground bg-background">
+    <header className="sticky top-0 z-20 border-b bg-background/85 backdrop-blur-xl backdrop-saturate-150">
       <div className="mx-auto flex h-12 max-w-[680px] items-center justify-between gap-4 px-4">
         <div className="flex min-w-0 items-center gap-2">
           <Logo className="size-6 shrink-0" />
-          <span className="font-display text-lg leading-none font-black tracking-tight">{t('app.name')}</span>
+          <span className="text-ui font-semibold">{t('app.name')}</span>
         </div>
         <div className="flex min-w-0 items-center gap-3">
           {connected ? (
