@@ -146,25 +146,12 @@
     line-height: 1.4;
     font-variant-numeric: tabular-nums;
   }
-  /*
-   * Scroll bars: a thin, faint thumb on no track (the web views of all three systems take the -webkit- form; a
-   * mouse on macOS otherwise brings back the wide always-visible bar)
-   */
+  /* No scroll bars: the window is sized to its content, and scrolling still works (wheel, trackpad, keys) */
+  * {
+    scrollbar-width: none;
+  }
   ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
-  ::-webkit-scrollbar-track,
-  ::-webkit-scrollbar-corner {
-    background: transparent;
-  }
-  ::-webkit-scrollbar-thumb {
-    border: 2px solid transparent;
-    border-radius: 8px;
-    background: color-mix(in oklab, var(--foreground) 18%, transparent) padding-box;
-  }
-  ::-webkit-scrollbar-thumb:hover {
-    background-color: color-mix(in oklab, var(--foreground) 32%, transparent);
+    display: none;
   }
 }
 
