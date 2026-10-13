@@ -198,3 +198,10 @@ test('host names and numbers: host_nick, host_move keeps the active host, bad_ni
   await assert.rejects(c.request('host_move', { host: 1, to: 2 }), (e) => e.code === 'not_found');
   await t.close();
 });
+
+test('a host that is not connected cannot be picked (host_offline)', async () => {
+  const { t, c } = setup();
+  await t.open();
+  await assert.rejects(c.request('host_select', { host: 2 }), (e) => e.code === 'host_offline');
+  await t.close();
+});

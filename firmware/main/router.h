@@ -82,6 +82,9 @@ typedef struct {
 
 void router_init(void);
 void router_set_combos(const combo_t combos[ROUTER_HOST_MAX]);
+/* Whether a host (from 0) can take input now. A switch combo for a host that cannot does nothing (its keys are still
+ * swallowed). Without one, every host can */
+void router_set_host_ready_fn(bool (*ready)(int host));
 int router_active_host(void);           /* From 0 */
 void router_set_active_host(int host);
 

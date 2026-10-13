@@ -97,7 +97,8 @@ export function Panel({ ctl }: { ctl: Controller }) {
                         <li key={n} data-host={n} style={{ height: ROW }}>
                           <RadioGroupPrimitive.Item
                             value={String(n)}
-                            className="relative flex size-full items-center gap-2.5 rounded-md px-2.5 text-left outline-none hover:bg-accent focus-visible:bg-accent"
+                            disabled={h.state !== 'ready'}
+                            className="relative flex size-full items-center gap-2.5 rounded-md px-2.5 text-left outline-none enabled:hover:bg-accent focus-visible:bg-accent"
                           >
                             <HostBadge label={hostLabel(s, n)} on={on} />
                             <span className="min-w-0 flex-1 leading-tight">

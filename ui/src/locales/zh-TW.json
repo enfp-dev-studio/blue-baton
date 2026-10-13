@@ -70,6 +70,7 @@
   "error.bridge_no_board": "橋接程式找不到開發板。請檢查 USB 連線。",
   "error.host_window": "主機配對視窗仍開啟中。請先關閉，再新增輸入裝置。",
   "error.hosts_full": "3 個主機位置都在使用中。請移除一個後再新增。",
+  "error.host_offline": "該主機未連線。",
   "error.bad_code": "配對碼必須是 6 位數字。",
   "error.bad_nick": "主機名稱最多 8 個字元。",
   "error.bad_host": "主機編號必須介於 1 到 3。",

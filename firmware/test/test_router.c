@@ -232,6 +232,11 @@ static bool out_empty(const router_out_t *o)
 #define KA 0x04
 #define KX 0x1B
 
+static bool only_host_1_ready(int host)
+{
+    return host == 0;
+}
+
 static void setup_router(void)
 {
     combo_t list[ROUTER_HOST_MAX];
@@ -403,6 +408,16 @@ static void test_router(void)
     CHECK(from == 1 && router_active_host() == 0 && o.led == 0x02, "combo 1 goes to the host now numbered 1");
     router_swap_hosts(2, 1);
     CHECK(router_active_host() == 0, "swap of other hosts leaves the active one");
+
+    /* A combo for a host that is not connected does nothing, and its keys do not reach the active host */
+    setup_router();
+    router_set_host_ready_fn(only_host_1_ready);
+    press(0, LCTRL | LALT, NULL, 0, &o, &from);
+    k[0] = K2;
+    press(0, LCTRL | LALT, k, 1, &o, &from);
+    CHECK(from == -1 && router_active_host() == 0, "no switch to a host that is not connected");
+    CHECK(!hid_key_down(o.keys, K2), "its combo key is swallowed");
+    router_set_host_ready_fn(NULL);
 
     /* The "release-all" sent to the previous host on a switch */
     router_release_report(&o);

@@ -157,7 +157,7 @@ fn build_menu(app: &AppHandle, model: &Model, dev_api_on: bool) -> tauri::Result
             let (label, enabled) = match host {
                 Some(h) if h.state == "empty" => (format!("{tag}   {}", l.empty), false),
                 Some(h) if h.state == "ready" => (format!("{tag}   {}", h.name), true),
-                Some(h) => (format!("{tag}   {}  ·  {}", h.name, l.offline), true),
+                Some(h) => (format!("{tag}   {}  ·  {}", h.name, l.offline), false),
                 None => (format!("{tag}   {}", l.empty), false),
             };
             let item = CheckMenuItem::with_id(app, format!("host-{n}"), label, enabled, model.active == n, None::<&str>)?;

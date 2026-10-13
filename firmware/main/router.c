@@ -38,6 +38,7 @@ static bool s_pk_active;
 static uint8_t s_pk_digits[6];
 static uint8_t s_pk_len;
 static uint8_t s_led[ROUTER_HOST_MAX];
+static bool (*s_host_ready)(int host);
 static state_t s_last;               /* Last sent state (for change detection; keys exclude blocked keys) */
 
 /* ---------- Combo parsing ---------- */
@@ -196,6 +197,11 @@ void router_init(void)
     s_pk_len = 0;
     memset(&s_last, 0, sizeof(s_last));
     s_active = 0;
+}
+
+void router_set_host_ready_fn(bool (*ready)(int host))
+{
+    s_host_ready = ready;
 }
 
 void router_set_combos(const combo_t combos[ROUTER_HOST_MAX])
@@ -430,7 +436,7 @@ void router_input(uint8_t slot, uint8_t report_key, const hid_input_t *in, route
                 memcpy(s_suppressed, keys, 32);
                 memset(s_held, 0, sizeof(s_held));
                 triggered = true;
-                if (h != s_active) {
+                if (h != s_active && (!s_host_ready || s_host_ready(h))) {
                     *switched_from = s_active;
                     s_active = h;
                     out->led_changed = true;

@@ -70,6 +70,7 @@
   "error.bridge_no_board": "브리지가 보드를 찾지 못했어요. USB 연결을 확인하세요.",
   "error.host_window": "호스트 추가 창이 열려 있어요. 창을 닫은 뒤 입력 기기를 추가하세요.",
   "error.hosts_full": "호스트 3대가 모두 찼어요. 하나를 삭제한 뒤 다시 추가하세요.",
+  "error.host_offline": "그 호스트는 연결되어 있지 않아요.",
   "error.bad_code": "패스키는 숫자 6자리예요.",
   "error.bad_nick": "호스트 이름은 8자까지예요.",
   "error.bad_host": "호스트 번호는 1~3이에요.",

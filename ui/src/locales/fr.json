@@ -70,6 +70,7 @@
   "error.bridge_no_board": "Le pont ne trouve pas la carte. Vérifiez la connexion USB.",
   "error.host_window": "La fenêtre d’ajout d’hôte est ouverte. Fermez-la avant d’ajouter un périphérique d’entrée.",
   "error.hosts_full": "Les 3 emplacements d’hôte sont occupés. Supprimez-en un, puis recommencez.",
+  "error.host_offline": "Cet hôte n’est pas connecté.",
   "error.bad_code": "Le code de jumelage doit comporter 6 chiffres.",
   "error.bad_nick": "Le nom de l’hôte peut comporter jusqu’à 8 caractères.",
   "error.bad_host": "Le numéro d’hôte doit être compris entre 1 et 3.",

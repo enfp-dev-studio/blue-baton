@@ -70,6 +70,7 @@
   "error.bridge_no_board": "Die Bridge findet das Board nicht. Überprüfe die USB-Verbindung.",
   "error.host_window": "Das Fenster „Host hinzufügen“ ist geöffnet. Schließe es, bevor du ein Eingabegerät hinzufügst.",
   "error.hosts_full": "Alle 3 Host-Plätze sind belegt. Entferne einen Host und versuche es erneut.",
+  "error.host_offline": "Dieser Host ist nicht verbunden.",
   "error.bad_code": "Der Kopplungscode muss 6 Ziffern haben.",
   "error.bad_nick": "Der Hostname darf höchstens 8 Zeichen haben.",
   "error.bad_host": "Die Hostnummer muss zwischen 1 und 3 liegen.",

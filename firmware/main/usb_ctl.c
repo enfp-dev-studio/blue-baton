@@ -281,7 +281,12 @@ static void cmd_host_select(int id, const char *line)
         reply_err_code(id, "bad_host", "host must be 1 to 3");
         return;
     }
-    reply_ble(id, ble_pair_select_host(host - 1));
+    esp_err_t err = ble_pair_select_host(host - 1);
+    if (err == ESP_ERR_NOT_FINISHED) {
+        reply_err_code(id, "host_offline", "That host is not connected");
+        return;
+    }
+    reply_ble(id, err);
 }
 
 static void cmd_pair_scan(int id, const char *line)

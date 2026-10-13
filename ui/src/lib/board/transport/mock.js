@@ -407,6 +407,7 @@ class MockBoard {
       case 'host_select': {
         if (!(req.host >= 1 && req.host <= 3)) return this.fail(id, 'bad_host', 'host must be 1 to 3');
         const from = this.activeHost;
+        if (req.host !== from && this.hosts.get(req.host)?.state !== 'ready') return this.fail(id, 'host_offline', 'That host is not connected');
         this.reply(id);
         if (req.host !== from) {
           this.activeHost = req.host;

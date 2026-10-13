@@ -80,8 +80,8 @@ function HostRow({ n, s, a, host, confirm, rename }: RowProps) {
     >
       <RadioGroupPrimitive.Item
         value={String(n)}
-        disabled={!host}
-        title={host ? t('hosts.pickTitle') : undefined}
+        disabled={host?.state !== 'ready'}
+        title={host?.state === 'ready' ? t('hosts.pickTitle') : undefined}
         className="flex h-full min-w-0 flex-1 items-center gap-3 pl-4 text-left outline-none focus-visible:bg-accent enabled:hover:bg-accent/60"
       >
         <HostBadge label={hostLabel(s, n)} on={on} />

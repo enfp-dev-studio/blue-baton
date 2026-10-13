@@ -2433,6 +2433,9 @@ static esp_err_t op_dispatch(req_t *r)
             return ESP_ERR_INVALID_ARG;
         }
         int from = router_active_host();
+        if (host != from && !host_online(host)) {
+            return ESP_ERR_NOT_FINISHED;   /* Not connected: cannot be picked */
+        }
         if (host != from) {
             router_set_active_host(host);
             router_out_t out;
@@ -2539,6 +2542,7 @@ esp_err_t ble_pair_init(ble_pair_event_fn event)
 
     /* Router: the host task has not started yet, so configuring it directly here is safe */
     router_init();
+    router_set_host_ready_fn(host_online);   /* Only a connected host can be switched to */
     router_set_active_host(cfg_active_host_get());
     char combos[CFG_COMBO_MAX + 1] = "";
     cfg_combo_get(combos, sizeof(combos));

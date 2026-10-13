@@ -47,7 +47,7 @@ Changes from earlier versions are collected at the end under "0.7 → 0.7.1 chan
 | `selftest` | `host` (1–3, 0 stops), `minutes` (default 30) | Developer builds only. Sends mouse reports to that host every 8.75 ms (16 counts right, then 16 left: the cursor stays within a few pixels) through the normal delivery path, so `stats` measures delivery without anyone moving the mouse. The host must not be the active one; it stops when that host becomes active, when its link drops, or when time is up. Events `selftest_started` (`host`, `minutes`), `selftest_stopped` (`host`, `reason`: `done`/`active`/`link`/`stopped`/`restarted`, `reports`) |
 | `combo_get` | none | The host switch combos actually in effect (`combo`). If nothing is stored or the stored value is malformed, the default applies and `default:true`; if an invalid value is stored, `stored_invalid:true` |
 | `combo_set` | `combo` | Comma-separated list of combos in host order (e.g. `ctrl+alt+1,ctrl+alt+2,ctrl+alt+3`, up to 95 characters). Validated, then applied and saved immediately. If invalid, `code:"bad_combo"` |
-| `host_select` | `host` (1–3) | Select the active host directly. Same handling as a combo switch (release-all to the previous host) |
+| `host_select` | `host` (1–3) | Select the active host directly. Same handling as a combo switch (release-all to the previous host). A host that is not `ready` cannot be selected: `code:"host_offline"` |
 | `host_pair` | `on` | Open or close the host pairing window. When opened, it accepts connections and pairing from new hosts for 180 seconds. It closes by itself once one host pairs. If 3 hosts are already paired, `code:"hosts_full"`. Opening it stops input device scanning and user connection attempts |
 | `host_list` | none | List of paired hosts (`hosts`). See "host_list entries" below |
 | `host_remove` | `host` (1–3) | Delete the bond of the host at that number. Disconnects it if connected. "Blue Baton" must also be removed on that computer before it can be added again |
@@ -77,6 +77,7 @@ Failure `code`
 | `no_request` | No pending pairing input request to answer |
 | `host_window` | The host pairing window is open, so input device scanning/new connections are not accepted |
 | `hosts_full` | All 3 host slots are in use |
+| `host_offline` | That host is not connected (`host_select`) |
 | `bad_host` | Host number is not 1–3 |
 | `bad_code` | Passkey is not 6 digits |
 | `bad_nick` | Host name is over 8 characters or not valid UTF-8 text |
@@ -231,11 +232,14 @@ Only while the window is open does the board present itself as a keyboard (IO ca
   - The switch happens at the moment the combo's key is pressed, if the set of held modifiers exactly matches the combo and no other non-modifier key is held. Left and right modifiers are not distinguished
   - Keys held at that moment are not sent to any host until each one is released (the combo does not leak)
   - The previous host receives a "release-all". Pressing the combo of the host already in use swallows the combo without switching
+  - The combo of a host that is not connected is swallowed the same way, without switching
   - When an input device disconnects, the keys it was holding are treated as released
   - The active host is kept across restarts (power, firmware update)
 
 ## 0.7 → 0.7.1 changes
 
+- Only a connected (`ready`) host can be switched to: `host_select` answers `host_offline` for another one, and its
+  switch combo does nothing (its keys still do not reach the active host).
 - New commands `host_move` (hosts trade numbers without reconnecting) and `host_nick` (a short name for a host), with
   events `host_moved` and `host_nick` and the error `bad_nick`. `host_list` entries have `nick`.
 - The paired-device records are stored in a new format (v4, adds the host name); records from 0.7 are converted at

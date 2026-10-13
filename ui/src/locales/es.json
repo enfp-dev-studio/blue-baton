@@ -70,6 +70,7 @@
   "error.bridge_no_board": "El puente no encuentra la placa. Comprueba la conexión USB.",
   "error.host_window": "La ventana de enlace de hosts está abierta. Ciérrala antes de añadir un dispositivo de entrada.",
   "error.hosts_full": "Los 3 espacios para hosts están ocupados. Elimina uno y vuelve a intentarlo.",
+  "error.host_offline": "Ese host no está conectado.",
   "error.bad_code": "El código debe tener 6 dígitos.",
   "error.bad_nick": "El nombre del host puede tener hasta 8 caracteres.",
   "error.bad_host": "El número de host debe ser del 1 al 3.",

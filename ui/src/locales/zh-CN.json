@@ -70,6 +70,7 @@
   "error.bridge_no_board": "桥接程序找不到开发板。请检查 USB 连接。",
   "error.host_window": "主机配对窗口已打开。请先关闭它，再添加输入设备。",
   "error.hosts_full": "3 个主机位置都已占用。请移除一个后再添加。",
+  "error.host_offline": "该主机未连接。",
   "error.bad_code": "配对码必须是 6 位数字。",
   "error.bad_nick": "主机名称最多 8 个字符。",
   "error.bad_host": "主机编号必须在 1 到 3 之间。",

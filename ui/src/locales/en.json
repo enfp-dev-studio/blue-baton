@@ -70,6 +70,7 @@
   "error.bridge_no_board": "The bridge can't find the board. Check the USB connection.",
   "error.host_window": "The host pairing window is open. Close it before adding an input device.",
   "error.hosts_full": "All 3 host slots are in use. Remove one, then add again.",
+  "error.host_offline": "That host isn't connected.",
   "error.bad_code": "The passkey must be 6 digits.",
   "error.bad_nick": "A host name can be up to 8 characters.",
   "error.bad_host": "Host number must be 1 to 3.",
