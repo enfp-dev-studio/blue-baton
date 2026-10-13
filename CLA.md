@@ -1,6 +1,6 @@
 # Blue Baton Individual Contributor License Agreement
 
-Thank you for contributing to Blue Baton ("the Project"), maintained by enfpdev ("the Maintainer").
+Thank you for contributing to Blue Baton ("the Project"), maintained by ENFPDEV, a sole proprietorship ("the Maintainer").
 This agreement covers every contribution you submit to the Project (code, documentation or other material,
 "Contributions"). You keep the copyright in your Contributions; this agreement gives the Maintainer the rights
 below so the Project can stay available under the GNU GPL v3 and also be offered under other terms (for example a

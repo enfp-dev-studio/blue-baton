@@ -53,7 +53,8 @@ public key is in `src-tauri/tauri.conf.json`, the private key stays outside the 
   Windows and Linux, and creates a draft release with `latest.json`. Repository secrets it needs:
   `TAURI_SIGNING_PRIVATE_KEY` (and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` if the key has one), and for macOS
   `APPLE_CERTIFICATE` (the Developer ID Application certificate exported as .p12, base64), `APPLE_CERTIFICATE_PASSWORD`,
-  `APPLE_ID`, `APPLE_PASSWORD` (an app-specific password) and `APPLE_TEAM_ID`.
+  `APPLE_ID`, `APPLE_PASSWORD` (an app-specific password) and `APPLE_TEAM_ID`. `APPLE_SIGNING_NAME`
+  ("Developer ID Application: <name>", the certificate's name without the team ID) is masked in the build log.
   `./set-release-secrets.sh` sets all of them in one go (it asks for the .p12, its password, the Apple ID and an
   app-specific password, and reads the rest from this Mac).
 - The release also builds the firmware (`firmware/tools/package.sh` in the `espressif/idf:v6.1` container), uploads

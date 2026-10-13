@@ -108,7 +108,7 @@ firmware/test/run.sh
 
 ## 라이선스
 
-[GNU GPL v3](LICENSE) (GPL-3.0-only). Copyright (C) 2026 enfpdev. GPL 조건 없이 쓰는 상용 라이선스는 문의:
+[GNU GPL v3](LICENSE) (GPL-3.0-only). Copyright (C) 2026 ENFPDEV. GPL 조건 없이 쓰는 상용 라이선스는 문의:
 contact@enfpdev.com. 기여에는 [CLA](CLA.md) 동의가 필요하다 ([CONTRIBUTING.md](CONTRIBUTING.md)). `ui/src/components/ui/`는
 [shadcn/ui](https://ui.shadcn.com)(MIT)에서 가져왔다. 앱은 [espflash](https://github.com/esp-rs/espflash)(MIT 또는
 Apache-2.0)로 펌웨어를 쓴다.

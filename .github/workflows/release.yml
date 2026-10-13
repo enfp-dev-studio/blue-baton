@@ -73,6 +73,14 @@ jobs:
             args: ''
     runs-on: ${{ matrix.platform }}
     steps:
+      # Signing prints the certificate's name, which is the developer's legal name: keep it out of the log, which is
+      # public with the repository. The secret holds "Developer ID Application: <name>" (app/README.md)
+      - name: Mask the signing name
+        if: matrix.platform == 'macos-latest'
+        env:
+          NAME: ${{ secrets.APPLE_SIGNING_NAME }}
+        run: if [ -n "$NAME" ]; then echo "::add-mask::$NAME"; else echo "APPLE_SIGNING_NAME is not set"; fi
+
       - uses: actions/checkout@v4
 
       - name: Bundle the firmware with the app (app/src-tauri/build.rs)

@@ -115,7 +115,7 @@ The menu bar app: [app/README.md](app/README.md). The settings UI on its own: [u
 
 ## License
 
-[GNU GPL v3](LICENSE) (GPL-3.0-only). Copyright (C) 2026 enfpdev. A commercial license, for use without the GPL's
+[GNU GPL v3](LICENSE) (GPL-3.0-only). Copyright (C) 2026 ENFPDEV. A commercial license, for use without the GPL's
 terms, is available on request: contact@enfpdev.com. Contributions need the [CLA](CLA.md) (see
 [CONTRIBUTING.md](CONTRIBUTING.md)). `ui/src/components/ui/` comes from [shadcn/ui](https://ui.shadcn.com) (MIT). The
 app writes firmware with [espflash](https://github.com/esp-rs/espflash) (MIT or Apache-2.0).
