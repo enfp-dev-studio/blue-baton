@@ -18,7 +18,7 @@ use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, WindowEvent};
-use tauri_plugin_autostart::MacosLauncher;
+use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 use tauri_plugin_notification::NotificationExt;
 use tauri_plugin_positioner::{Position, WindowExt};
 
@@ -180,6 +180,20 @@ fn firmware_write(app: AppHandle, state: tauri::State<AppState>, keep_pairings: 
     firmware::start(app, state.board.clone(), keep_pairings)
 }
 
+/// Launch at login, for the settings window (the tray menu has the same switch)
+#[tauri::command]
+fn autostart_get(app: AppHandle) -> bool {
+    app.autolaunch().is_enabled().unwrap_or(false)
+}
+
+#[tauri::command]
+fn autostart_set(app: AppHandle, on: bool) -> Result<(), String> {
+    let launcher = app.autolaunch();
+    if on { launcher.enable() } else { launcher.disable() }.map_err(|e| e.to_string())?;
+    refresh_tray(&app);
+    Ok(())
+}
+
 #[tauri::command]
 fn tray_update(app: AppHandle, state: tauri::State<AppState>, model: tray::Model) {
     *state.tray_model.lock().unwrap() = model;
@@ -258,8 +272,8 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            board_status, board_send, firmware_bundled, firmware_write, tray_update, window_show, panel_hide, app_quit,
-            notify
+            board_status, board_send, firmware_bundled, firmware_write, autostart_get, autostart_set, tray_update,
+            window_show, panel_hide, app_quit, notify
         ])
         .build(tauri::generate_context!())
         .expect("error while building Blue Baton")

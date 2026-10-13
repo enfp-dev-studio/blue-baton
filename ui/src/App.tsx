@@ -8,7 +8,7 @@ import { DevicesPanel } from '@/components/DevicesPanel';
 import { Diagnostics } from '@/components/Diagnostics';
 import { Header } from '@/components/Header';
 import { HostsPanel } from '@/components/HostsPanel';
-import { LanguagePicker } from '@/components/Language';
+import { GeneralGroup } from '@/components/General';
 import { ConnectCard } from '@/components/ConnectCard';
 import { FirmwareGroup, FirmwareInstall, FirmwareProgressDialog } from '@/components/Firmware';
 import type { Controller } from '@/lib/board/types';
@@ -41,8 +41,8 @@ export function App({ ctl }: { ctl: Controller }) {
               <FirmwareGroup s={s} a={a} confirm={setConfirm} />
             </>
           )}
+          <GeneralGroup ctl={ctl} />
           <Diagnostics s={s} a={a} ctl={ctl} />
-          <LanguagePicker />
         </main>
         {ready && <HostPairingDialog s={s} a={a} />}
         {ready && <AddDeviceDialog s={s} a={a} />}

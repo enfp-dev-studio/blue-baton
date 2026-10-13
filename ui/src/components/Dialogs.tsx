@@ -2,10 +2,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { REGEXP_ONLY_DIGITS } from 'input-otp';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
-import { Label } from '@/components/ui/label';
 import { CountdownRing, DeviceIcon, StateTag, useSecondsLeft } from '@/components/parts';
 import { kindText, t, tParts } from '@/lib/board/i18n.js';
 import type { Actions, BoardState, Found } from '@/lib/board/types';
@@ -242,10 +240,6 @@ export function AddDeviceDialog({ s, a }: { s: BoardState; a: Actions }) {
         <Prompt s={s} a={a} />
         <div className="flex flex-wrap items-center gap-4">
           <ScanButton s={s} a={a} />
-          <div className="flex items-center gap-2">
-            <Checkbox id="show-all" checked={s.showAll} onCheckedChange={(v) => a.showAll(v === true)} />
-            <Label htmlFor="show-all" className="text-sm font-normal text-muted-foreground">{t('add.showAll')}</Label>
-          </div>
         </div>
         <div className="max-h-[45vh] overflow-y-auto">
           {found.length ? (
