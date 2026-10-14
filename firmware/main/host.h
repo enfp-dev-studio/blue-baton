@@ -55,6 +55,10 @@ size_t host_list_json(char *buf, size_t len);
 size_t host_stats_json(char *buf, size_t len);
 
 #if CONFIG_KM_DIAG
+/* Developer builds: the connection interval asked of the active host from now on (1.25 ms units, min..max), asked at
+ * once of the current one. Until restart */
+esp_err_t host_set_active_itvl(uint16_t min, uint16_t max);
+
 /* Developer builds: mouse self-test traffic to host (from 0) for minutes; host < 0 stops it. Host task only */
 esp_err_t host_selftest(int host, int minutes);
 #endif

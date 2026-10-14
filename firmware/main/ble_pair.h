@@ -116,3 +116,6 @@ size_t ble_pair_stats_json(char *buf, size_t len);
 
 /* Developer builds (CONFIG_KM_DIAG): mouse self-test traffic to host (1-3) for minutes; host 0 stops it. The host must not be the active one */
 esp_err_t ble_pair_selftest(int host, int minutes);
+
+/* Developer builds (CONFIG_KM_DIAG): connection interval asked of the active host, in 1.25 ms units (min..max) */
+esp_err_t ble_pair_host_itvl(int min, int max);

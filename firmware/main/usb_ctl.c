@@ -393,6 +393,11 @@ static void handle_line(const char *line)
         json_get_int(line, "host", &host);
         json_get_int(line, "minutes", &minutes);
         reply_ble(id, ble_pair_selftest(host, minutes));
+    } else if (strcmp(cmd, "host_itvl") == 0) {
+        int min = 0, max = 0;
+        json_get_int(line, "min", &min);
+        json_get_int(line, "max", &max);
+        reply_ble(id, ble_pair_host_itvl(min, max ? max : min));
 #endif
     } else if (strcmp(cmd, "combo_get") == 0) {
         cmd_combo_get(id);

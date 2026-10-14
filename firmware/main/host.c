@@ -34,7 +34,13 @@ static const char *TAG = "host";
 #define PARAM_RETRY_MS 2000      /* Delay before re-requesting connection parameters after a collision with the peer's procedure */
 #define PARAM_RETRY_MAX 2
 /*
- * Connection interval request: 15 ms (units of 1.25 ms).
+ * Connection interval request (units of 1.25 ms): the active host is asked for 7.5 ms first, and for 15 ms if the
+ * board's controller or the host refuses; idle hosts get 15 ms.
+ * - 2026-10-14, Windows host active, 2 hosts + 2 input devices: 7.5, 8.75, 10 and 11.25 ms were all taken (a
+ *   7.5-15 ms range was answered with 15). Reports completed within 15 ms of input: 7.5 ms 78% (longest 31 ms),
+ *   10 ms 64%, 8.75 ms 28% (the input devices' interval: the two schedules keep colliding). At 15 ms a host gets at
+ *   most one report batch per 15 ms, so the cursor moves at most ~66 times a second.
+ * - The same day the controller refused 7.5 and 11.25 ms for a Mac link (HCI 0x12) and took 15 ms.
  * - macOS gives 15 ms at the least (Apple ADG), and takes a 15 ms request at once.
  * - A 7.5-15 ms range (as ZMK asks) was refused by the board's own controller before it reached the host
  *   (HCI 0x12 on LE Connection Update) for 3 of 6 requests with an input device connected; the host then kept its
@@ -43,6 +49,7 @@ static const char *TAG = "host";
  */
 #define ITVL_HOST_MIN 12
 #define ITVL_HOST_MAX 12
+#define ITVL_ACTIVE 6
 #define SEC_REQ_MS 1000          /* Send a Security Request if a bonded host has not started encryption within this time */
 /* Advertising interval (units of 0.625 ms): Apple recommends 20 ms, then 152.5 ms (Accessory Design Guidelines R31 58.5); the window uses 30 ms (Microsoft Swift Pair) */
 #define ADV_ITVL_RECONNECT_FAST 32
@@ -206,6 +213,8 @@ typedef struct {
     int64_t param_retry_us;      /* If nonzero, re-request connection parameters at this time */
     int64_t sec_req_us;          /* If nonzero, send a Security Request at this time */
     uint8_t param_retries;
+    bool short_asked;            /* The last request was the active host's short interval */
+    bool short_refused;          /* It was refused on this connection: ask 15 ms instead */
     bool repaired;               /* A bonded host is pairing again inside the window */
 #if CONFIG_KM_DIAG
     link_diag_t diag;
@@ -213,6 +222,10 @@ typedef struct {
 } host_link_t;
 
 static host_link_t s_links[HOST_LINK_MAX];
+
+/* The interval asked of the active host (1.25 ms units). Developer builds can change it at run time (host_itvl) */
+static uint16_t s_active_itvl_min = ITVL_ACTIVE;
+static uint16_t s_active_itvl_max = ITVL_ACTIVE;
 static host_event_fn s_emit;
 static bool s_synced;
 static bool s_window;
@@ -892,6 +905,26 @@ void host_send(const router_out_t *out, int switched_from)
 }
 
 #if CONFIG_KM_DIAG
+#if CONFIG_KM_DIAG
+esp_err_t host_set_active_itvl(uint16_t min, uint16_t max)
+{
+    if (min < 6 || max < min || max > 3200) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    s_active_itvl_min = min;
+    s_active_itvl_max = max;
+    for (int i = 0; i < HOST_LINK_MAX; i++) {
+        s_links[i].short_refused = false;   /* Try the new value on every host again */
+    }
+    host_link_t *l = link_by_index(router_active_host());
+    if (l && l->state == HL_READY) {
+        l->param_retries = 0;
+        request_conn_params(l);
+    }
+    return ESP_OK;
+}
+#endif
+
 /*
  * Self-test (developer builds): mouse reports to one host at the input interval (every 8.75 ms), 16 counts right
  * then 16 left so the cursor stays within a few pixels, through the same delivery path as real input, while stats
@@ -1127,13 +1160,22 @@ static void emit_link(const char *event, const host_link_t *l, const char *extra
 
 static void request_conn_params(host_link_t *l)
 {
-    /* 15 ms, Latency 4 or 30, supervision 6 s (Apple ADG R31 58.6; Microsoft Bluetooth Accessory Guidelines 4.4) */
+    /* Latency 4 or 30, supervision 6 s (Apple ADG R31 58.6; Microsoft Bluetooth Accessory Guidelines 4.4) */
     bool active = l->index == router_active_host();
+    l->short_asked = active && !l->short_refused && s_active_itvl_min < ITVL_HOST_MIN;
     struct ble_gap_upd_params p = {
-        .itvl_min = ITVL_HOST_MIN, .itvl_max = ITVL_HOST_MAX, .latency = active ? LATENCY_ACTIVE : LATENCY_IDLE,
+        .itvl_min = l->short_asked ? s_active_itvl_min : ITVL_HOST_MIN,
+        .itvl_max = l->short_asked ? s_active_itvl_max : ITVL_HOST_MAX,
+        .latency = active ? LATENCY_ACTIVE : LATENCY_IDLE,
         .supervision_timeout = 600, .min_ce_len = 0, .max_ce_len = 0,
     };
     int rc = ble_gap_update_params(l->conn, &p);
+    if (rc != 0 && l->short_asked && rc != BLE_HS_ENOMEM && rc != BLE_HS_EALREADY && rc != BLE_HS_EBUSY) {
+        /* The controller refused the short interval (HCI 0x12 seen for a Mac link): ask 15 ms now */
+        l->short_refused = true;
+        request_conn_params(l);
+        return;
+    }
     if (rc != 0) {
         ESP_LOGW(TAG, "conn param request rc=%d", rc);
         /*
@@ -1521,13 +1563,17 @@ static int host_gap_event(struct ble_gap_event *event, void *arg)
              * other than collisions are not retried.
              */
             int st = event->conn_update.status;
+            bool collision = st == BLE_HS_HCI_ERR(BLE_ERR_DIFF_TRANS_COLL) || st == BLE_HS_HCI_ERR(BLE_ERR_LMP_COLLISION);
             if (st == 0) {
                 l->param_retries = 0;
             }
-            if ((st == BLE_HS_HCI_ERR(BLE_ERR_DIFF_TRANS_COLL) || st == BLE_HS_HCI_ERR(BLE_ERR_LMP_COLLISION)) &&
-                l->param_retries < PARAM_RETRY_MAX) {
+            if (collision && l->param_retries < PARAM_RETRY_MAX) {
                 l->param_retries++;
                 l->param_retry_us = now_us() + (int64_t)PARAM_RETRY_MS * 1000;
+            } else if (st != 0 && l->short_asked) {
+                /* The host refused the short interval: ask 15 ms */
+                l->short_refused = true;
+                l->param_retry_us = now_us();
             }
             char extra[96];
             snprintf(extra, sizeof(extra), ",\"status\":%d,\"itvl\":%u,\"latency\":%u,\"timeout\":%u",
