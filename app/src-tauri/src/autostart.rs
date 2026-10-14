@@ -15,7 +15,7 @@ pub fn init(app: &AppHandle) -> Result<(), String> {
     let exe = exe.canonicalize().map_err(|e| e.to_string())?;
     // An AppImage runs from a temporary mount, so the login entry has to start the AppImage file itself
     #[cfg(target_os = "linux")]
-    let exe = app.env().appimage.unwrap_or(exe);
+    let exe = app.env().appimage.map(std::path::PathBuf::from).unwrap_or(exe);
     let auto = AutoLaunchBuilder::new()
         // The same name the earlier autostart plugin used, so a login item from an older version is still found
         .set_app_name(&app.package_info().name)
