@@ -71,11 +71,22 @@ const ACTIVITY_MS = 250;
 const hex = (bytes) => bytes.map((b) => (b & 0xff).toString(16).padStart(2, '0').toUpperCase()).join('');
 const i16 = (v) => [v & 0xff, (v >> 8) & 0xff];
 
+/* ?mock&found=N: N more input devices nearby (names of different lengths, both kinds), found one after another */
+function crowd(n) {
+  const names = ['K380', 'MX Keys Mini', 'Magic Keyboard with Touch ID and Numeric Keypad', 'M720 Triathlon',
+    'Keychron K3 Pro', 'ERGO K860', 'Pebble Mouse 2 M350s', 'HHKB Professional HYBRID Type-S', 'Lift', 'G915 TKL'];
+  return Array.from({ length: n }, (_, i) => ({
+    addr: `00:00:5E:00:54:${String(i + 16).padStart(2, '0')}`, name: names[i % names.length],
+    appearance: i % 3 === 2 ? 962 : 961, io: 'none', map: SIMPLE_KB_MAP, kinds: ['keyboard'],
+    reports: [{ val: 20, id: 1 }], role: 'simple', foundAfter: 600 + i * 350,
+  }));
+}
+
 class MockBoard {
   constructor(emit, opts) {
     this.emit = emit;
     this.opts = opts;
-    this.devices = catalog();
+    this.devices = catalog().concat(crowd(opts.found));
     this.monitorUntil = 0;     /* input monitor lease (performance.now() ms) */
     this.activityAt = new Map();   /* addr -> last activity event */
     this.combo = '';
@@ -579,7 +590,7 @@ export class MockTransport {
   }
 
   constructor(params = new URLSearchParams()) {
-    this.opts = { fast: params.has('fast') };
+    this.opts = { fast: params.has('fast'), found: Number(params.get('found')) || 0 };
     this.board = null;
     this.onLine = () => {};
     this.onClose = () => {};

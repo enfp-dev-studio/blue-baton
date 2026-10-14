@@ -183,20 +183,19 @@ function Prompt({ s, a }: { s: BoardState; a: Actions }) {
 function FoundRow({ f, a }: { f: Found; a: Actions }) {
   const busy = f.state === 'connecting';
   return (
-    <li className="grid grid-cols-[40px_minmax(0,1fr)_auto] items-center gap-3 rounded-xl p-2 hover:bg-muted/60">
-      <span className="grid size-10 place-items-center rounded-xl bg-muted text-muted-foreground">
-        <DeviceIcon appearance={f.appearance} className="size-5" />
+    <li
+      title={`${f.addr} · ${t('add.signal', { rssi: f.rssi })}`}
+      className="grid grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-muted/60"
+    >
+      <span className="grid size-8 place-items-center rounded-lg bg-muted text-muted-foreground">
+        <DeviceIcon appearance={f.appearance} className="size-4" />
       </span>
-      <div className="min-w-0">
+      <div className="min-w-0 leading-tight">
         <div className="flex items-center gap-2">
-          <span className="truncate font-semibold">{f.name || t('common.unnamedDevice')}</span>
-          {f.paired && <span className="rounded-full bg-muted px-2 py-0.5 text-2xs font-semibold text-muted-foreground">{t('add.paired')}</span>}
+          <span className="truncate font-medium">{f.name || t('common.unnamedDevice')}</span>
+          {f.paired && <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-2xs font-semibold text-muted-foreground">{t('add.paired')}</span>}
         </div>
-        <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
-          <span>{kindText([], f.appearance)}</span>
-          <span>{t('add.signal', { rssi: f.rssi })}</span>
-          <span className="font-mono text-xs text-muted-foreground/70">{f.addr}</span>
-        </div>
+        <div className="text-xs text-muted-foreground">{kindText([], f.appearance)}</div>
       </div>
       {f.hid === false ? (
         <span className="text-sm text-muted-foreground">{t('add.notInput')}</span>
@@ -229,7 +228,7 @@ export function AddDeviceDialog({ s, a }: { s: BoardState; a: Actions }) {
   const found = [...s.found.values()].filter((f) => s.showAll || f.hid !== false).sort((x, y) => y.rssi - x.rssi);
   return (
     <Dialog open={s.addOpen} onOpenChange={(open) => !open && a.closeAdd()}>
-      <DialogContent aria-describedby={undefined} className="max-h-[calc(100dvh-2rem)] overflow-y-auto overflow-x-hidden sm:max-w-xl">
+      <DialogContent aria-describedby={undefined} className="flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden sm:max-w-xl">
         <DialogHeader className="flex-row items-center gap-4 space-y-0 text-left">
           {s.scanning && <CountdownRing key={s.scanUntil} until={s.scanUntil} total={SCAN_S} />}
           <div className="grid gap-1">
@@ -241,7 +240,8 @@ export function AddDeviceDialog({ s, a }: { s: BoardState; a: Actions }) {
         <div className="flex flex-wrap items-center gap-4">
           <ScanButton s={s} a={a} />
         </div>
-        <div className="max-h-[45vh] overflow-y-auto">
+        {/* The list takes the rest of the dialog's height and scrolls on its own */}
+        <div className="-mx-2 min-h-0 flex-1 overflow-y-auto">
           {found.length ? (
             <ul className="grid gap-1">
               {found.map((f) => <FoundRow key={f.addr} f={f} a={a} />)}
