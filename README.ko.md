@@ -51,7 +51,8 @@ Mac 2대·Windows PC·iPhone을 호스트로 실기 확인했다. 입력은 활�
 
 1. **앱 설치**: [최신 릴리스](https://github.com/enfp-dev-studio/blue-baton/releases/latest)에서 받는다.
    - macOS (Apple 실리콘): `.dmg`, 서명·공증됨.
-   - Windows: `.exe` 또는 `.msi`. 코드 서명이 없어서 SmartScreen 경고가 나올 수 있다: 추가 정보 → 실행.
+   - Windows: `_x64-setup.exe` (관리자 권한 없이 사용자 계정에 설치). 코드 서명이 없어서 SmartScreen 경고가 나올 수
+     있다: 추가 정보 → 실행.
    - Linux: `.deb`, `.rpm`, `.AppImage`. 보드의 시리얼 포트를 쓰려면 사용자가 `dialout` 그룹에 있어야 한다
      (`sudo usermod -aG dialout $USER` 후 로그아웃했다가 다시 로그인).
 2. **보드 연결**: 보드를 꽂고 앱을 연다. 블루 바톤이 없는 보드면 "이 보드에는 아직 블루 바톤이 없어요"가 나온다:

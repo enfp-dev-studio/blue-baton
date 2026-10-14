@@ -46,7 +46,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["app", "dmg", "nsis", "appimage", "deb", "rpm"],
     "category": "Utility",
     "shortDescription": "One Bluetooth keyboard and mouse for three computers",
     "icon": [

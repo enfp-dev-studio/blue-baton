@@ -68,7 +68,6 @@ jobs:
         with:
           name: blue-baton-${{ matrix.platform }}
           path: |
-            app/src-tauri/target/release/bundle/msi/*.msi
             app/src-tauri/target/release/bundle/nsis/*.exe
             app/src-tauri/target/release/bundle/deb/*.deb
             app/src-tauri/target/release/bundle/appimage/*.AppImage

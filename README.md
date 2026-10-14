@@ -53,7 +53,8 @@ wake), Linux as a host, and the Windows and Linux builds of the app.
 
 1. **Install the app** from the [latest release](https://github.com/enfp-dev-studio/blue-baton/releases/latest):
    - macOS (Apple silicon): `.dmg`, signed and notarized.
-   - Windows: `.exe` or `.msi`. Not code-signed, so SmartScreen may warn: More info → Run anyway.
+   - Windows: `_x64-setup.exe` (installs for your user, no admin rights). Not code-signed, so SmartScreen may
+     warn: More info → Run anyway.
    - Linux: `.deb`, `.rpm` or `.AppImage`. To reach the board's serial port, your user needs to be in the `dialout`
      group (`sudo usermod -aG dialout $USER`, then log out and back in).
 2. **Plug the board in** and open the app. A board without Blue Baton shows "This board doesn't run Blue Baton
