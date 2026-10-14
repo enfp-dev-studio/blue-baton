@@ -26,6 +26,24 @@ Linux 호스트, Linux용 앱.
 - 그중 한 대에 블루 바톤 앱을 설치하고 보드를 USB로 꽂는다. 케이블로 보드에 전원이 들어가고, 기기 페어링과 설정은 앱에서
   한다.
 
+## 어떤 보드를 사나
+
+케이스까지 있는 작은 보드 두 가지. 사서 꽂으면 앱이 펌웨어를 깔아 주는 것을 목표로 골랐다. 둘 다 아직 Blue Baton을
+올려 보지 않았고, 확인되면 [보드](#보드) 표에 표시한다.
+
+<table>
+<tr>
+<td align="center" width="50%"><img src="https://shop.m5stack.com/cdn/shop/products/1_a974a380-b3f8-4d2a-bce0-2f1ff172eb4c_1200x1200.webp?v=1675390141" width="150" alt="M5Stack AtomS3 Lite"><br>
+<b>M5Stack AtomS3 Lite</b><br>ESP32-S3 · 24 × 24 × 9.5 mm · USB-C<br>확인된 SuperMini와 같은 칩<br>
+<a href="https://www.devicemart.co.kr/goods/view?no=15660247">디바이스마트</a> · <a href="https://shop.m5stack.com/products/atoms3-lite-esp32s3-dev-kit">M5Stack 공식몰</a></td>
+<td align="center" width="50%"><img src="https://shop.m5stack.com/cdn/shop/files/1_6e81e7e8-83d2-4bbb-bc0f-87a227dca7b2_1200x1200.webp?v=1711093951" width="150" alt="M5Stack NanoC6"><br>
+<b>M5Stack NanoC6</b><br>ESP32-C6 · 23.5 × 12 × 9.5 mm · USB-C<br>앱은 아직 ESP32-S3 펌웨어만 설치<br>
+<a href="https://www.devicemart.co.kr/goods/view?no=15775692">디바이스마트</a> · <a href="https://shop.m5stack.com/products/m5stack-nanoc6-dev-kit">M5Stack 공식몰</a></td>
+</tr>
+</table>
+
+<sub>사진: M5Stack.</sub>
+
 ## 보드
 
 | 칩·보드 | 릴리스와 앱 | 빌드 | 실제 보드에서 실행 |
