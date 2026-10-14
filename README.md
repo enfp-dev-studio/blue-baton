@@ -12,11 +12,11 @@ BLE mouse ────┴─→ ESP32-S3 (NimBLE) ─┼─ BLE HID → host 2
                     └─ USB: menu bar app (settings, quick switch)
 ```
 
-Status: version 0.7. Up to two input devices (a keyboard and a mouse, or any two) and three hosts. Tested on real
+Status: version 0.7.1. Up to two input devices (a keyboard and a mouse, or any two) and three hosts. Tested on real
 hardware with a keyboard and a mouse connected at the same time, and with two Macs, a Windows PC and an iPhone as
-hosts: input goes to the active host, and both the key combo and the settings window switch hosts. Not yet tested on
-hardware: typing a host's passkey on the keyboard (entering it in the app was tested), system keys (power, sleep,
-wake), Linux as a host, and the Windows and Linux builds of the app.
+hosts: input goes to the active host, and both the key combo and the settings window switch hosts. The app was tested
+on macOS and Windows. Not yet tested on hardware: typing a host's passkey on the keyboard (entering it in the app was
+tested), system keys (power, sleep, wake), Linux as a host, and the Linux build of the app.
 
 ## What you need
 
