@@ -15,7 +15,8 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = ["tray-icon", "image-png", "macos-private-api"] }
-tauri-plugin-autostart = "2"
+# Launch at login (directly, to set the macOS bundle identifier: autostart.rs)
+auto-launch = "0.6"
 tauri-plugin-notification = "2"
 tauri-plugin-single-instance = "2"
 tauri-plugin-positioner = { version = "2", features = ["tray-icon"] }

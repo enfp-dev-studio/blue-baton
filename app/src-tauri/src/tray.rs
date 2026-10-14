@@ -14,7 +14,6 @@ use tauri::image::Image;
 use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Wry};
-use tauri_plugin_autostart::ManagerExt;
 
 pub const TRAY_ID: &str = "main";
 
@@ -211,7 +210,7 @@ fn build_menu(app: &AppHandle, model: &Model, dev_api_on: bool) -> tauri::Result
     menu.append(&MenuItem::with_id(app, "open", &l.open, true, None::<&str>)?)?;
     menu.append(&MenuItem::with_id(app, "add-host", &l.add_host, connected, None::<&str>)?)?;
     menu.append(&PredefinedMenuItem::separator(app)?)?;
-    let autostart = app.autolaunch().is_enabled().unwrap_or(false);
+    let autostart = crate::autostart::is_enabled(app);
     menu.append(&CheckMenuItem::with_id(app, "autostart", &l.autostart, true, autostart, None::<&str>)?)?;
     menu.append(&CheckMenuItem::with_id(app, "devapi", &l.dev_api, true, dev_api_on, None::<&str>)?)?;
     menu.append(&PredefinedMenuItem::separator(app)?)?;
@@ -231,8 +230,7 @@ fn on_menu(app: &AppHandle, id: &str) {
             let _ = app.emit("tray-action", Action { kind: "add_host", host: 0 });
         }
         "autostart" => {
-            let auto = app.autolaunch();
-            let _ = if auto.is_enabled().unwrap_or(false) { auto.disable() } else { auto.enable() };
+            let _ = crate::autostart::set(app, !crate::autostart::is_enabled(app));
             crate::refresh_tray(app);
         }
         "devapi" => crate::toggle_dev_api(app),

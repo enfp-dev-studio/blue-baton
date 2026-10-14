@@ -7,6 +7,7 @@
 //! - The settings window is the shared UI (../../ui); closing it only hides it.
 //! - Optional developer API compatible with tools/bridge.py (devapi.rs).
 
+mod autostart;
 mod board;
 mod devapi;
 mod firmware;
@@ -18,7 +19,6 @@ use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, WindowEvent};
-use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 use tauri_plugin_notification::NotificationExt;
 use tauri_plugin_positioner::{Position, WindowExt};
 
@@ -187,13 +187,12 @@ fn firmware_write(app: AppHandle, state: tauri::State<AppState>, keep_pairings: 
 /// Launch at login, for the settings window (the tray menu has the same switch)
 #[tauri::command]
 fn autostart_get(app: AppHandle) -> bool {
-    app.autolaunch().is_enabled().unwrap_or(false)
+    autostart::is_enabled(&app)
 }
 
 #[tauri::command]
 fn autostart_set(app: AppHandle, on: bool) -> Result<(), String> {
-    let launcher = app.autolaunch();
-    if on { launcher.enable() } else { launcher.disable() }.map_err(|e| e.to_string())?;
+    autostart::set(&app, on)?;
     refresh_tray(&app);
     Ok(())
 }
@@ -228,7 +227,6 @@ pub fn run() {
     tauri::Builder::default()
         // First, so a second launch only brings the running app forward (one owner for the serial port)
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_main(app)))
-        .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec![HIDDEN_ARG])))
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_positioner::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -237,6 +235,9 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
+            if let Err(e) = autostart::init(&handle) {
+                eprintln!("launch at login unavailable: {e}");
+            }
             let settings = load_settings(&handle);
             let board = board::Board::start(handle.clone());
             app.manage(updates::Pending::default());
