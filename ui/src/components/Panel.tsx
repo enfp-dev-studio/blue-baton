@@ -14,6 +14,10 @@ import { cn } from '@/lib/utils';
 
 const WIDTH = 340;
 const ROW = 44;
+/* macOS: a transparent window around a rounded card with its own shadow. Elsewhere the system draws the window's
+ * shadow and corners (app/src-tauri/src/lib.rs), so the card fills the window */
+const CARD_IN_WINDOW = typeof navigator !== 'undefined' && /Mac/.test(navigator.platform || navigator.userAgent || '');
+const MARGIN = CARD_IN_WINDOW ? 10 : 0;
 
 function invoke(cmd: string) {
   const app = (window as unknown as { __TAURI__?: { core: { invoke: (c: string) => Promise<unknown> } } }).__TAURI__;
@@ -29,12 +33,12 @@ export function Panel({ ctl }: { ctl: Controller }) {
   const a = ctl.actions;
   const card = useRef<HTMLDivElement>(null);
 
-  /* Fit the window to the card (it is transparent around it) */
+  /* Fit the window to the card */
   useLayoutEffect(() => {
     if (!ctl.inApp || !card.current) return;
     const el = card.current;
     const win = getCurrentWindow();
-    const fit = () => win.setSize(new LogicalSize(WIDTH, Math.ceil(el.getBoundingClientRect().height) + 20)).catch(() => {});
+    const fit = () => win.setSize(new LogicalSize(WIDTH, Math.ceil(el.getBoundingClientRect().height) + 2 * MARGIN)).catch(() => {});
     const ro = new ResizeObserver(fit);
     ro.observe(el);
     fit();
@@ -52,8 +56,14 @@ export function Panel({ ctl }: { ctl: Controller }) {
   const hosts = [1, 2, 3].filter((n) => s.hosts.has(n));
   const at = hosts.indexOf(s.activeHost);
   return (
-    <div className="p-2.5">
-      <div ref={card} className="overflow-hidden rounded-xl border bg-popover text-ui text-popover-foreground shadow-[0_10px_32px_rgb(0_0_0/0.22)]">
+    <div style={{ padding: MARGIN }}>
+      <div
+        ref={card}
+        className={cn(
+          'overflow-hidden bg-popover text-ui text-popover-foreground',
+          CARD_IN_WINDOW && 'rounded-xl border shadow-[0_10px_32px_rgb(0_0_0/0.22)]',
+        )}
+      >
         <div className="flex items-center gap-2 px-3.5 pb-2 pt-3">
           <Logo className="size-5 shrink-0" />
           <span className="font-semibold">{t('app.name')}</span>

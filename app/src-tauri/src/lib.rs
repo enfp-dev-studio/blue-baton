@@ -262,6 +262,10 @@ pub fn run() {
                 });
             }
             if let Some(p) = app.get_webview_window("panel") {
+                // Windows and Linux: the system draws the panel's shadow (and on Windows 11 its round corners); the
+                // page fills the window. macOS keeps a transparent window around a card the page draws itself
+                #[cfg(not(target_os = "macos"))]
+                let _ = p.set_shadow(true);
                 let h = handle.clone();
                 p.on_window_event(move |e| {
                     // Like a menu: it closes when you click anywhere else
