@@ -27,37 +27,21 @@ tested), system keys (power, sleep, wake), Linux as a host, and the Linux build 
 - One of them runs the Blue Baton app, with the board plugged into it by USB. The cable powers the board, and the
   app is where you pair devices and change settings.
 
-## Which board to buy
-
-Two small boards that come in a case, so starting is: buy one, plug it in, let the app install the firmware. Neither
-has run Blue Baton here yet; [Boards](#boards) marks them tested once they have.
-
-<table>
-<tr>
-<td align="center" width="50%"><img src="https://shop.m5stack.com/cdn/shop/products/1_a974a380-b3f8-4d2a-bce0-2f1ff172eb4c_1200x1200.webp?v=1675390141" width="150" alt="M5Stack AtomS3 Lite"><br>
-<b>M5Stack AtomS3 Lite</b><br>ESP32-S3 · 24 × 24 × 9.5 mm · USB-C<br>The same chip as the tested SuperMini<br>
-<a href="https://www.devicemart.co.kr/goods/view?no=15660247">DeviceMart (Korea)</a> · <a href="https://shop.m5stack.com/products/atoms3-lite-esp32s3-dev-kit">M5Stack store</a></td>
-<td align="center" width="50%"><img src="https://shop.m5stack.com/cdn/shop/files/1_6e81e7e8-83d2-4bbb-bc0f-87a227dca7b2_1200x1200.webp?v=1711093951" width="150" alt="M5Stack NanoC6"><br>
-<b>M5Stack NanoC6</b><br>ESP32-C6 · 23.5 × 12 × 9.5 mm · USB-C<br>The app installs ESP32-S3 firmware only for now<br>
-<a href="https://www.devicemart.co.kr/goods/view?no=15775692">DeviceMart (Korea)</a> · <a href="https://shop.m5stack.com/products/m5stack-nanoc6-dev-kit">M5Stack store</a></td>
-</tr>
-</table>
-
-<sub>Photos: M5Stack.</sub>
-
 ## Boards
 
-| Chip or board | Releases and the app | Builds | Run on a real board |
-|---|---|---|---|
-| ESP32-S3 SuperMini (4 MB flash) | Yes | Yes | Yes (developed and measured on it) |
-| Other ESP32-S3 boards (4 MB or more flash, the chip's own USB port) | Yes, the same firmware | Yes | No |
-| ESP32-C3 | No: build it yourself | Yes | No |
-| ESP32-C5 | No: build it yourself | Yes | No |
-| ESP32-C6 | No: build it yourself | Yes | No |
-| ESP32-H2 | No: build it yourself | Yes | No |
-| ESP32 (original) | No | Yes | No |
-| ESP32-S2 | No | Yes, but the chip has no Bluetooth radio | No |
-| nRF52840, Raspberry Pi Pico W, Raspberry Pi | No | No | No |
+| Board | Chip | Releases and the app | Builds | Run on a real board |
+|---|---|---|---|---|
+| ESP32-S3 SuperMini (4 MB flash) | ESP32-S3 | Yes | Yes | Yes (developed and measured on it) |
+| M5Stack AtomS3 Lite (in a case) | ESP32-S3 | Yes, the same firmware | Yes | Not yet |
+| M5Stack NanoC6 (in a case) | ESP32-C6 | No: build it yourself | Yes | Not yet |
+| Other ESP32-S3 boards (4 MB or more flash, the chip's own USB port) | ESP32-S3 | Yes, the same firmware | Yes | No |
+| ESP32-C3 boards | ESP32-C3 | No: build it yourself | Yes | No |
+| ESP32-C5 boards | ESP32-C5 | No: build it yourself | Yes | No |
+| Other ESP32-C6 boards | ESP32-C6 | No: build it yourself | Yes | No |
+| ESP32-H2 boards | ESP32-H2 | No: build it yourself | Yes | No |
+| ESP32 (original) boards | ESP32 | No | Yes | No |
+| ESP32-S2 boards | ESP32-S2 | No | Yes, but the chip has no Bluetooth radio | No |
+| nRF52840, Raspberry Pi Pico W, Raspberry Pi | — | No | No | No |
 
 - ESP32-C3, C5, C6 and H2 use the same ESP-IDF, NimBLE and USB port as the S3, but have one core (clock: C3 and C6
   160 MHz, H2 96 MHz, C5 240 MHz like the S3). Latency and link stability have not been measured on them. Build and
