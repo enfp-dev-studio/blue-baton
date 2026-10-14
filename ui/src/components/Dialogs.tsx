@@ -73,10 +73,12 @@ function CodeInput({ value, onChange, onComplete, label }: { value: string; onCh
       onChange={onChange}
       onComplete={onComplete}
       aria-label={label}
+      containerClassName="w-full max-w-72"
     >
-      <InputOTPGroup>
+      {/* Six equal slots across the width, so a narrow window still fits them */}
+      <InputOTPGroup className="w-full">
         {[0, 1, 2, 3, 4, 5].map((i) => (
-          <InputOTPSlot key={i} index={i} className="size-11 text-lg" />
+          <InputOTPSlot key={i} index={i} className="h-11 min-w-0 flex-1 text-lg" />
         ))}
       </InputOTPGroup>
     </InputOTP>
@@ -116,11 +118,11 @@ export function HostPairingDialog({ s, a }: { s: BoardState; a: Actions }) {
             <p className="text-sm font-medium">{t('hosts.codeLabel')}</p>
             {p.len > 0 ? (
               /* Typed on the board's keyboard: the board keeps the digits, the app only learns how many */
-              <div className="flex gap-2" aria-label={t('hosts.passkeyDigits', { n: p.len })}>
+              <div className="grid w-full max-w-72 grid-cols-6 gap-1.5" aria-label={t('hosts.passkeyDigits', { n: p.len })}>
                 {[0, 1, 2, 3, 4, 5].map((i) => (
                   <span
                     key={i}
-                    className={cn('grid size-11 place-items-center rounded-md border', i < p.len ? 'border-primary bg-primary/10' : 'bg-muted')}
+                    className={cn('grid h-11 place-items-center rounded-md border', i < p.len ? 'border-primary bg-primary/10' : 'bg-muted')}
                   >
                     {i < p.len && <span className="size-2 rounded-full bg-primary" />}
                   </span>
