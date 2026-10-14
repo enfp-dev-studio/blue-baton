@@ -2,7 +2,7 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
 import { LogicalSize } from '@tauri-apps/api/dpi';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { Plus, Settings } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { RadioGroup as RadioGroupPrimitive } from 'radix-ui';
 import { Button } from '@/components/ui/button';
 import { DeviceIcon, HostBadge, Keycaps, Logo, StateTag } from '@/components/parts';
@@ -68,9 +68,6 @@ export function Panel({ ctl }: { ctl: Controller }) {
           ) : (
             <StateTag tone={s.link === 'connecting' ? 'busy' : 'idle'} className="text-2xs">{t('link.disconnected')}</StateTag>
           )}
-          <Button size="icon" variant="ghost" className="size-7 text-muted-foreground" title={t('panel.settings')} onClick={() => invoke('window_show')}>
-            <Settings className="size-4" />
-          </Button>
         </div>
 
         {!ready ? (
