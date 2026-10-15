@@ -11,7 +11,7 @@
 /* Open the settings store (NVS, namespace km_cfg). Call after nvs_flash_init() */
 esp_err_t cfg_init(void);
 
-/* Host switch combo list (e.g. "ctrl+alt+1,ctrl+alt+2,ctrl+alt+3"). true if a value is stored */
+/* Host switch combo list (e.g. "alt+1,alt+2,alt+3"). true if a value is stored */
 #define CFG_COMBO_MAX 95
 bool cfg_combo_get(char *combo, size_t len);
 esp_err_t cfg_combo_set(const char *combo);

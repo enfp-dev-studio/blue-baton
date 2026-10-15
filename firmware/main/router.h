@@ -22,7 +22,7 @@
  *   nothing is sent and the switch happens. If another key, mouse, or media key arrives, or a held modifier is
  *   released, the held modifiers are sent first (pre_keys) and then that event. So Ctrl+C works as usual, and a
  *   modifier tap goes out as press and release.
- *   This keeps the previous host from seeing "Ctrl+Alt pressed then released".
+ *   This keeps the previous host from seeing the combo's modifiers pressed and released.
  * - Passkey entry mode (host pairing): key input is sent to no host and digits are collected.
  */
 
@@ -45,9 +45,9 @@ typedef struct {
 bool combo_parse(const char *text, combo_t *out);
 
 /* Used when no combos are stored */
-#define ROUTER_DEFAULT_COMBOS "ctrl+alt+1,ctrl+alt+2,ctrl+alt+3"
+#define ROUTER_DEFAULT_COMBOS "alt+1,alt+2,alt+3"
 
-/* Per-host combo list "ctrl+alt+1,ctrl+alt+2,ctrl+alt+3". An empty entry means no combo for that host. false on failure */
+/* Per-host combo list "alt+1,alt+2,alt+3". An empty entry means no combo for that host. false on failure */
 bool combo_parse_list(const char *text, combo_t out[ROUTER_HOST_MAX]);
 
 /* State to send to the active host */

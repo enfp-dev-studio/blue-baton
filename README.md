@@ -12,7 +12,7 @@ BLE mouse ────┴─→ ESP32-S3 (NimBLE) ─┼─ BLE HID → host 2
                     └─ USB: menu bar app (settings, quick switch)
 ```
 
-Status: version 0.7.2. Up to two input devices (a keyboard and a mouse, or any two) and three hosts. Tested on real
+Status: version 0.7.3. Up to two input devices (a keyboard and a mouse, or any two) and three hosts. Tested on real
 hardware with a keyboard and a mouse connected at the same time, and with two Macs, a Windows PC and an iPhone as
 hosts: input goes to the active host, and both the key combo and the settings window switch hosts. The app was tested
 on macOS and Windows. Not yet tested on hardware: typing a host's passkey on the keyboard (entering it in the app was
@@ -69,7 +69,7 @@ tested), system keys (power, sleep, wake), Linux as a host, and the Linux build 
    - Windows: Settings → Bluetooth & devices → Add device → Bluetooth → "Blue Baton".
 
    When the computer shows a 6-digit code, enter it in the app (or type it on a keyboard connected to the board).
-5. **Switch** with `Ctrl+Alt+1`, `2`, `3` (on a Mac keyboard: Control+Option), or from the menu bar icon. The combos
+5. **Switch** with `Alt+1`, `2`, `3` (on a Mac keyboard: Option), or from the menu bar icon. The combos
    can be changed in the app. A host's row menu renames it (up to 8 characters, shown instead of its number) and moves
    it up or down without reconnecting.
 
@@ -94,13 +94,13 @@ Each release also has the firmware as files, for [esptool](https://docs.espressi
 (`pip install esptool`):
 
 ```bash
-esptool --chip esp32s3 write-flash 0x0 blue-baton-firmware-v0.7.2-esp32s3.bin
+esptool --chip esp32s3 write-flash 0x0 blue-baton-firmware-v0.7.3-esp32s3.bin
 ```
 
 writes the whole image (a first install; it also clears pairings), and
 
 ```bash
-esptool --chip esp32s3 write-flash 0x20000 blue-baton-firmware-v0.7.2-esp32s3-app.bin
+esptool --chip esp32s3 write-flash 0x20000 blue-baton-firmware-v0.7.3-esp32s3-app.bin
 ```
 
 updates the firmware and keeps pairings.

@@ -109,7 +109,7 @@ const KEY_NAME: Record<string, string> = {
   printscreen: 'PrtSc', scrolllock: 'ScrLk', pause: 'Pause',
 };
 
-/* "ctrl+alt+1" → "⌃⌥1" on a Mac, "Ctrl+Alt+1" elsewhere */
+/* "alt+1" → "⌥1" on a Mac, "Alt+1" elsewhere; "ctrl+alt+1" → "⌃⌥1" / "Ctrl+Alt+1" */
 export function comboLabel(keys: string[]) {
   const label = keys.map((k) => {
     const l = k.toLowerCase();

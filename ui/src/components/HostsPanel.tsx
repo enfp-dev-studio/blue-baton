@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -25,6 +25,9 @@ export function HostsPanel({ s, a, confirm }: { s: BoardState; a: Actions; confi
   const active = s.hosts.get(s.activeHost);
   const [renaming, setRenaming] = useState<Renaming | null>(null);
   const rename = (n: number) => setRenaming({ n, nick: s.hosts.get(n)?.nick || '' });
+  /* The one combo being recorded (0: none). One for the whole list: WebKit does not focus a clicked button, so a
+     recorder that ends on blur would stay on when another one is clicked */
+  const [recording, setRecording] = useState(0);
   return (
     <>
     <Group
@@ -58,7 +61,7 @@ export function HostsPanel({ s, a, confirm }: { s: BoardState; a: Actions; confi
             </li>
           )}
           {[1, 2, 3].map((n) => (
-            <HostRow key={n} n={n} s={s} a={a} host={s.hosts.get(n)} confirm={confirm} rename={rename} />
+            <HostRow key={n} n={n} s={s} a={a} host={s.hosts.get(n)} confirm={confirm} rename={rename} recording={recording} setRecording={setRecording} />
           ))}
         </ul>
       </RadioGroupPrimitive.Root>
@@ -68,9 +71,12 @@ export function HostsPanel({ s, a, confirm }: { s: BoardState; a: Actions; confi
   );
 }
 
-type RowProps = { n: number; s: BoardState; a: Actions; host?: Host; confirm: Confirm; rename: (n: number) => void };
+type RowProps = {
+  n: number; s: BoardState; a: Actions; host?: Host; confirm: Confirm; rename: (n: number) => void;
+  recording: number; setRecording: (n: number) => void;
+};
 
-function HostRow({ n, s, a, host, confirm, rename }: RowProps) {
+function HostRow({ n, s, a, host, confirm, rename, recording, setRecording }: RowProps) {
   const on = !!host && s.activeHost === n;
   return (
     <li
@@ -92,7 +98,7 @@ function HostRow({ n, s, a, host, confirm, rename }: RowProps) {
           {host && <StateTag tone={hostStateTone(host.state) as Tone}>{hostStateText(host.state)}</StateTag>}
         </span>
       </RadioGroupPrimitive.Item>
-      <ComboButton n={n} s={s} a={a} />
+      <ComboButton n={n} s={s} a={a} rec={recording === n} setRec={(on) => setRecording(on ? n : 0)} />
       {host ? (
         <RowMenu label={t('common.more')}>
           <DropdownMenuItem onSelect={() => rename(n)}>{t('hosts.rename')}</DropdownMenuItem>
@@ -127,13 +133,14 @@ function HostRow({ n, s, a, host, confirm, rename }: RowProps) {
 
 /*
  * The host's switch combo; click it to record a new one. While recording, key presses in this window are taken
- * (not typed anywhere): Esc cancels, Backspace alone clears. A combo another host already uses is refused here; the
+ * (not typed anywhere): Esc or a click anywhere else cancels (the click still does what it does), Backspace alone
+ * clears. A combo another host already uses is refused here; the
  * board refuses invalid ones (bad_combo). Pressing an existing combo on a keyboard attached to the board switches
  * hosts instead (the board takes it), so it never reaches this window.
  */
-function ComboButton({ n, s, a }: { n: number; s: BoardState; a: Actions }) {
-  const [rec, setRec] = useState(false);
+function ComboButton({ n, s, a, rec, setRec }: { n: number; s: BoardState; a: Actions; rec: boolean; setRec: (on: boolean) => void }) {
   const [held, setHeld] = useState<string[]>([]);
+  const recorder = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!rec) return;
     const save = (combo: string) => {
@@ -160,16 +167,22 @@ function ComboButton({ n, s, a }: { n: number; s: BoardState; a: Actions }) {
       save(r.combo);
     };
     const up = (e: KeyboardEvent) => setHeld(modifiers(e));
+    const outside = (e: PointerEvent) => {
+      if (!recorder.current?.contains(e.target as Node)) setRec(false);
+    };
     window.addEventListener('keydown', down, true);
     window.addEventListener('keyup', up, true);
+    window.addEventListener('pointerdown', outside, true);
     return () => {
       window.removeEventListener('keydown', down, true);
       window.removeEventListener('keyup', up, true);
+      window.removeEventListener('pointerdown', outside, true);
     };
-  }, [rec, n, s.combos, a]);
+  }, [rec, setRec, n, s.combos, a]);
   if (rec) {
     return (
       <button
+        ref={recorder}
         type="button"
         autoFocus
         onBlur={() => setRec(false)}

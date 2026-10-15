@@ -1,8 +1,8 @@
-# USB Control Protocol (firmware 0.7.2)
+# USB Control Protocol (firmware 0.7.3)
 
 The board connects over USB to the main machine, and that machine's settings app (`app/`, or the UI in `ui/` via the local bridge or Web Serial) controls the board with this protocol.
 
-Changes from earlier versions are collected at the end under "0.7 → 0.7.1 changes", "0.6 → 0.7 changes", "0.5 → 0.6 changes", "0.4 → 0.5 changes" and "0.3 → 0.4 changes". Firmware 0.7.2 does not change the protocol.
+Changes from earlier versions are collected at the end under "0.7.2 → 0.7.3 changes", "0.7 → 0.7.1 changes", "0.6 → 0.7 changes", "0.5 → 0.6 changes", "0.4 → 0.5 changes" and "0.3 → 0.4 changes". Firmware 0.7.2 did not change the protocol.
 
 ## Basic rules
 
@@ -47,7 +47,7 @@ Changes from earlier versions are collected at the end under "0.7 → 0.7.1 chan
 | `host_itvl` | `min`, `max` (1.25 ms units) | Developer builds only. The interval asked of the active host from now on (and of the current one at once), until restart. The answer comes as `host_conn_params` |
 | `selftest` | `host` (1–3, 0 stops), `minutes` (default 30) | Developer builds only. Sends mouse reports to that host every 8.75 ms (16 counts right, then 16 left: the cursor stays within a few pixels) through the normal delivery path, so `stats` measures delivery without anyone moving the mouse. The host must not be the active one; it stops when that host becomes active, when its link drops, or when time is up. Events `selftest_started` (`host`, `minutes`), `selftest_stopped` (`host`, `reason`: `done`/`active`/`link`/`stopped`/`restarted`, `reports`) |
 | `combo_get` | none | The host switch combos actually in effect (`combo`). If nothing is stored or the stored value is malformed, the default applies and `default:true`; if an invalid value is stored, `stored_invalid:true` |
-| `combo_set` | `combo` | Comma-separated list of combos in host order (e.g. `ctrl+alt+1,ctrl+alt+2,ctrl+alt+3`, up to 95 characters). Validated, then applied and saved immediately. If invalid, `code:"bad_combo"` |
+| `combo_set` | `combo` | Comma-separated list of combos in host order (e.g. `alt+1,alt+2,alt+3`, up to 95 characters). Validated, then applied and saved immediately. If invalid, `code:"bad_combo"` |
 | `host_select` | `host` (1–3) | Select the active host directly. Same handling as a combo switch (release-all to the previous host). A host that is not `ready` cannot be selected: `code:"host_offline"` |
 | `host_pair` | `on` | Open or close the host pairing window. When opened, it accepts connections and pairing from new hosts for 180 seconds. It closes by itself once one host pairs. If 3 hosts are already paired, `code:"hosts_full"`. Opening it stops input device scanning and user connection attempts |
 | `host_list` | none | List of paired hosts (`hosts`). See "host_list entries" below |
@@ -226,9 +226,9 @@ Only while the window is open does the board present itself as a keyboard (IO ca
 ## Host switch combos
 
 - Format: one or more modifiers (`ctrl`/`control`, `shift`, `alt`/`option`/`opt`, `cmd`/`command`/`gui`/`win`/`meta`/`super`) + one non-modifier key. Non-modifier keys: `a`–`z`, `0`–`9`, `f1`–`f24`, `space`, `enter`/`return`, `esc`/`escape`, `tab`, `backspace`, `minus`, `equal`, `grave`/`backquote`, `home`, `end`, `pageup`, `pagedown`, `insert`, `delete`, arrow keys (`left` etc.), `scrolllock`, `pause`, `printscreen`, `capslock`, or a Usage value such as `0x3a`
-- An empty entry in the list leaves that host without a combo (e.g. `ctrl+alt+1,,ctrl+alt+3`)
+- An empty entry in the list leaves that host without a combo (e.g. `alt+1,,alt+3`)
 - A single key without a modifier is not accepted (it would steal normal input)
-- Default: `ctrl+alt+1,ctrl+alt+2,ctrl+alt+3`
+- Default: `alt+1,alt+2,alt+3` (Option on a Mac keyboard; one hand, the same keys on Mac and PC keyboards). Until 0.7.2 it was `ctrl+alt+1,ctrl+alt+2,ctrl+alt+3`
 - Behavior (same as a typical KVM)
   - The switch happens at the moment the combo's key is pressed, if the set of held modifiers exactly matches the combo and no other non-modifier key is held. Left and right modifiers are not distinguished
   - Keys held at that moment are not sent to any host until each one is released (the combo does not leak)
@@ -236,6 +236,11 @@ Only while the window is open does the board present itself as a keyboard (IO ca
   - The combo of a host that is not connected is swallowed the same way, without switching
   - When an input device disconnects, the keys it was holding are treated as released
   - The active host is kept across restarts (power, firmware update)
+
+## 0.7.2 → 0.7.3 changes
+
+- Default host switch combos are `alt+1,alt+2,alt+3` (were `ctrl+alt+1,ctrl+alt+2,ctrl+alt+3`). A board that has combos stored keeps them; `combo_get` still reports `default:true` only when nothing is stored.
+- A command line longer than one USB packet (64 bytes) is handled once its newline arrives. Before, the board could handle the first packet as a line of its own (for `combo_set` with three combos: `bad_combo` "combo is missing", then `bad_request` "cmd is missing" with `id` 0 for the rest).
 
 ## 0.7 → 0.7.1 changes
 

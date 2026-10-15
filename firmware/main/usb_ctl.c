@@ -165,7 +165,7 @@ static void cmd_combo_set(int id, const char *line)
 {
     char combo[CFG_COMBO_MAX + 1];
     if (!json_get_string(line, "combo", combo, sizeof(combo)) || combo[0] == '\0') {
-        reply_err_code(id, "bad_combo", "combo is missing (e.g. ctrl+alt+1,ctrl+alt+2,ctrl+alt+3)");
+        reply_err_code(id, "bad_combo", "combo is missing (e.g. alt+1,alt+2,alt+3)");
         return;
     }
     if (ble_pair_set_combos(combo) != ESP_OK) {

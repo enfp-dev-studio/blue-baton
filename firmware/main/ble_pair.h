@@ -73,7 +73,7 @@ int ble_pair_bond_count(void);
 #define BLE_PAIR_INPUT_MAX 2
 int ble_pair_input_count(void);
 
-/* Host switch combos "ctrl+alt+1,ctrl+alt+2,ctrl+alt+3" (in host order). Empty string means the default. ESP_ERR_INVALID_ARG if malformed */
+/* Host switch combos "alt+1,alt+2,alt+3" (in host order). Empty string means the default. ESP_ERR_INVALID_ARG if malformed */
 esp_err_t ble_pair_set_combos(const char *text);
 
 /* Select the active host directly (from 0). The previous host gets release-all */

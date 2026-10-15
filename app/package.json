@@ -1,7 +1,7 @@
 {
   "name": "blue-baton-app",
   "private": true,
-  "version": "0.7.2",
+  "version": "0.7.3",
   "description": "Blue Baton menu bar app (Tauri). The window shows the settings UI in ../ui",
   "scripts": {
     "tauri": "tauri",

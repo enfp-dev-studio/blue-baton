@@ -7,6 +7,7 @@
  * ?mock mock board, ?bridge local bridge (tools/bridge.py), anything else USB through Web Serial.
  */
 
+import { isDefaultCombos } from './combo.js';
 import { errorText, failStageText, onLangChange, t } from './i18n.js';
 import { InputMonitor } from './inputs.js';
 import { BoardClient } from './protocol.js';
@@ -159,7 +160,8 @@ export function createController(params = new URLSearchParams(location.search), 
 
   async function loadCombos() {
     const r = await client.request('combo_get');
-    store.set({ combos: (r.combo || '').split(',').map((x) => x.trim()), combosDefault: r.default });
+    const combos = (r.combo || '').split(',').map((x) => x.trim());
+    store.set({ combos, combosDefault: isDefaultCombos(combos, r.default) });
   }
 
   /* ---- Actions ---- */

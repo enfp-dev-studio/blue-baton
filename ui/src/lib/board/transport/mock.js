@@ -414,7 +414,7 @@ class MockBoard {
         this.monitorUntil = req.on ? performance.now() + MONITOR_LEASE_MS : 0;
         return this.reply(id, { lease_ms: req.on ? MONITOR_LEASE_MS : 0 });
       case 'combo_get':
-        return this.reply(id, { combo: this.combo || 'ctrl+alt+1,ctrl+alt+2,ctrl+alt+3', default: !this.combo, stored_invalid: false });
+        return this.reply(id, { combo: this.combo || 'alt+1,alt+2,alt+3', default: !this.combo, stored_invalid: false });
       case 'host_select': {
         if (!(req.host >= 1 && req.host <= 3)) return this.fail(id, 'bad_host', 'host must be 1 to 3');
         const from = this.activeHost;

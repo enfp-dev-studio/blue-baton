@@ -192,6 +192,8 @@ static void test_combo_parse(void)
     CHECK(combo_parse_list(",,ctrl+3", list) && !list[0].valid && !list[1].valid && list[2].valid, "blank entries");
     CHECK(!combo_parse_list("ctrl+1,ctrl+2,ctrl+3,ctrl+4", list), "too many hosts");
     CHECK(!combo_parse_list("ctrl+1,nope", list), "bad entry fails the list");
+    CHECK(combo_parse_list(ROUTER_DEFAULT_COMBOS, list) && list[0].mods == COMBO_ALT && list[0].key == 0x1E &&
+              list[1].key == 0x1F && list[2].key == 0x20, "default: Alt (Option) + 1, 2, 3");
 }
 
 /* ---------- router ---------- */

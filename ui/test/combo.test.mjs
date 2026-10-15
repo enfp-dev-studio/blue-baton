@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { comboFromEvent, keyName, sameCombo } from '../src/lib/board/combo.js';
+import { comboFromEvent, isDefaultCombos, keyName, sameCombo } from '../src/lib/board/combo.js';
 
 const press = (code, mods = {}) => ({ code, ctrlKey: false, altKey: false, shiftKey: false, metaKey: false, ...mods });
 
@@ -32,4 +32,13 @@ test('the same combo in another spelling', () => {
   assert.ok(sameCombo('option+cmd+escape', 'cmd+alt+esc'));
   assert.ok(!sameCombo('ctrl+alt+1', 'ctrl+alt+2'));
   assert.ok(!sameCombo('', ''));
+});
+
+test('combos set back to the defaults count as default (the reset link hides)', () => {
+  assert.equal(isDefaultCombos(['alt+1', 'alt+2', 'alt+3'], false), true);
+  assert.equal(isDefaultCombos(['option+1', 'opt+2', 'alt+3'], false), true);
+  assert.equal(isDefaultCombos(['alt+1', 'alt+2', 'alt+4'], false), false);
+  assert.equal(isDefaultCombos(['alt+1', 'alt+2'], false), false);
+  assert.equal(isDefaultCombos(['ctrl+alt+1', 'ctrl+alt+2', 'ctrl+alt+3'], false), false);
+  assert.equal(isDefaultCombos(['ctrl+alt+1', 'ctrl+alt+2', 'ctrl+alt+3'], true), true);
 });

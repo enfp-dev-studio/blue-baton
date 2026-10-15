@@ -12,7 +12,7 @@ BLE 마우스 ─┴─→ ESP32-S3 (NimBLE) ─┼─ BLE HID → 호스트 2
                   └─ USB: 메뉴 막대 앱 (설정, 빠른 전환)
 ```
 
-상태: 버전 0.7.2. 입력 기기는 2대까지(키보드와 마우스, 또는 아무 두 대), 호스트는 3대. 키보드와 마우스를 동시에 연결하고,
+상태: 버전 0.7.3. 입력 기기는 2대까지(키보드와 마우스, 또는 아무 두 대), 호스트는 3대. 키보드와 마우스를 동시에 연결하고,
 Mac 2대·Windows PC·iPhone을 호스트로 실기 확인했다. 입력은 활성 호스트로 가고, 키 조합과 설정 창 모두로 호스트를 바꾼다.
 앱은 macOS와 Windows에서 확인했다. 실기 확인 전: 호스트 패스키를 키보드로 입력하기(앱 화면 입력은 확인), 시스템 키(전원·잠자기·깨우기),
 Linux 호스트, Linux용 앱.
@@ -66,7 +66,7 @@ Linux 호스트, Linux용 앱.
    - Windows: 설정 → Bluetooth 및 장치 → 장치 추가 → Bluetooth → "Blue Baton".
 
    컴퓨터에 숫자 6자리가 나오면 앱에 입력한다 (보드에 연결된 키보드로 쳐도 된다).
-5. **전환**: `Ctrl+Alt+1`, `2`, `3` (Mac 키보드는 Control+Option), 또는 메뉴 막대 아이콘. 키 조합은 앱에서 바꿀 수 있다.
+5. **전환**: `Alt+1`, `2`, `3` (Mac 키보드는 Option), 또는 메뉴 막대 아이콘. 키 조합은 앱에서 바꿀 수 있다.
    호스트 줄의 메뉴에서 이름(8자까지, 번호 대신 보임)을 정하고, 다시 연결하지 않고 순서를 위아래로 바꿀 수 있다.
 
 ## 업데이트
@@ -87,13 +87,13 @@ Linux 호스트, Linux용 앱.
 릴리스마다 [esptool](https://docs.espressif.com/projects/esptool/)용 펌웨어 파일도 있다 (`pip install esptool`):
 
 ```bash
-esptool --chip esp32s3 write-flash 0x0 blue-baton-firmware-v0.7.2-esp32s3.bin
+esptool --chip esp32s3 write-flash 0x0 blue-baton-firmware-v0.7.3-esp32s3.bin
 ```
 
 는 전체 이미지를 쓰고(처음 설치. 페어링도 지운다),
 
 ```bash
-esptool --chip esp32s3 write-flash 0x20000 blue-baton-firmware-v0.7.2-esp32s3-app.bin
+esptool --chip esp32s3 write-flash 0x20000 blue-baton-firmware-v0.7.3-esp32s3-app.bin
 ```
 
 는 페어링을 그대로 두고 펌웨어만 업데이트한다.

@@ -15,7 +15,7 @@ const NAMED = {
 const MODIFIER_CODES = new Set(['ControlLeft', 'ControlRight', 'AltLeft', 'AltRight', 'ShiftLeft', 'ShiftRight',
   'MetaLeft', 'MetaRight', 'OSLeft', 'OSRight']);
 
-export const DEFAULT_COMBOS = ['ctrl+alt+1', 'ctrl+alt+2', 'ctrl+alt+3'];
+export const DEFAULT_COMBOS = ['alt+1', 'alt+2', 'alt+3'];
 
 /* The firmware name of a non-modifier key, or '' if combos cannot use it */
 export function keyName(code) {
@@ -59,4 +59,9 @@ export function sameCombo(a, b) {
     return parts.sort().join('+');
   };
   return !!a && !!b && norm(a) === norm(b);
+}
+
+/* The combos are the defaults: nothing is stored on the board (storedDefault), or what is stored equals the defaults */
+export function isDefaultCombos(combos, storedDefault) {
+  return !!storedDefault || (combos.length === DEFAULT_COMBOS.length && combos.every((c, i) => sameCombo(c, DEFAULT_COMBOS[i])));
 }
