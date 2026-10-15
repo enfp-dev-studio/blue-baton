@@ -83,6 +83,11 @@ settings window shows Firmware → Update. Updating keeps the paired devices and
 
 - Two input devices and three computers at most.
 - Bluetooth LE only, for the input devices and for the computers.
+- Bluetooth LE limits how often the cursor moves: the computer in use gets input once per connection interval. Windows
+  took 7.5 ms (about 133 times a second). macOS keeps the link at 15 ms (about 66 times a second) and refused every
+  shorter interval the board asked for. On a Mac with a 60 Hz display, apps got about 60 cursor updates a second from
+  the board, the same as from a 2.4 GHz receiver, because macOS passes on at most one per display frame. A gaming
+  mouse's 1,000 Hz receiver rate does not carry over: through the board it runs in its Bluetooth mode.
 - Links sometimes drop (connection timeout, several times a day on our setup) and reconnect by themselves. The cause
   is not known yet.
 - Until a USB ID is assigned from [pid.codes](https://pid.codes), the board reports a temporary vendor and product ID
