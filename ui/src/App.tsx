@@ -19,12 +19,12 @@ export function App({ ctl }: { ctl: Controller }) {
   const a = ctl.actions;
   const [confirm, setConfirm] = useState<ConfirmRequest | null>(null);
 
-  /* Board notices become toasts */
+  /* Board notices become toasts. The same message again (a failure that repeats) renews its toast instead of stacking another */
   useEffect(() => {
     const n = s.notice;
     if (!n) return;
-    if (n.kind === 'error') toast.error(n.text, { id: n.at });
-    else toast(n.text, { id: n.at });
+    if (n.kind === 'error') toast.error(n.text, { id: n.text });
+    else toast(n.text, { id: n.text });
   }, [s.notice?.at]);
 
   const ready = s.link === 'connected';

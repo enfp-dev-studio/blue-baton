@@ -1692,7 +1692,13 @@ static void disc_start(peer_t *p)
     p->rep_count = 0;
     p->kinds = 0;
     int rc = ble_gattc_exchange_mtu(p->conn, on_mtu, NULL);
-    if (rc != 0) {
+    if (rc == BLE_HS_EALREADY) {
+        /*
+         * The device exchanged the MTU first: NimBLE answered it and allows no second exchange on the connection.
+         * Real hardware: a keyboard (AK87 SLIM PRO) does this right after encryption, every connection
+         */
+        on_mtu(p->conn, NULL, ble_att_mtu(p->conn), NULL);
+    } else if (rc != 0) {
         disc_fail(p, "mtu", rc);
     }
 }

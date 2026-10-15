@@ -4,6 +4,13 @@ Notable changes in each release, newest first. The format follows [Keep a Change
 (sections Added, Changed, Fixed, Removed; only the ones a release has), and versions follow
 [Semantic Versioning](https://semver.org/). The release workflow copies a version's section into its GitHub release.
 
+## [0.7.4] - 2026-10-15
+
+### Fixed
+
+- Input devices that start the MTU exchange themselves (seen: AK87 SLIM PRO keyboard) were disconnected right after encryption and kept reconnecting
+- A failure that repeats no longer stacks the same notice; notices have a close button and work while a dialog is open
+
 ## [0.7.3] - 2026-10-15
 
 ### Changed

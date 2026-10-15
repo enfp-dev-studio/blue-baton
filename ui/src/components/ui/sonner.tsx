@@ -16,7 +16,9 @@ const Toaster = ({ ...props }: ToasterProps) => {
   return (
     <Sonner
       theme={dark ? "dark" : "light"}
-      className="toaster group"
+      /* pointer-events-auto: an open dialog turns pointer events off on the page, and the toasts stay usable */
+      className="toaster group pointer-events-auto"
+      closeButton
       icons={{
         success: <CircleCheckIcon className="size-4" />,
         info: <InfoIcon className="size-4" />,
