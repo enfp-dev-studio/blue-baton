@@ -39,7 +39,8 @@ jobs:
           if [ -z "$id" ]; then
             id=$(gh api repos/$GH_REPO/releases -X POST -f tag_name="$TAG" -f name="Blue Baton $TAG" -F draft=true --jq .id)
           fi
-          gh api repos/$GH_REPO/releases/$id -X PATCH -F body=@notes.md > /dev/null
+          # tag_name goes along: a draft updated without it loses its tag ("untagged-...")
+          gh api repos/$GH_REPO/releases/$id -X PATCH -f tag_name="$TAG" -F body=@notes.md > /dev/null
           echo "id=$id" >> "$GITHUB_OUTPUT"
 
   # Release firmware (diagnostics off) with the ESP-IDF version it is developed with
