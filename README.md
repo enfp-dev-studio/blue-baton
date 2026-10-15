@@ -43,10 +43,6 @@ tested), system keys (power, sleep, wake), Linux as a host, and the Linux build 
 | ESP32-S2 boards | ESP32-S2 | No | Yes, but the chip has no Bluetooth radio | No |
 | nRF52840, Raspberry Pi Pico W, Raspberry Pi | — | No | No | No |
 
-Buy (Amazon, affiliate links): [ESP32-S3 SuperMini](https://www.amazon.com/dp/B0H5KP3BPG?tag=enfpdev05-20) (pack of 3) ·
-[M5Stack AtomS3 Lite](https://www.amazon.com/dp/B0D6S1LD1G?tag=enfpdev05-20). As an Amazon Associate I earn from
-qualifying purchases.
-
 - ESP32-C3, C5, C6 and H2 use the same ESP-IDF, NimBLE and USB port as the S3, but have one core (clock: C3 and C6
   160 MHz, H2 96 MHz, C5 240 MHz like the S3). Latency and link stability have not been measured on them. Build and
   install (from `firmware/`): `idf.py -B build-esp32c3 -DIDF_TARGET=esp32c3 build`, then
