@@ -49,6 +49,7 @@ The app updates itself from GitHub Releases (`tauri-plugin-updater`): it checks 
 once a day, and the menu has Check for Updates…. Update files are signed with the project's Tauri update key; the
 public key is in `src-tauri/tauri.conf.json`, the private key stays outside the repository.
 
+- Add the version's section to `CHANGELOG.md` (the release notes come from it; the workflow stops without one).
 - Push a tag such as `v0.7.0`: `.github/workflows/release.yml` builds macOS (Apple silicon, signed and notarized),
   Windows and Linux, and creates a draft release with `latest.json`. Repository secrets it needs:
   `TAURI_SIGNING_PRIVATE_KEY` (and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` if the key has one), and for macOS

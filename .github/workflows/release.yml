@@ -1,7 +1,7 @@
 # Release: push a tag like v0.7.1 (the same version as the app and firmware/main/version.h). Builds macOS (Apple
 # silicon, signed and notarized), Windows and Linux, signs the update files with the Tauri update key, builds the
 # firmware (also carried inside the app, which offers it to the board), and creates a draft GitHub Release with
-# latest.json for the in-app updater.
+# latest.json for the in-app updater. The release notes are the version's section of CHANGELOG.md.
 # Repository secrets it needs are listed in app/README.md ("Releases and updates"). The signing identity comes from
 # the certificate itself.
 name: Release
@@ -29,10 +29,17 @@ jobs:
           v=${TAG#v}
           grep -q "\"version\": \"$v\"" app/src-tauri/tauri.conf.json || { echo "app/src-tauri/tauri.conf.json is not $v"; exit 1; }
           grep -q "KM_FW_VERSION \"$v\"" firmware/main/version.h || { echo "firmware/main/version.h is not $v"; exit 1; }
+          # Release notes: this version's section of CHANGELOG.md, then the changes since the last published release
+          awk -v h="## [$v]" 'index($0, h) == 1 {on = 1; next} on && /^## \[/ {exit} on && !s && /^$/ {next} on {s = 1; print}' CHANGELOG.md > notes.md
+          grep -q . notes.md || { echo "CHANGELOG.md has no section for $v"; exit 1; }
+          prev=$(gh release list --exclude-drafts --limit 1 --json tagName --jq '.[0].tagName // empty')
+          if [ -n "$prev" ] && [ "$prev" != "$TAG" ]; then link="compare/$prev...$TAG"; else link="commits/$TAG"; fi
+          printf '\n**Full Changelog**: https://github.com/%s/%s\n' "$GH_REPO" "$link" >> notes.md
           id=$(gh api repos/$GH_REPO/releases --jq ".[] | select(.tag_name == \"$TAG\") | .id" | head -1)
           if [ -z "$id" ]; then
             id=$(gh api repos/$GH_REPO/releases -X POST -f tag_name="$TAG" -f name="Blue Baton $TAG" -F draft=true --jq .id)
           fi
+          gh api repos/$GH_REPO/releases/$id -X PATCH -F body=@notes.md > /dev/null
           echo "id=$id" >> "$GITHUB_OUTPUT"
 
   # Release firmware (diagnostics off) with the ESP-IDF version it is developed with
