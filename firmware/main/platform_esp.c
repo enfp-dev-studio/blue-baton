@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* platform.h on ESP32-S3 (ESP-IDF): time, heap, NimBLE bring-up, a microsecond timer, and the USB serial channel */
 
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -157,22 +158,38 @@ void plat_ctl_write(const char *prefix, const char *text)
 
 static void (*s_on_line)(const char *line);
 
+/*
+ * Lines from the app. stdin does not block, so fgets also returns what has arrived so far: a line longer than one
+ * USB packet (64 bytes) can come back in two parts. The parts are joined and a line is handled only at its newline;
+ * a line longer than the buffer is dropped up to its newline.
+ */
 static void ctl_task(void *arg)
 {
     char line[CTL_LINE_MAX];
+    size_t n = 0;
+    bool too_long = false;
     while (1) {
-        if (fgets(line, sizeof(line), stdin) == NULL) {
+        if (fgets(line + n, sizeof(line) - n, stdin) == NULL) {
             clearerr(stdin);
             vTaskDelay(pdMS_TO_TICKS(20));
             continue;
         }
-        size_t n = strlen(line);
+        n += strlen(line + n);
+        if (n == 0 || line[n - 1] != '\n') {
+            if (n == sizeof(line) - 1) {
+                too_long = true;
+                n = 0;
+            }
+            continue;
+        }
         while (n > 0 && (line[n - 1] == '\n' || line[n - 1] == '\r')) {
             line[--n] = '\0';
         }
-        if (n > 0) {
+        if (n > 0 && !too_long) {
             s_on_line(line);
         }
+        n = 0;
+        too_long = false;
     }
 }
 
