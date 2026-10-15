@@ -55,7 +55,7 @@ Linux 호스트, Linux용 앱.
    - macOS (Apple 실리콘): `.dmg`, 서명·공증됨.
    - Windows: `_x64-setup.exe` (관리자 권한 없이 사용자 계정에 설치). 코드 서명이 없어서 SmartScreen 경고가 나올 수
      있다: 추가 정보 → 실행.
-   - Linux: `.deb`, `.rpm`, `.AppImage`. 보드의 시리얼 포트를 쓰려면 사용자가 `dialout` 그룹에 있어야 한다
+   - Linux (experimental): `.deb`, `.rpm`, `.AppImage`. 보드의 시리얼 포트를 쓰려면 사용자가 `dialout` 그룹에 있어야 한다
      (`sudo usermod -aG dialout $USER` 후 로그아웃했다가 다시 로그인).
 2. **보드 연결**: 보드를 꽂고 앱을 연다. 블루 바톤이 없는 보드면 "이 보드에는 아직 블루 바톤이 없어요"가 나온다:
    **블루 바톤 설치**를 누른다. 펌웨어는 앱에 들어 있어서 따로 설치할 것이 없다. 보드를 찾지 못하면 BOOT 버튼을 누른 채로
