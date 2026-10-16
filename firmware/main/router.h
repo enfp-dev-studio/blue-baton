@@ -72,6 +72,7 @@ typedef struct {
     /* Progress of passkey entry mode */
     uint8_t pk_event;   /* ROUTER_PK_* */
     uint8_t pk_len;     /* Digits typed so far */
+    uint8_t pk_digits[6];   /* Those digits (0-9): the code the host shows on its screen, typed back */
     uint32_t pk_code;   /* 6-digit value when ROUTER_PK_DONE */
 } router_out_t;
 

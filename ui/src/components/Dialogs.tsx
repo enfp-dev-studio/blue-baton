@@ -117,14 +117,14 @@ export function HostPairingDialog({ s, a }: { s: BoardState; a: Actions }) {
           >
             <p className="text-sm font-medium">{t('hosts.codeLabel')}</p>
             {p.len > 0 ? (
-              /* Typed on the board's keyboard: the board keeps the digits, the app only learns how many */
+              /* Typed on the board's keyboard: the digits as typed (only how many from older firmware) */
               <div className="grid w-full max-w-72 grid-cols-6 gap-1.5" aria-label={t('hosts.passkeyDigits', { n: p.len })}>
                 {[0, 1, 2, 3, 4, 5].map((i) => (
                   <span
                     key={i}
                     className={cn('grid h-11 place-items-center rounded-md border', i < p.len ? 'border-primary bg-primary/10' : 'bg-muted')}
                   >
-                    {i < p.len && <span className="size-2 rounded-full bg-primary" />}
+                    {i < p.len && (p.digits ? <span className="text-lg tabular-nums">{p.digits[i]}</span> : <span className="size-2 rounded-full bg-primary" />)}
                   </span>
                 ))}
               </div>

@@ -1486,8 +1486,14 @@ void host_passkey_event(const router_out_t *out)
         router_passkey_end();
         ble_gap_terminate(l->conn, HCI_USER_TERM);
     } else if (out->pk_event == ROUTER_PK_PROGRESS) {
-        char extra[32];
-        snprintf(extra, sizeof(extra), ",\"len\":%u", out->pk_len);
+        /* The digits go to the app too: the user checks them against the code on the host's screen */
+        char digits[7];
+        for (int i = 0; i < out->pk_len && i < 6; i++) {
+            digits[i] = (char)('0' + out->pk_digits[i]);
+        }
+        digits[out->pk_len < 6 ? out->pk_len : 6] = '\0';
+        char extra[48];
+        snprintf(extra, sizeof(extra), ",\"len\":%u,\"digits\":\"%s\"", out->pk_len, digits);
         emit_link("host_passkey_progress", l, extra);
     }
 }

@@ -4,7 +4,11 @@ Notable changes in each release, newest first. The format follows [Keep a Change
 (sections Added, Changed, Fixed, Removed; only the ones a release has), and versions follow
 [Semantic Versioning](https://semver.org/). The release workflow copies a version's section into its GitHub release.
 
-## [Unreleased]
+## [0.7.6] - 2026-10-16
+
+### Changed
+
+- The code typed on the board's keyboard to pair a computer shows as digits in the app, to check against the computer's screen (it showed only dots)
 
 ### Fixed
 

@@ -1,8 +1,8 @@
-# USB Control Protocol (firmware 0.7.5)
+# USB Control Protocol (firmware 0.7.6)
 
 The board connects over USB to the main machine, and that machine's settings app (`app/`, or the UI in `ui/` via the local bridge or Web Serial) controls the board with this protocol.
 
-Changes from earlier versions are collected at the end under "0.7.4 → 0.7.5 changes", "0.7.2 → 0.7.3 changes", "0.7 → 0.7.1 changes", "0.6 → 0.7 changes", "0.5 → 0.6 changes", "0.4 → 0.5 changes" and "0.3 → 0.4 changes". Firmware 0.7.2 and 0.7.4 did not change the protocol.
+Changes from earlier versions are collected at the end under "0.7.5 → 0.7.6 changes", "0.7.4 → 0.7.5 changes", "0.7.2 → 0.7.3 changes", "0.7 → 0.7.1 changes", "0.6 → 0.7 changes", "0.5 → 0.6 changes", "0.4 → 0.5 changes" and "0.3 → 0.4 changes". Firmware 0.7.2 and 0.7.4 did not change the protocol.
 
 ## Basic rules
 
@@ -173,7 +173,7 @@ hosts: [{"host":1,"addr":"00:00:5E:00:53:30","name":"Example’s MacBook Pro","n
 | `host_window` | `open`, `seconds` | The host pairing window opened/closed |
 | `host_connected` | `host`, `addr`, `bonded`, `itvl` | A host connected. For a bonded host `host` is its number; for a computer attaching for the first time through the window, `host:0` |
 | `host_passkey_request` | `host`, `addr` | The 6 digits on the host's screen must be entered. Type them on a keyboard attached to the router and press Enter (meanwhile keystrokes go to no host), or use `host_passkey`. Esc cancels |
-| `host_passkey_progress` | `host`, `addr`, `len` | Number of digits typed on the keyboard (the digits themselves are not included) |
+| `host_passkey_progress` | `host`, `addr`, `len`, `digits` | The digits typed on the keyboard so far (`len` of them), to check against the code on the host's screen |
 | `host_passkey_sent` | `host`, `addr`, `ok` | The passkey was handed to the security procedure (SMP) |
 | `host_paired` | `host`, `addr` | Saved the new host under that number, or a known host paired again (same number). The window closes |
 | `host_pair_failed` | `host`, `addr`, `status`, `authenticated` | Host pairing (or key restore) failed. A new bond that is not authenticated is deleted and the connection dropped |
@@ -236,6 +236,10 @@ Only while the window is open does the board present itself as a keyboard (IO ca
   - The combo of a host that is not connected is swallowed the same way, without switching
   - When an input device disconnects, the keys it was holding are treated as released
   - The active host is kept across restarts (power, firmware update)
+
+## 0.7.5 → 0.7.6 changes
+
+- `host_passkey_progress` has `digits`: the digits typed on the board's keyboard so far. Before, only their count (`len`).
 
 ## 0.7.4 → 0.7.5 changes
 

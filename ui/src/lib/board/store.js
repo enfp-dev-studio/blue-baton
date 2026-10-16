@@ -300,7 +300,10 @@ export class Store {
         s.hostPrompt = { addr: ev.addr, len: 0 };
         break;
       case 'host_passkey_progress':
-        if (s.hostPrompt) s.hostPrompt.len = ev.len;
+        if (s.hostPrompt) {
+          s.hostPrompt.len = ev.len;
+          s.hostPrompt.digits = ev.digits;   /* older firmware sends only len */
+        }
         break;
       case 'host_passkey_sent':
         s.hostPrompt = null;

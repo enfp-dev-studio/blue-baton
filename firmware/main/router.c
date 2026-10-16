@@ -376,6 +376,7 @@ static void passkey_feed(const uint8_t before[32], const uint8_t keys[32], route
         }
     }
     out->pk_len = s_pk_len;
+    memcpy(out->pk_digits, s_pk_digits, s_pk_len);
 }
 
 void router_input(uint8_t slot, uint8_t report_key, const hid_input_t *in, router_out_t *out, int *switched_from)

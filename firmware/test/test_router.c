@@ -373,6 +373,7 @@ static void test_router(void)
         leaked |= !out_empty(&o);
     }
     CHECK(!leaked && o.pk_len == 6, "passkey digits collected without leaking (len=%u)", o.pk_len);
+    CHECK(memcmp(o.pk_digits, (const uint8_t[]){1, 2, 3, 4, 5, 6}, 6) == 0, "passkey digits reported in order");
     k[0] = 0x28; /* Enter */
     press(0, 0, k, 1, &o, &from);
     CHECK(o.pk_event == ROUTER_PK_DONE && o.pk_code == 123456, "passkey done code=%u", (unsigned)o.pk_code);
