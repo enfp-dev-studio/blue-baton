@@ -754,9 +754,41 @@ static void radio_start_scan(void)
     emit("{\"event\":\"scan_started\"}");
 }
 
+/*
+ * Starting an input connection. Chips whose controller has the multi-connection optimization (ESP32-C6, set in
+ * sdkconfig.defaults.esp32c6) connect through it: each input link gets INPUT_SCHED_US of every input interval on the
+ * controller's schedule (Espressif example ble_multi_conn_cent). Real hardware: a Xiaoxin Mplus 5.0 mouse never
+ * connected to an ESP32-C6 through ble_gap_connect (HCI 0x3E on every attempt, 0.06-0.47 s after it started, with
+ * or without other links, at 8.75 or 30 ms, with Bluetooth 5 features off) and connected at the first attempt
+ * through ble_gap_multi_connect. The same mouse connects to an ESP32-S3 board and to computers.
+ */
+#if CONFIG_BT_NIMBLE_OPTIMIZE_MULTI_CONN
+#define INPUT_SCHED_US 2500
+
+static int input_connect(const ble_addr_t *peer, int32_t ms, const struct ble_gap_conn_params *cp)
+{
+    struct ble_gap_multi_conn_params mp = {
+        .own_addr_type = s_own_addr_type,
+#if MYNEWT_VAL(BLE_EXT_ADV)
+        .phy_mask = BLE_GAP_LE_PHY_1M_MASK,
+#endif
+        .peer_addr = peer,
+        .duration_ms = ms,
+        .phy_1m_conn_params = cp,
+        .scheduling_len_us = INPUT_SCHED_US,
+    };
+    return ble_gap_multi_connect(&mp, gap_event, NULL);
+}
+#else
+static int input_connect(const ble_addr_t *peer, int32_t ms, const struct ble_gap_conn_params *cp)
+{
+    return ble_gap_connect(s_own_addr_type, peer, ms, cp, gap_event, NULL);
+}
+#endif
+
 static void radio_start_connect(void)
 {
-    int rc = ble_gap_connect(s_own_addr_type, &s_user_target, CONNECT_MS, &s_conn_user, gap_event, NULL);
+    int rc = input_connect(&s_user_target, CONNECT_MS, &s_conn_user);
     if (rc != 0) {
         s_user_pending = false;
         char buf[128];
@@ -803,8 +835,7 @@ static void radio_start_auto(void)
     bool fast = fast_left_us > 0;
     int rc = ble_gap_wl_set(list, n);
     if (rc == 0) {
-        rc = ble_gap_connect(s_own_addr_type, NULL, BLE_HS_FOREVER, fast ? &s_conn_auto_fast : &s_conn_auto_slow,
-                             gap_event, NULL);
+        rc = input_connect(NULL, BLE_HS_FOREVER, fast ? &s_conn_auto_fast : &s_conn_auto_slow);
     }
     if (rc != 0) {
         ESP_LOGE(TAG, "autoconnect start failed rc=%d", rc);
@@ -2037,6 +2068,13 @@ static void on_sync(void)
     }
     install_store_hook();
     bonds_reconcile();
+#if CONFIG_BT_NIMBLE_OPTIMIZE_MULTI_CONN
+    /* The input interval (8.75 ms) in 0.625 ms units: the schedule's period for input links (see input_connect) */
+    int frc = ble_gap_common_factor_set(true, s_conn_user.itvl_min * 2);
+    if (frc != 0) {
+        ESP_LOGE(TAG, "common factor rc=%d", frc);
+    }
+#endif
     s_synced = true;
     s_radio = RADIO_IDLE;
     char buf[96];

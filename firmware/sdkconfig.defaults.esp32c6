@@ -1,0 +1,4 @@
+# ESP32-C6 only, added by ESP-IDF after sdkconfig.defaults: input connections go through the controller's
+# multi-connection optimization (ble_pair.c, input_connect). Without it a Xiaoxin Mplus 5.0 mouse never connected
+# (HCI 0x3E on every attempt); with it the mouse connected at once (2026-10-16, M5Stack NanoC6)
+CONFIG_BT_NIMBLE_OPTIMIZE_MULTI_CONN=y

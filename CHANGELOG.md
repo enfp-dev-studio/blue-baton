@@ -4,6 +4,12 @@ Notable changes in each release, newest first. The format follows [Keep a Change
 (sections Added, Changed, Fixed, Removed; only the ones a release has), and versions follow
 [Semantic Versioning](https://semver.org/). The release workflow copies a version's section into its GitHub release.
 
+## [Unreleased]
+
+### Fixed
+
+- ESP32-C6 builds: some input devices never connected (seen: a Xiaoxin Mplus 5.0 mouse, HCI 0x3E on every attempt); input connections now go through the controller's multi-connection scheduling
+
 ## [0.7.5] - 2026-10-16
 
 ### Changed

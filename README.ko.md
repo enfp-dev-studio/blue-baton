@@ -32,7 +32,7 @@ Linux 호스트, Linux용 앱.
 |---|---|---|---|---|
 | ESP32-S3 SuperMini (플래시 4MB) | ESP32-S3 | 지원 | 됨 | 확인 (이 보드로 개발·측정) |
 | M5Stack AtomS3 Lite (케이스 포함) | ESP32-S3 | 지원, 같은 펌웨어 | 됨 | 아직 |
-| M5Stack NanoC6 (케이스 포함) | ESP32-C6 | 미지원: 직접 빌드 | 됨 | 일부: 앱·키보드는 동작, 마우스 하나는 연결 안 됨 ([#2](https://github.com/enfp-dev-studio/blue-baton/issues/2)) |
+| M5Stack NanoC6 (케이스 포함) | ESP32-C6 | 미지원: 직접 빌드 | 됨 | 일부: 앱·키보드·마우스 동작, 컴퓨터 연결은 아직 시험 안 함 |
 | 다른 ESP32-S3 보드 (플래시 4MB 이상, 칩 자체 USB 포트) | ESP32-S3 | 지원, 같은 펌웨어 | 됨 | 안 해 봄 |
 | ESP32-C3 보드 | ESP32-C3 | 미지원: 직접 빌드 | 됨 | 안 해 봄 |
 | ESP32-C5 보드 | ESP32-C5 | 미지원: 직접 빌드 | 됨 | 안 해 봄 |
