@@ -4,14 +4,16 @@ Notable changes in each release, newest first. The format follows [Keep a Change
 (sections Added, Changed, Fixed, Removed; only the ones a release has), and versions follow
 [Semantic Versioning](https://semver.org/). The release workflow copies a version's section into its GitHub release.
 
-## [Unreleased]
+## [0.7.5] - 2026-10-16
 
 ### Changed
 
 - The board tells the app which chip its firmware is built for; the app offers its firmware (ESP32-S3) only to ESP32-S3 boards, and installing it on another chip ends with a message that says so
+- "Add device" lists only what is advertising during the current search, not devices found by earlier searches
 
 ### Fixed
 
+- Adding a device stayed at "Connecting" when the link failed to be established; it now ends with "Couldn't connect"
 - Firmware built for a single-core chip (ESP32-C3, C5, C6, H2) restarted over and over right after starting
 
 ## [0.7.4] - 2026-10-15

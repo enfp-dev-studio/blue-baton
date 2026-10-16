@@ -158,6 +158,7 @@ export class Store {
         s.bondsMax = ev.max;
         break;
       case 'scan_started':
+        s.found.clear();   /* A scan lists what is advertising now (the board starts its list over too) */
         s.scanning = true;
         s.scanPending = false;
         s.radio = 'scan';

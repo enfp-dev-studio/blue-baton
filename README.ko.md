@@ -12,7 +12,7 @@ BLE 마우스 ─┴─→ ESP32-S3 (NimBLE) ─┼─ BLE HID → 호스트 2
                   └─ USB: 메뉴 막대 앱 (설정, 빠른 전환)
 ```
 
-상태: 버전 0.7.4. 입력 기기는 2대까지(키보드와 마우스, 또는 아무 두 대), 호스트는 3대. 키보드와 마우스를 동시에 연결하고,
+상태: 버전 0.7.5. 입력 기기는 2대까지(키보드와 마우스, 또는 아무 두 대), 호스트는 3대. 키보드와 마우스를 동시에 연결하고,
 Mac 2대·Windows PC·iPhone을 호스트로 실기 확인했다. 입력은 활성 호스트로 가고, 키 조합과 설정 창 모두로 호스트를 바꾼다.
 앱은 macOS와 Windows에서 확인했다. 실기 확인 전: 호스트 패스키를 키보드로 입력하기(앱 화면 입력은 확인), 시스템 키(전원·잠자기·깨우기),
 Linux 호스트, Linux용 앱.
@@ -32,7 +32,7 @@ Linux 호스트, Linux용 앱.
 |---|---|---|---|---|
 | ESP32-S3 SuperMini (플래시 4MB) | ESP32-S3 | 지원 | 됨 | 확인 (이 보드로 개발·측정) |
 | M5Stack AtomS3 Lite (케이스 포함) | ESP32-S3 | 지원, 같은 펌웨어 | 됨 | 아직 |
-| M5Stack NanoC6 (케이스 포함) | ESP32-C6 | 미지원: 직접 빌드 | 됨 | 실행되고 앱과 동작함. 페어링은 아직 시험 안 함 |
+| M5Stack NanoC6 (케이스 포함) | ESP32-C6 | 미지원: 직접 빌드 | 됨 | 일부: 앱·키보드는 동작, 마우스 하나는 연결 안 됨 ([#2](https://github.com/enfp-dev-studio/blue-baton/issues/2)) |
 | 다른 ESP32-S3 보드 (플래시 4MB 이상, 칩 자체 USB 포트) | ESP32-S3 | 지원, 같은 펌웨어 | 됨 | 안 해 봄 |
 | ESP32-C3 보드 | ESP32-C3 | 미지원: 직접 빌드 | 됨 | 안 해 봄 |
 | ESP32-C5 보드 | ESP32-C5 | 미지원: 직접 빌드 | 됨 | 안 해 봄 |
@@ -92,13 +92,13 @@ Linux 호스트, Linux용 앱.
 릴리스마다 [esptool](https://docs.espressif.com/projects/esptool/)용 펌웨어 파일도 있다 (`pip install esptool`):
 
 ```bash
-esptool --chip esp32s3 write-flash 0x0 blue-baton-firmware-v0.7.4-esp32s3.bin
+esptool --chip esp32s3 write-flash 0x0 blue-baton-firmware-v0.7.5-esp32s3.bin
 ```
 
 는 전체 이미지를 쓰고(처음 설치. 페어링도 지운다),
 
 ```bash
-esptool --chip esp32s3 write-flash 0x20000 blue-baton-firmware-v0.7.4-esp32s3-app.bin
+esptool --chip esp32s3 write-flash 0x20000 blue-baton-firmware-v0.7.5-esp32s3-app.bin
 ```
 
 는 페어링을 그대로 두고 펌웨어만 업데이트한다.

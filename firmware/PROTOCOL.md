@@ -1,8 +1,8 @@
-# USB Control Protocol (firmware 0.7.4)
+# USB Control Protocol (firmware 0.7.5)
 
 The board connects over USB to the main machine, and that machine's settings app (`app/`, or the UI in `ui/` via the local bridge or Web Serial) controls the board with this protocol.
 
-Changes from earlier versions are collected at the end under "Changes after 0.7.4", "0.7.2 → 0.7.3 changes", "0.7 → 0.7.1 changes", "0.6 → 0.7 changes", "0.5 → 0.6 changes", "0.4 → 0.5 changes" and "0.3 → 0.4 changes". Firmware 0.7.2 and 0.7.4 did not change the protocol.
+Changes from earlier versions are collected at the end under "0.7.4 → 0.7.5 changes", "0.7.2 → 0.7.3 changes", "0.7 → 0.7.1 changes", "0.6 → 0.7 changes", "0.5 → 0.6 changes", "0.4 → 0.5 changes" and "0.3 → 0.4 changes". Firmware 0.7.2 and 0.7.4 did not change the protocol.
 
 ## Basic rules
 
@@ -237,9 +237,11 @@ Only while the window is open does the board present itself as a keyboard (IO ca
   - When an input device disconnects, the keys it was holding are treated as released
   - The active host is kept across restarts (power, firmware update)
 
-## Changes after 0.7.4 (not released yet)
+## 0.7.4 → 0.7.5 changes
 
 - `hello` has `chip`: the chip the firmware was built for (`esp32s3`, `esp32c6`, ...). Firmware before this has no `chip`; every release before it was built for the ESP32-S3.
+- `pair_connect` ends with `connect_failed` (`status` 574, HCI 0x3E) when the link fails to be established. Before, the board reported only `disconnected` with an empty `addr` and stayed in `connect` until the next scan.
+- Each scan reports the devices advertising during it: a device found by an earlier scan comes again as `device_found` (before, only once until restart).
 
 ## 0.7.2 → 0.7.3 changes
 

@@ -12,7 +12,7 @@ BLE mouse ────┴─→ ESP32-S3 (NimBLE) ─┼─ BLE HID → host 2
                     └─ USB: menu bar app (settings, quick switch)
 ```
 
-Status: version 0.7.4. Up to two input devices (a keyboard and a mouse, or any two) and three hosts. Tested on real
+Status: version 0.7.5. Up to two input devices (a keyboard and a mouse, or any two) and three hosts. Tested on real
 hardware with a keyboard and a mouse connected at the same time, and with two Macs, a Windows PC and an iPhone as
 hosts: input goes to the active host, and both the key combo and the settings window switch hosts. The app was tested
 on macOS and Windows. Not yet tested on hardware: typing a host's passkey on the keyboard (entering it in the app was
@@ -33,7 +33,7 @@ tested), system keys (power, sleep, wake), Linux as a host, and the Linux build 
 |---|---|---|---|---|
 | ESP32-S3 SuperMini (4 MB flash) | ESP32-S3 | Yes | Yes | Yes (developed and measured on it) |
 | M5Stack AtomS3 Lite (in a case) | ESP32-S3 | Yes, the same firmware | Yes | Not yet |
-| M5Stack NanoC6 (in a case) | ESP32-C6 | No: build it yourself | Yes | Starts and works with the app; pairing not tested yet |
+| M5Stack NanoC6 (in a case) | ESP32-C6 | No: build it yourself | Yes | Partly: works with the app and a keyboard; one mouse never connects ([#2](https://github.com/enfp-dev-studio/blue-baton/issues/2)) |
 | Other ESP32-S3 boards (4 MB or more flash, the chip's own USB port) | ESP32-S3 | Yes, the same firmware | Yes | No |
 | ESP32-C3 boards | ESP32-C3 | No: build it yourself | Yes | No |
 | ESP32-C5 boards | ESP32-C5 | No: build it yourself | Yes | No |
@@ -99,13 +99,13 @@ Each release also has the firmware as files, for [esptool](https://docs.espressi
 (`pip install esptool`):
 
 ```bash
-esptool --chip esp32s3 write-flash 0x0 blue-baton-firmware-v0.7.4-esp32s3.bin
+esptool --chip esp32s3 write-flash 0x0 blue-baton-firmware-v0.7.5-esp32s3.bin
 ```
 
 writes the whole image (a first install; it also clears pairings), and
 
 ```bash
-esptool --chip esp32s3 write-flash 0x20000 blue-baton-firmware-v0.7.4-esp32s3-app.bin
+esptool --chip esp32s3 write-flash 0x20000 blue-baton-firmware-v0.7.5-esp32s3-app.bin
 ```
 
 updates the firmware and keeps pairings.

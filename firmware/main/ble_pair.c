@@ -750,6 +750,7 @@ static void radio_start_scan(void)
         return;
     }
     s_radio = RADIO_SCAN;
+    memset(s_found, 0, sizeof(s_found));   /* Each scan reports what is advertising now */
     emit("{\"event\":\"scan_started\"}");
 }
 
@@ -1803,6 +1804,19 @@ static void on_disconnect(struct ble_gap_event *event)
     snprintf(buf, sizeof(buf), "{\"event\":\"disconnected\",\"addr\":\"%s\",\"id_addr\":\"%s\",\"reason\":%d}",
              p ? p->addr_str : "", p ? p->id_str : "", event->disconnect.reason);
     emit(buf);
+    /*
+     * A link that drops before CONNECT: NimBLE reports CONNECT to a Central only after reading the device's features
+     * and version, so a link that fails to be established (HCI 0x3E) ends with this event alone. That ends the
+     * connection attempt. Real hardware: a mouse on an ESP32-C6 board, 0.06-0.47 s after each attempt started; the
+     * board then stayed in "connecting" until the next scan.
+     */
+    if (!p && s_radio == RADIO_CONNECT && !ble_gap_conn_active()) {
+        s_radio = RADIO_IDLE;
+        s_user_pending = false;
+        snprintf(buf, sizeof(buf), "{\"event\":\"connect_failed\",\"addr\":\"%s\",\"status\":%d}", s_user_target_str,
+                 event->disconnect.reason);
+        emit(buf);
+    }
     if (p) {
         if (s_sec_owner == p) {
             s_sec_owner = NULL;
