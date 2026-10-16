@@ -244,6 +244,7 @@
   "fw.updateConfirmTitle": "Update the firmware to version {version}?",
   "fw.updateConfirmBody": "The board restarts. Pairings are kept.",
   "fw.newer": "Newer than this app's firmware ({version})",
+  "fw.otherChip": "Built for {chip}. The app's firmware is for ESP32-S3 boards, so updates are not offered here",
   "fw.otherTitle": "This board doesn't run Blue Baton yet",
   "fw.otherHint": "Installs Blue Baton {version}. The board is erased.",
   "fw.install": "Install Blue Baton",
@@ -255,5 +256,6 @@
   "fw.keepPlugged": "Keep the board plugged in.",
   "fw.failed": "The firmware could not be written: {error}",
   "fw.failedHint": "Replug the board and try again. If it still fails, hold BOOT while plugging it in.",
+  "fw.chipMismatch": "This board's chip is {chip}. The app installs Blue Baton on ESP32-S3 boards only; for other chips, build it yourself (README, Boards).",
   "fw.done": "Firmware updated"
 }

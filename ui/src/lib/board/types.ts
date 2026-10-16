@@ -54,6 +54,7 @@ export interface BoardState {
   link: 'disconnected' | 'connecting' | 'connected';
   transport: string;
   fw: string | null;
+  fwChip: string | null;
   fwBundled: string | null;
   appBoard: string;
   fwJob: { stage: 'connecting' | 'writing' | 'done' | 'failed'; percent: number; error?: string | null } | null;

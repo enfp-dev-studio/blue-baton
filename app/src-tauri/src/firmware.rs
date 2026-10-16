@@ -88,7 +88,11 @@ fn write(port: &str, keep_pairings: bool, on_percent: impl FnMut(u32)) -> Result
     let serial = serialport::new(port, 115_200).flow_control(FlowControl::None).open_native().map_err(|e| e.to_string())?;
     let connection =
         Connection::new(serial, info, ResetAfterOperation::HardReset, ResetBeforeOperation::DefaultReset, 115_200);
-    let mut flasher = Flasher::connect(connection, true, true, false, Some(Chip::Esp32s3), None).map_err(|e| e.to_string())?;
+    // Another chip (a board built for an ESP32-C6, say): a code the settings UI words for the user
+    let mut flasher = Flasher::connect(connection, true, true, false, Some(Chip::Esp32s3), None).map_err(|e| match e {
+        espflash::Error::ChipMismatch(_, detected) => format!("chip_mismatch:{detected}"),
+        e => e.to_string(),
+    })?;
     let segments = segments(keep_pairings);
     let mut progress = Percent::new(&segments, on_percent);
     flasher.write_bins_to_flash(&segments, &mut progress).map_err(|e| e.to_string())?;

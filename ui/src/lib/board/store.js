@@ -17,6 +17,7 @@ export class Store {
       linkError: '',
       transport: '',
       fw: null,
+      fwChip: null,                /* chip the board's firmware was built for (hello) */
       fwBundled: null,             /* firmware version the app carries (app/src-tauri/src/firmware.rs), null without one */
       appBoard: '',                /* the app's board link: searching | busy | open | released | other (no Blue Baton on it) */
       fwJob: null,                 /* firmware being written {stage: connecting|writing|done|failed, percent, error} */

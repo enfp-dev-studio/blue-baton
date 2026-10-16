@@ -244,6 +244,7 @@
   "fw.updateConfirmTitle": "要将固件更新到版本 {version} 吗？",
   "fw.updateConfirmBody": "开发板将重新启动。配对信息会保留。",
   "fw.newer": "比本软件的固件（{version}）更新",
+  "fw.otherChip": "为 {chip} 构建。本应用自带的固件用于 ESP32-S3 开发板，因此这里不提供更新",
   "fw.otherTitle": "此开发板尚未运行 Blue Baton",
   "fw.otherHint": "将安装 Blue Baton {version}。开发板上的内容将被清除。",
   "fw.install": "安装 Blue Baton",
@@ -255,5 +256,6 @@
   "fw.keepPlugged": "请勿拔下开发板。",
   "fw.failed": "无法写入固件：{error}",
   "fw.failedHint": "重新插入开发板后重试。如果仍然失败，请在插入时按住 BOOT 按钮。",
+  "fw.chipMismatch": "这块开发板的芯片是 {chip}。本应用只能在 ESP32-S3 开发板上安装 Blue Baton；其他芯片请自行构建（README 的 Boards）。",
   "fw.done": "固件已更新"
 }

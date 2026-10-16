@@ -244,6 +244,7 @@
   "fw.updateConfirmTitle": "Mettre à jour le firmware vers la version {version} ?",
   "fw.updateConfirmBody": "La carte redémarre. Les jumelages sont conservés.",
   "fw.newer": "Plus récent que le firmware de cette app ({version})",
+  "fw.otherChip": "Compilé pour {chip}. Le firmware de l'app est destiné aux cartes ESP32-S3 : aucune mise à jour n'est proposée ici",
   "fw.otherTitle": "Cette carte n’exécute pas encore Blue Baton",
   "fw.otherHint": "Installe Blue Baton {version}. La carte est effacée.",
   "fw.install": "Installer Blue Baton",
@@ -255,5 +256,6 @@
   "fw.keepPlugged": "Laissez la carte branchée.",
   "fw.failed": "Impossible d’écrire le firmware : {error}",
   "fw.failedHint": "Rebranchez la carte et réessayez. Si cela échoue encore, maintenez le bouton BOOT enfoncé en la branchant.",
+  "fw.chipMismatch": "La puce de cette carte est un {chip}. L'app n'installe Blue Baton que sur les cartes ESP32-S3 ; pour les autres puces, compilez-le vous-même (README, Boards).",
   "fw.done": "Firmware mis à jour"
 }

@@ -2,7 +2,7 @@
 
 The board connects over USB to the main machine, and that machine's settings app (`app/`, or the UI in `ui/` via the local bridge or Web Serial) controls the board with this protocol.
 
-Changes from earlier versions are collected at the end under "0.7.2 → 0.7.3 changes", "0.7 → 0.7.1 changes", "0.6 → 0.7 changes", "0.5 → 0.6 changes", "0.4 → 0.5 changes" and "0.3 → 0.4 changes". Firmware 0.7.2 and 0.7.4 did not change the protocol.
+Changes from earlier versions are collected at the end under "Changes after 0.7.4", "0.7.2 → 0.7.3 changes", "0.7 → 0.7.1 changes", "0.6 → 0.7 changes", "0.5 → 0.6 changes", "0.4 → 0.5 changes" and "0.3 → 0.4 changes". Firmware 0.7.2 and 0.7.4 did not change the protocol.
 
 ## Basic rules
 
@@ -12,7 +12,7 @@ Changes from earlier versions are collected at the end under "0.7.2 → 0.7.3 ch
   ```
 - Board → host: one JSON line with the `KM< ` prefix
   ```text
-  KM< {"id":1,"ok":true,"fw":"blue-baton","version":"0.7","combo_set":false}
+  KM< {"id":1,"ok":true,"fw":"blue-baton","version":"0.7","chip":"esp32s3","combo_set":false}
   ```
 - A response carries the same `id` as its request. Notifications the board sends on its own (events) have an `event` field and no `id`.
 - Board logs (`I (123) km: ...`) come out on the same port. The host should read only lines that start with `KM< `. Locate `KM< `, then parse from there.
@@ -40,7 +40,7 @@ Changes from earlier versions are collected at the end under "0.7.2 → 0.7.3 ch
 
 | Command | Arguments | Description |
 |---|---|---|
-| `hello` | none | Firmware info and whether a switch combo is set |
+| `hello` | none | Firmware info (`fw`, `version`, `chip`: the chip it was built for, as ESP-IDF names it, e.g. `esp32s3`, `esp32c6`) and whether a switch combo is set |
 | `status` | none | See "status response" below |
 | `monitor` | `on` | Input monitor lease (see "Access and input content"). Reply: `lease_ms` (60000 when on, 0 when off) |
 | `stats` | none | Latency statistics since the last `stats` (`stats`): `mouse_sent`, `notify_avg_us`, `notify_max_us` (time inside the notify call that hands a report to the controller), `hosts` (`host`, `itvl`, `latency` of each host link). Developer builds (`CONFIG_KM_DIAG`; `tools/flash.sh` builds them, release builds leave it off) add `mbufs` and `mbufs_free_min` (the stack's buffer count, and the fewest free at a notify), `nvs_writes` and `nvs_max_us` (settings flash writes and the longest one, µs), `usb_lines`, `usb_avg_us`, `usb_max_us` and `usb_dropped` (lines the board sent on this USB channel, the average and longest time handing one to the output buffer took, µs, and lines dropped because the buffer was full), `hosts` (`host`, `itvl`, `latency`, `rssi` in dBm as the board receives it, `mouse_reports` handed to the stack, `nobuf_mouse`/`nobuf_other` reports the stack could not take, `superseded` queued changes dropped for a later one of the same report, `ack_ms` how long reports took from the input reaching the board until the controller reported them completed (HCI Number Of Completed Packets): counts for <15, 15–30, 30–45, 45–60, 60–90, 90–150, 150–300, ≥300 ms, `ack_max_ms`, of each host link). Reading resets the counters |
@@ -236,6 +236,10 @@ Only while the window is open does the board present itself as a keyboard (IO ca
   - The combo of a host that is not connected is swallowed the same way, without switching
   - When an input device disconnects, the keys it was holding are treated as released
   - The active host is kept across restarts (power, firmware update)
+
+## Changes after 0.7.4 (not released yet)
+
+- `hello` has `chip`: the chip the firmware was built for (`esp32s3`, `esp32c6`, ...). Firmware before this has no `chip`; every release before it was built for the ESP32-S3.
 
 ## 0.7.2 → 0.7.3 changes
 

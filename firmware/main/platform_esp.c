@@ -98,15 +98,17 @@ void plat_timer_stop(plat_timer_t *t)
 static RingbufHandle_t s_out;
 static uint32_t s_out_dropped;
 
+/* arg: the buffer. On a single core this task runs as soon as it is created, before s_out is set */
 static void out_task(void *arg)
 {
+    RingbufHandle_t out = arg;
     while (1) {
         size_t n;
-        char *line = xRingbufferReceive(s_out, &n, portMAX_DELAY);
+        char *line = xRingbufferReceive(out, &n, portMAX_DELAY);
         if (line) {
             fwrite(line, 1, n, stdout);
             fflush(stdout);
-            vRingbufferReturnItem(s_out, line);
+            vRingbufferReturnItem(out, line);
         }
     }
 }
@@ -197,7 +199,7 @@ esp_err_t plat_ctl_start(void (*on_line)(const char *line))
 {
     s_on_line = on_line;
     RingbufHandle_t out = xRingbufferCreate(OUT_BUF_BYTES, RINGBUF_TYPE_NOSPLIT);
-    if (!out || xTaskCreatePinnedToCore(out_task, "usb_out", OUT_TASK_STACK, NULL, 4, NULL, OUT_TASK_CORE) != pdPASS) {
+    if (!out || xTaskCreatePinnedToCore(out_task, "usb_out", OUT_TASK_STACK, out, 4, NULL, OUT_TASK_CORE) != pdPASS) {
         return ESP_ERR_NO_MEM;
     }
     s_out = out;

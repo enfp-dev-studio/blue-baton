@@ -244,6 +244,7 @@
   "fw.updateConfirmTitle": "ファームウェアをバージョン {version} にアップデートしますか？",
   "fw.updateConfirmBody": "ボードが再起動します。ペアリングは保持されます。",
   "fw.newer": "このアプリのファームウェア（{version}）より新しいバージョン",
+  "fw.otherChip": "{chip} 向けのビルド。このアプリのファームウェアは ESP32-S3 ボード用のため、ここでは更新を提案しません",
   "fw.otherTitle": "このボードではまだ Blue Baton が動作していません",
   "fw.otherHint": "Blue Baton {version} をインストールします。ボードは消去されます。",
   "fw.install": "Blue Baton をインストール",
@@ -255,5 +256,6 @@
   "fw.keepPlugged": "ボードを接続したままにしてください。",
   "fw.failed": "ファームウェアを書き込めませんでした：{error}",
   "fw.failedHint": "ボードを接続し直して、もう一度お試しください。それでも失敗する場合は、BOOT ボタンを押しながら接続してください。",
+  "fw.chipMismatch": "このボードのチップは {chip} です。アプリが Blue Baton をインストールできるのは ESP32-S3 ボードだけです。ほかのチップはご自身でビルドしてください（README の Boards）。",
   "fw.done": "ファームウェアをアップデートしました"
 }

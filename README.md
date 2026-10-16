@@ -33,7 +33,7 @@ tested), system keys (power, sleep, wake), Linux as a host, and the Linux build 
 |---|---|---|---|---|
 | ESP32-S3 SuperMini (4 MB flash) | ESP32-S3 | Yes | Yes | Yes (developed and measured on it) |
 | M5Stack AtomS3 Lite (in a case) | ESP32-S3 | Yes, the same firmware | Yes | Not yet |
-| M5Stack NanoC6 (in a case) | ESP32-C6 | No: build it yourself | Yes | Not yet |
+| M5Stack NanoC6 (in a case) | ESP32-C6 | No: build it yourself | Yes | Starts and works with the app; pairing not tested yet |
 | Other ESP32-S3 boards (4 MB or more flash, the chip's own USB port) | ESP32-S3 | Yes, the same firmware | Yes | No |
 | ESP32-C3 boards | ESP32-C3 | No: build it yourself | Yes | No |
 | ESP32-C5 boards | ESP32-C5 | No: build it yourself | Yes | No |

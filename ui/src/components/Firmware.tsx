@@ -11,14 +11,21 @@ import type { Actions, BoardState } from '@/lib/board/types';
 
 type Confirm = (req: ConfirmRequest) => void;
 
+/* The chip the firmware that comes with the app is built for (app/src-tauri/src/firmware.rs) */
+const BUNDLED_CHIP = 'esp32s3';
+
+/* esp32c6 → ESP32-C6, as the chips are written */
+const chipName = (chip: string) => chip.toUpperCase().replace(/^ESP32(?=.)/, 'ESP32-');
+
 /*
  * The board's firmware version, against the one that comes with the app (app/src-tauri/src/firmware.rs) when there
  * is one: an older board gets an update that keeps its pairings; a newer one (a development board, or an old app)
- * only a note.
+ * only a note. A board built for another chip gets neither: the app's firmware would not run on it.
  */
 export function FirmwareGroup({ s, a, confirm }: { s: BoardState; a: Actions; confirm: Confirm }) {
   if (!s.fw) return null;
-  const order = s.fwBundled ? compareVersions(s.fw, s.fwBundled) : NaN;
+  const otherChip = !!s.fwChip && s.fwChip !== BUNDLED_CHIP;
+  const order = s.fwBundled && !otherChip ? compareVersions(s.fw, s.fwBundled) : NaN;
   const update = () =>
     confirm({
       title: t('fw.updateConfirmTitle', { version: s.fwBundled }),
@@ -33,6 +40,7 @@ export function FirmwareGroup({ s, a, confirm }: { s: BoardState; a: Actions; co
         <div className="min-w-0">
           <div className="text-ui">{t('fw.current', { version: s.fw })}</div>
           {order > 0 && <div className="text-xs text-muted-foreground">{t('fw.newer', { version: s.fwBundled })}</div>}
+          {otherChip && <div className="text-xs text-muted-foreground">{t('fw.otherChip', { chip: chipName(s.fwChip!) })}</div>}
         </div>
         {order < 0 && (
           <div className="flex shrink-0 items-center gap-2">
@@ -76,11 +84,14 @@ export function FirmwareInstall({ s, a, confirm }: { s: BoardState; a: Actions; 
 export function FirmwareProgressDialog({ s, a }: { s: BoardState; a: Actions }) {
   const job = s.fwJob;
   const failed = job?.stage === 'failed';
-  const text = failed
-    ? t('fw.failed', { error: job?.error || '' })
-    : job?.stage === 'writing'
-      ? t('fw.writing', { percent: job.percent })
-      : t('fw.connecting');
+  const mismatch = failed ? /^chip_mismatch:(.+)$/.exec(job?.error || '') : null;   /* firmware.rs: another chip */
+  const text = mismatch
+    ? t('fw.chipMismatch', { chip: chipName(mismatch[1]) })
+    : failed
+      ? t('fw.failed', { error: job?.error || '' })
+      : job?.stage === 'writing'
+        ? t('fw.writing', { percent: job.percent })
+        : t('fw.connecting');
   return (
     <Dialog open={!!job} onOpenChange={(open) => !open && failed && a.dismissFirmware()}>
       <DialogContent showCloseButton={failed} className="sm:max-w-sm">
@@ -89,7 +100,7 @@ export function FirmwareProgressDialog({ s, a }: { s: BoardState; a: Actions }) 
           <DialogDescription>{text}</DialogDescription>
         </DialogHeader>
         {!failed && <Progress value={job?.percent ?? 0} className="h-1.5" />}
-        <p className="text-xs text-muted-foreground">{failed ? t('fw.failedHint') : t('fw.keepPlugged')}</p>
+        {!mismatch && <p className="text-xs text-muted-foreground">{failed ? t('fw.failedHint') : t('fw.keepPlugged')}</p>}
         {failed && (
           <DialogFooter>
             <Button onClick={a.dismissFirmware}>{t('common.close')}</Button>

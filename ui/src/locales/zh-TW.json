@@ -244,6 +244,7 @@
   "fw.updateConfirmTitle": "要將韌體更新至 {version} 版嗎？",
   "fw.updateConfirmBody": "開發板會重新啟動。配對資訊會保留。",
   "fw.newer": "比此 App 內附的韌體（{version}）還新",
+  "fw.otherChip": "為 {chip} 建置。本應用程式內附的韌體適用於 ESP32-S3 開發板，因此這裡不提供更新",
   "fw.otherTitle": "此開發板尚未安裝 Blue Baton",
   "fw.otherHint": "將安裝 Blue Baton {version}。開發板上的內容會全部清除。",
   "fw.install": "安裝 Blue Baton",
@@ -255,5 +256,6 @@
   "fw.keepPlugged": "請勿拔除開發板。",
   "fw.failed": "無法寫入韌體：{error}",
   "fw.failedHint": "請重新插上開發板再試一次。如果仍然失敗，請按住 BOOT 按鈕再插上。",
+  "fw.chipMismatch": "這塊開發板的晶片是 {chip}。本應用程式只能在 ESP32-S3 開發板上安裝 Blue Baton；其他晶片請自行建置（README 的 Boards）。",
   "fw.done": "韌體已更新"
 }

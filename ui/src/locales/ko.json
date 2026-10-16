@@ -244,6 +244,7 @@
   "fw.updateConfirmTitle": "펌웨어를 {version} 버전으로 업데이트할까요?",
   "fw.updateConfirmBody": "보드가 다시 시작됩니다. 페어링은 유지됩니다.",
   "fw.newer": "앱의 펌웨어({version})보다 최신",
+  "fw.otherChip": "{chip}용 빌드. 앱의 펌웨어는 ESP32-S3 보드용이라 여기서는 업데이트를 제안하지 않음",
   "fw.otherTitle": "이 보드에는 아직 블루 바톤이 없어요",
   "fw.otherHint": "블루 바톤 {version}을 설치합니다. 보드의 내용은 지워집니다.",
   "fw.install": "블루 바톤 설치",
@@ -255,5 +256,6 @@
   "fw.keepPlugged": "보드를 빼지 마세요.",
   "fw.failed": "펌웨어를 쓰지 못했어요: {error}",
   "fw.failedHint": "보드를 다시 꽂고 다시 시도하세요. 계속 안 되면 BOOT 버튼을 누른 채 꽂으세요.",
+  "fw.chipMismatch": "이 보드의 칩은 {chip}입니다. 앱은 ESP32-S3 보드에만 블루 바톤을 설치합니다. 다른 칩은 직접 빌드하세요(README의 Boards).",
   "fw.done": "펌웨어 업데이트됨"
 }

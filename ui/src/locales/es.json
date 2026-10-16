@@ -244,6 +244,7 @@
   "fw.updateConfirmTitle": "¿Actualizar el firmware a la versión {version}?",
   "fw.updateConfirmBody": "La placa se reiniciará. Los enlaces se conservan.",
   "fw.newer": "Más reciente que el firmware de esta app ({version})",
+  "fw.otherChip": "Compilado para {chip}. El firmware de la app es para placas ESP32-S3, así que aquí no se ofrecen actualizaciones",
   "fw.otherTitle": "Esta placa aún no tiene Blue Baton",
   "fw.otherHint": "Se instalará Blue Baton {version}. La placa se borrará.",
   "fw.install": "Instalar Blue Baton",
@@ -255,5 +256,6 @@
   "fw.keepPlugged": "No desconectes la placa.",
   "fw.failed": "No se pudo grabar el firmware: {error}",
   "fw.failedHint": "Vuelve a conectar la placa e inténtalo de nuevo. Si sigue fallando, mantén pulsado el botón BOOT mientras la conectas.",
+  "fw.chipMismatch": "El chip de esta placa es {chip}. La app solo instala Blue Baton en placas ESP32-S3; para otros chips, compílalo tú mismo (README, Boards).",
   "fw.done": "Firmware actualizado"
 }

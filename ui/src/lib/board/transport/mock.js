@@ -11,7 +11,7 @@
  * Hosts: host 1 is a bonded mock Mac (connects after boot). Opening the host pairing window makes a mock PC
  * connect 2 s later and request a passkey. The code shown on that PC is printed as a board log line.
  *
- * URL options: ?mock turns it on, &fast (10 s scan)
+ * URL options: ?mock turns it on, &fast (10 s scan), &chip=esp32c6 (firmware built for another chip)
  */
 
 import { t } from '../i18n.js';
@@ -408,7 +408,7 @@ class MockBoard {
     const { id, cmd } = req;
     switch (cmd) {
       case 'hello':
-        return this.reply(id, { fw: 'blue-baton', version: '0.7-mock', combo_set: !!this.combo });
+        return this.reply(id, { fw: 'blue-baton', version: '0.7-mock', chip: this.opts.chip, combo_set: !!this.combo });
       case 'monitor':
         if (typeof req.on !== 'boolean') return this.fail(id, 'bad_request', 'on (true or false) is missing');
         this.monitorUntil = req.on ? performance.now() + MONITOR_LEASE_MS : 0;
@@ -590,7 +590,7 @@ export class MockTransport {
   }
 
   constructor(params = new URLSearchParams()) {
-    this.opts = { fast: params.has('fast'), found: Number(params.get('found')) || 0 };
+    this.opts = { fast: params.has('fast'), found: Number(params.get('found')) || 0, chip: params.get('chip') || 'esp32s3' };
     this.board = null;
     this.onLine = () => {};
     this.onClose = () => {};

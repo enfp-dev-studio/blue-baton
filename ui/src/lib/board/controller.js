@@ -179,7 +179,7 @@ export function createController(params = new URLSearchParams(location.search), 
     store.set({ link: 'connected', linkError: '' });
     const hello = await run(() => client.request('hello'));
     if (!hello) return;
-    store.set({ fw: hello.version });
+    store.set({ fw: hello.version, fwChip: hello.chip || 'esp32s3' });   /* before 0.7.5 only ESP32-S3 builds were released */
     refresh();
     if (monitorWanted) renewMonitor();
   }
@@ -223,6 +223,13 @@ export function createController(params = new URLSearchParams(location.search), 
         } catch (e) {
           store.set({ fwJob: { stage: 'failed', percent: 0, error: String(e) } });
         }
+        return;
+      }
+      const chip = params.get('chip');
+      if (chip && chip !== 'esp32s3') {
+        /* Mock board built for another chip: fails as firmware.rs reports it */
+        await new Promise((r) => setTimeout(r, 400));
+        store.set({ fwJob: { stage: 'failed', percent: 0, error: `chip_mismatch:${chip}` } });
         return;
       }
       for (let p = 0; p <= 100; p += 20) {

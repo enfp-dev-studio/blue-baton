@@ -93,8 +93,8 @@ static void cmd_hello(int id)
 
     char fields[256];
     snprintf(fields, sizeof(fields),
-             ",\"fw\":\"blue-baton\",\"version\":\"%s\",\"combo_set\":%s",
-             KM_FW_VERSION,
+             ",\"fw\":\"blue-baton\",\"version\":\"%s\",\"chip\":\"%s\",\"combo_set\":%s",
+             KM_FW_VERSION, CONFIG_IDF_TARGET,
              combo_set ? "true" : "false");
     reply_ok(id, fields);
 }

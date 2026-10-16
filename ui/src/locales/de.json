@@ -244,6 +244,7 @@
   "fw.updateConfirmTitle": "Firmware auf Version {version} aktualisieren?",
   "fw.updateConfirmBody": "Das Board startet neu. Kopplungen bleiben erhalten.",
   "fw.newer": "Neuer als die Firmware dieser App ({version})",
+  "fw.otherChip": "Für {chip} gebaut. Die Firmware dieser App ist für ESP32-S3-Boards, daher werden hier keine Updates angeboten",
   "fw.otherTitle": "Auf diesem Board ist Blue Baton noch nicht installiert",
   "fw.otherHint": "Installiert Blue Baton {version}. Das Board wird gelöscht.",
   "fw.install": "Blue Baton installieren",
@@ -255,5 +256,6 @@
   "fw.keepPlugged": "Lass das Board angeschlossen.",
   "fw.failed": "Die Firmware konnte nicht geschrieben werden: {error}",
   "fw.failedHint": "Schließe das Board neu an und versuche es erneut. Falls es weiterhin fehlschlägt, halte beim Anschließen die BOOT-Taste gedrückt.",
+  "fw.chipMismatch": "Der Chip dieses Boards ist ein {chip}. Die App installiert Blue Baton nur auf ESP32-S3-Boards; für andere Chips baue die Firmware selbst (README, Boards).",
   "fw.done": "Firmware aktualisiert"
 }
