@@ -48,6 +48,9 @@ esp_err_t host_move(int index, int to);
 /* The name shown for a host instead of its number: up to CFG_NICK_CHARS characters of UTF-8; "" for none */
 esp_err_t host_nick(int index, const char *nick);
 
+/* The board's Bluetooth name, as computers see it ("Blue Baton 1A2B" once the stack has started) */
+const char *host_device_name(void);
+
 /* [{host, addr, name, nick, connected, state, active}] */
 size_t host_list_json(char *buf, size_t len);
 
@@ -61,6 +64,10 @@ esp_err_t host_set_active_itvl(uint16_t min, uint16_t max);
 
 /* Developer builds: mouse self-test traffic to host (from 0) for minutes; host < 0 stops it. Host task only */
 esp_err_t host_selftest(int host, int minutes);
+
+/* Developer builds: reports with no motion to every host for minutes (0 stops), so each host link's completions show
+ * its connection events (trace.h). Host task only */
+esp_err_t host_probe(int minutes);
 #endif
 
 /* Deleting a bond (ble_gap_unpair) returns EBUSY while advertising. Stop advertising during the delete, then restore it */

@@ -23,6 +23,7 @@
 #include "host.h"
 #include "hid_map.h"
 #include "platform.h"
+#include "trace.h"
 #include "json_mini.h"
 #include "router.h"
 
@@ -715,6 +716,17 @@ static radio_t radio_wanted(void)
  * connection whenever a keyboard or mouse slept.
  * Units: interval 1.25 ms, scan 0.625 ms, supervision 10 ms.
  */
+/*
+ * An interval (1.25 ms units) that lines up with a host link: a whole multiple of 7.5 ms, or a whole fraction of
+ * 15 ms (the intervals hosts take, D-084). Two links whose intervals line up keep their events in the same place
+ * relative to each other, so once they overlap they overlap for as long as the two clocks take to drift apart, and
+ * the board can serve only one of them (D-055: the input interval, 8.75 ms, was chosen for this).
+ */
+static bool itvl_lines_up(uint16_t itvl)
+{
+    return itvl % 6 == 0 || 12 % itvl == 0;
+}
+
 static const struct ble_gap_conn_params s_conn_user = {
     .scan_itvl = 0x0010, .scan_window = 0x0010, .itvl_min = 7, .itvl_max = 7,
     .latency = 0, .supervision_timeout = 400, .min_ce_len = 0, .max_ce_len = 0,
@@ -1966,6 +1978,7 @@ static int gap_event(struct ble_gap_event *event, void *arg)
         if (!p) {
             break;
         }
+        trace_mark(TRACE_INPUT(p - s_peers), plat_now_us());
         uint16_t len = OS_MBUF_PKTLEN(event->notify_rx.om);
         if (len > 64) {
             len = 64;
@@ -1999,10 +2012,13 @@ static int gap_event(struct ble_gap_event *event, void *arg)
     case BLE_GAP_EVENT_L2CAP_UPDATE_REQ:
     case BLE_GAP_EVENT_CONN_UPDATE_REQ: {
         /*
-         * The device asks for other connection parameters. Recorded, then accepted as asked (the controller may
-         * still refuse). Real hardware: the mouse asks for 7.5 ms, latency 48, 3 s right after connecting and,
-         * when refused, 11.25 ms; with two hosts connected the controller refused nearly every update
-         * (HCI 0x12), and after repeated refusals the mouse sometimes disconnected.
+         * The device asks for other connection parameters. Accepted, except an interval that lines up with the
+         * host links (itvl_lines_up). Within the range asked for, the first interval that does not is taken; an
+         * L2CAP request can only be accepted as asked or refused, so a range with any such interval is refused and
+         * the device asks again. Real hardware: the mouse asks for 7.5 ms, latency 48, 3 s right after connecting
+         * and, when refused, 11.25 ms. The ESP32-S3 controller refused the 7.5 ms itself (HCI 0x12); the ESP32-C6
+         * controller took it, and its 15 ms host links then ended in timeouts (HCI 0x08) 19 times in 3 hours, each
+         * time with the mouse at 7.5 ms.
          */
         peer_t *p = peer_by_conn(event->conn_update_req.conn_handle);
         const struct ble_gap_upd_params *q = event->conn_update_req.peer_params;
@@ -2013,6 +2029,20 @@ static int gap_event(struct ble_gap_event *event, void *arg)
                      "\"latency\":%u,\"timeout\":%u}",
                      p->addr_str, q->itvl_min, q->itvl_max, q->latency, q->supervision_timeout);
             emit(buf);
+        }
+        if (!q) {
+            return 0;
+        }
+        uint16_t itvl = q->itvl_min;
+        while (itvl <= q->itvl_max && itvl_lines_up(itvl)) {
+            itvl++;
+        }
+        struct ble_gap_upd_params *self = event->conn_update_req.self_params;   /* NULL for an L2CAP request */
+        if (itvl > q->itvl_max || (itvl != q->itvl_min && !self)) {
+            return BLE_ERR_CONN_PARMS;
+        }
+        if (self) {
+            self->itvl_min = self->itvl_max = itvl;
         }
         return 0;
     }
@@ -2106,7 +2136,7 @@ typedef enum {
     OP_SCAN, OP_CONNECT, OP_DISCONNECT, OP_ACCEPT, OP_PASSKEY, OP_CANCEL,
     OP_REMOVE, OP_CLEAR, OP_LIST, OP_PEERS, OP_PAIRED, OP_STATUS, OP_RADIO, OP_BONDS,
     OP_COMBOS, OP_HOST_SELECT, OP_HOST_GET,
-    OP_HOST_PAIR, OP_HOST_LIST, OP_HOST_REMOVE, OP_HOST_MOVE, OP_HOST_NICK, OP_HOST_PASSKEY, OP_STATS, OP_SELFTEST,
+    OP_HOST_PAIR, OP_HOST_LIST, OP_HOST_REMOVE, OP_HOST_MOVE, OP_HOST_NICK, OP_HOST_PASSKEY, OP_STATS, OP_SELFTEST, OP_PROBE,
     OP_HOST_ITVL,
 } op_t;
 
@@ -2531,6 +2561,12 @@ static esp_err_t op_dispatch(req_t *r)
 #else
         return ESP_ERR_NOT_SUPPORTED;
 #endif
+    case OP_PROBE:
+#if CONFIG_KM_DIAG
+        return host_probe((int)r->count);
+#else
+        return ESP_ERR_NOT_SUPPORTED;
+#endif
     case OP_HOST_ITVL:
 #if CONFIG_KM_DIAG
         return host_set_active_itvl((uint16_t)r->num, (uint16_t)r->count);
@@ -2756,6 +2792,17 @@ size_t ble_pair_host_list_json(char *buf, size_t len)
 esp_err_t ble_pair_host_itvl(int min, int max)
 {
     req_t r = {.op = OP_HOST_ITVL, .num = (uint32_t)min, .count = max};
+    return host_call(&r);
+}
+
+const char *ble_pair_device_name(void)
+{
+    return host_device_name();
+}
+
+esp_err_t ble_pair_probe(int minutes)
+{
+    req_t r = {.op = OP_PROBE, .count = minutes};
     return host_call(&r);
 }
 

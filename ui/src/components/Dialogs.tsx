@@ -101,7 +101,7 @@ export function HostPairingDialog({ s, a }: { s: BoardState; a: Actions }) {
             <DialogTitle>{t('hosts.windowTitle')}</DialogTitle>
           </div>
         </DialogHeader>
-        <p className="text-sm text-muted-foreground">{t('hosts.step')}</p>
+        <p className="text-sm text-muted-foreground">{t('hosts.step', { name: s.boardName || 'Blue Baton' })}</p>
         {c && (
           <StateTag tone="busy" className="text-sm">
             {c.state === 'securing' ? t('hosts.verifying') : t('hosts.candidate')}

@@ -55,6 +55,7 @@ export interface BoardState {
   transport: string;
   fw: string | null;
   fwChip: string | null;
+  boardName: string | null;
   fwBundled: string | null;
   appBoard: string;
   fwJob: { stage: 'connecting' | 'writing' | 'done' | 'failed'; percent: number; error?: string | null } | null;
@@ -80,7 +81,7 @@ export interface BoardState {
   shown: boolean;
   addOpen: boolean;
   prompt: Prompt | null;
-  notice: { kind: 'error' | 'info'; text: string; at: number } | null;
+  notice: { kind: 'error' | 'info'; text: string; action: { label: string; run: () => void } | null; at: number } | null;
   log: LogRow[];
 }
 

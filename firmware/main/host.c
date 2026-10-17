@@ -22,6 +22,7 @@
 #include "platform.h"
 #include "host_report.h"
 #include "json_mini.h"
+#include "trace.h"
 #include "router.h"
 #include "version.h"
 
@@ -55,7 +56,13 @@ static const char *TAG = "host";
 #define ADV_ITVL_RECONNECT_FAST 32
 #define ADV_ITVL_WINDOW_FAST 48
 #define ADV_ITVL_SLOW 244
-#define DEVICE_NAME "Blue Baton"   /* GAP name and advertising name (at most 18 bytes fit the advertising packet) */
+/*
+ * GAP name and advertising name: "Blue Baton" and the last four hex digits of the board's address ("Blue Baton 1A2B"),
+ * set once the address is known (host_on_sync). To a computer every board is a different device; with the same name
+ * two boards could not be told apart in its Bluetooth settings. At most 18 bytes fit the advertising packet.
+ */
+#define DEVICE_NAME "Blue Baton"
+static char s_name[sizeof(DEVICE_NAME " 0000")] = DEVICE_NAME;
 #define MANUFACTURER "Blue Baton (DIY)"
 #define MODEL "Blue Baton ESP32-S3"
 #define APPEARANCE_KEYBOARD 0x03C1
@@ -622,6 +629,7 @@ int __wrap_ble_hs_hci_evt_process(struct ble_hci_ev *ev)
             }
             if (l && pkts > 0) {
                 l->tx_progress_us = now;
+                trace_mark(TRACE_HOST(l->index), now);
             }
             for (; l && pkts > 0 && l->tx_count > 0; pkts--) {
                 diag_ack(l, (now - l->tx_t[l->tx_head]) / 1000);
@@ -1003,6 +1011,64 @@ esp_err_t host_selftest(int host, int minutes)
 }
 #endif
 
+#if CONFIG_KM_DIAG
+/*
+ * Probe (developer builds): every 8.75 ms, a mouse report with no motion and the buttons as they are to every host
+ * that has nothing else to send, so each host link carries a packet in each connection event and its completions
+ * (trace.h) show which events took place. Nothing changes on the hosts.
+ */
+static plat_timer_t *s_probe_timer;
+static struct ble_npl_event s_probe_ev;
+static int64_t s_probe_until_us;
+
+static void probe_ev_cb(struct ble_npl_event *ev)
+{
+    if (now_us() >= s_probe_until_us) {
+        plat_timer_stop(s_probe_timer);
+        emit("{\"event\":\"probe_stopped\"}");
+        return;
+    }
+    for (int i = 0; i < HOST_LINK_MAX; i++) {
+        host_link_t *l = &s_links[i];
+        int n = boot_mode(l) ? N_BOOT_MOUSE : N_MOUSE;
+        if (l->state != HL_READY || l->tx_count >= TX_PIPELINE || l->q_len || !host_motion_empty(&l->motion) ||
+            !(l->sub & (1u << n))) {
+            continue;
+        }
+        host_motion_t none = {0};
+        uint8_t buf[HOST_KB_LEN];
+        if (n == N_MOUSE) {
+            host_mouse_report(&none, l->sent.buttons, buf);
+        } else {
+            host_boot_mouse_report(&none, l->boot_buttons, buf);
+        }
+        notify(l, n, buf, n == N_MOUSE ? HOST_MOUSE_LEN : HOST_BOOT_MOUSE_LEN, 0);
+    }
+}
+
+static void probe_timer_cb(void *arg)
+{
+    ble_npl_eventq_put(nimble_port_get_dflt_eventq(), &s_probe_ev);
+}
+
+esp_err_t host_probe(int minutes)
+{
+    if (!s_probe_timer) {
+        ble_npl_event_init(&s_probe_ev, probe_ev_cb, NULL);
+        s_probe_timer = plat_timer_create(probe_timer_cb, NULL);
+        if (!s_probe_timer) {
+            return ESP_ERR_NO_MEM;
+        }
+    }
+    plat_timer_stop(s_probe_timer);
+    s_probe_until_us = now_us() + (int64_t)minutes * 60 * 1000000;
+    if (minutes > 0) {
+        plat_timer_start_periodic(s_probe_timer, SELFTEST_PERIOD_US);
+    }
+    return ESP_OK;
+}
+#endif
+
 /* ---------- Advertising ---------- */
 
 static void adv_stop(void)
@@ -1025,8 +1091,8 @@ static void adv_start(int mode, int itvl)
     f.uuids16_is_complete = 1;
     f.appearance = APPEARANCE_KEYBOARD;
     f.appearance_is_present = 1;
-    f.name = (const uint8_t *)DEVICE_NAME;
-    f.name_len = strlen(DEVICE_NAME);
+    f.name = (const uint8_t *)s_name;
+    f.name_len = strlen(s_name);
     f.name_is_complete = 1;   /* In the advertising packet itself, so a scanner sees the name without a scan request */
     int rc = ble_gap_adv_set_fields(&f);
     if (rc != 0) {
@@ -1812,6 +1878,11 @@ static uint32_t gatt_signature(void)
 void host_on_sync(void)
 {
     s_synced = true;
+    uint8_t addr[6];
+    if (ble_hs_id_copy_addr(BLE_ADDR_PUBLIC, addr, NULL) == 0) {
+        snprintf(s_name, sizeof(s_name), DEVICE_NAME " %02X%02X", addr[1], addr[0]);   /* NimBLE keeps the bytes reversed */
+        ble_svc_gap_device_name_set(s_name);
+    }
     uint32_t sig = gatt_signature();
     if (cfg_gatt_sig_get() != sig) {
         ble_svc_gatt_changed(0x0001, 0xFFFF);
@@ -1827,6 +1898,11 @@ void host_on_reset(void)
     s_synced = false;
     s_adv_mode = 0;
     memset(s_links, 0, sizeof(s_links));
+}
+
+const char *host_device_name(void)
+{
+    return s_name;
 }
 
 size_t host_stats_json(char *buf, size_t len)

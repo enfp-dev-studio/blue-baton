@@ -408,7 +408,7 @@ class MockBoard {
     const { id, cmd } = req;
     switch (cmd) {
       case 'hello':
-        return this.reply(id, { fw: 'blue-baton', version: '0.7-mock', chip: this.opts.chip, combo_set: !!this.combo });
+        return this.reply(id, { fw: 'blue-baton', version: '0.7-mock', chip: this.opts.chip, name: 'Blue Baton 3F2A', combo_set: !!this.combo });
       case 'monitor':
         if (typeof req.on !== 'boolean') return this.fail(id, 'bad_request', 'on (true or false) is missing');
         this.monitorUntil = req.on ? performance.now() + MONITOR_LEASE_MS : 0;

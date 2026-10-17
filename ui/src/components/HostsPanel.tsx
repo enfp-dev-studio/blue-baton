@@ -102,6 +102,10 @@ function HostRow({ n, s, a, host, confirm, rename, recording, setRecording }: Ro
       {host ? (
         <RowMenu label={t('common.more')}>
           <DropdownMenuItem onSelect={() => rename(n)}>{t('hosts.rename')}</DropdownMenuItem>
+          {/* For a computer that forgot the board: it pairs again into the same row */}
+          <DropdownMenuItem disabled={s.hostWindow.open} onSelect={a.openHostWindow}>
+            {t('hosts.pairAgain')}
+          </DropdownMenuItem>
           <DropdownMenuItem disabled={n === 1} onSelect={() => a.moveHost(n, n - 1)}>
             {t('hosts.moveUp')}
           </DropdownMenuItem>

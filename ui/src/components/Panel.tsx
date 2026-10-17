@@ -64,7 +64,7 @@ export function Panel({ ctl }: { ctl: Controller }) {
           <span className="font-semibold">{t('app.name')}</span>
           <span className="min-w-0 flex-1" />
           {ready ? (
-            <StateTag tone="ok" className="min-w-0 truncate text-2xs text-muted-foreground [&>span:first-child]:bg-ok">{t('link.info', { transport: s.transport, fw: s.fw || '?' })}</StateTag>
+            <StateTag tone="ok" className="min-w-0 truncate text-2xs text-muted-foreground [&>span:first-child]:bg-ok">{t('link.info', { board: s.boardName || s.transport, fw: s.fw || '?' })}</StateTag>
           ) : (
             <StateTag tone={s.link === 'connecting' ? 'busy' : 'idle'} className="text-2xs">{t('link.disconnected')}</StateTag>
           )}

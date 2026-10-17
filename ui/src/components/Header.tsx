@@ -19,7 +19,7 @@ export function Header({ s, a, ctl }: { s: BoardState; a: Actions; ctl: Controll
         <div className="flex min-w-0 items-center gap-3">
           {connected ? (
             <StateTag tone="ok" className="min-w-0 truncate text-muted-foreground [&>span:first-child]:bg-ok">
-              {radioNote || s.transport}
+              {radioNote || s.boardName || s.transport}
             </StateTag>
           ) : (
             <StateTag tone={s.link === 'connecting' ? 'busy' : 'idle'}>

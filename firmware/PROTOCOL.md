@@ -1,8 +1,8 @@
-# USB Control Protocol (firmware 0.7.6)
+# USB Control Protocol (firmware 0.7.7)
 
 The board connects over USB to the main machine, and that machine's settings app (`app/`, or the UI in `ui/` via the local bridge or Web Serial) controls the board with this protocol.
 
-Changes from earlier versions are collected at the end under "0.7.5 → 0.7.6 changes", "0.7.4 → 0.7.5 changes", "0.7.2 → 0.7.3 changes", "0.7 → 0.7.1 changes", "0.6 → 0.7 changes", "0.5 → 0.6 changes", "0.4 → 0.5 changes" and "0.3 → 0.4 changes". Firmware 0.7.2 and 0.7.4 did not change the protocol.
+Changes from earlier versions are collected at the end under "0.7.6 → 0.7.7 changes", "0.7.5 → 0.7.6 changes", "0.7.4 → 0.7.5 changes", "0.7.2 → 0.7.3 changes", "0.7 → 0.7.1 changes", "0.6 → 0.7 changes", "0.5 → 0.6 changes", "0.4 → 0.5 changes" and "0.3 → 0.4 changes". Firmware 0.7.2 and 0.7.4 did not change the protocol.
 
 ## Basic rules
 
@@ -40,12 +40,14 @@ Changes from earlier versions are collected at the end under "0.7.5 → 0.7.6 ch
 
 | Command | Arguments | Description |
 |---|---|---|
-| `hello` | none | Firmware info (`fw`, `version`, `chip`: the chip it was built for, as ESP-IDF names it, e.g. `esp32s3`, `esp32c6`) and whether a switch combo is set |
+| `hello` | none | Firmware info (`fw`, `version`, `chip`: the chip it was built for, as ESP-IDF names it, e.g. `esp32s3`, `esp32c6`; `name`: the board's Bluetooth name) and whether a switch combo is set |
 | `status` | none | See "status response" below |
 | `monitor` | `on` | Input monitor lease (see "Access and input content"). Reply: `lease_ms` (60000 when on, 0 when off) |
 | `stats` | none | Latency statistics since the last `stats` (`stats`): `mouse_sent`, `notify_avg_us`, `notify_max_us` (time inside the notify call that hands a report to the controller), `hosts` (`host`, `itvl`, `latency` of each host link). Developer builds (`CONFIG_KM_DIAG`; `tools/flash.sh` builds them, release builds leave it off) add `mbufs` and `mbufs_free_min` (the stack's buffer count, and the fewest free at a notify), `nvs_writes` and `nvs_max_us` (settings flash writes and the longest one, µs), `usb_lines`, `usb_avg_us`, `usb_max_us` and `usb_dropped` (lines the board sent on this USB channel, the average and longest time handing one to the output buffer took, µs, and lines dropped because the buffer was full), `hosts` (`host`, `itvl`, `latency`, `rssi` in dBm as the board receives it, `mouse_reports` handed to the stack, `nobuf_mouse`/`nobuf_other` reports the stack could not take, `superseded` queued changes dropped for a later one of the same report, `ack_ms` how long reports took from the input reaching the board until the controller reported them completed (HCI Number Of Completed Packets): counts for <15, 15–30, 30–45, 45–60, 60–90, 90–150, 150–300, ≥300 ms, `ack_max_ms`, of each host link). Reading resets the counters |
 | `host_itvl` | `min`, `max` (1.25 ms units) | Developer builds only. The interval asked of the active host from now on (and of the current one at once), until restart. The answer comes as `host_conn_params` |
 | `selftest` | `host` (1–3, 0 stops), `minutes` (default 30) | Developer builds only. Sends mouse reports to that host every 8.75 ms (16 counts right, then 16 left: the cursor stays within a few pixels) through the normal delivery path, so `stats` measures delivery without anyone moving the mouse. The host must not be the active one; it stops when that host becomes active, when its link drops, or when time is up. Events `selftest_started` (`host`, `minutes`), `selftest_stopped` (`host`, `reason`: `done`/`active`/`link`/`stopped`/`restarted`, `reports`) |
+| `probe` | `minutes` (0 stops) | Developer builds only. Every 8.75 ms, a mouse report with no motion and the buttons as they are to every host that has nothing else to send, so each host link carries a packet in each connection event. Nothing changes on the hosts |
+| `trace` | `ms` (default 10000), `ago` (ms, default 0) | Developer builds only. When each radio link was last served, for the `ms` before (now − `ago`): host links when the controller reported a packet completed, input links when a notification came in. Reply first, then events `trace` (`link`: `h1`–`h3`, `i1`–`i2`; `d`: times in 10 µs units, each from the one before, the first from the start of the window) and `trace_end` |
 | `combo_get` | none | The host switch combos actually in effect (`combo`). If nothing is stored or the stored value is malformed, the default applies and `default:true`; if an invalid value is stored, `stored_invalid:true` |
 | `combo_set` | `combo` | Comma-separated list of combos in host order (e.g. `alt+1,alt+2,alt+3`, up to 95 characters). Validated, then applied and saved immediately. If invalid, `code:"bad_combo"` |
 | `host_select` | `host` (1–3) | Select the active host directly. Same handling as a combo switch (release-all to the previous host). A host that is not `ready` cannot be selected: `code:"host_offline"` |
@@ -236,6 +238,11 @@ Only while the window is open does the board present itself as a keyboard (IO ca
   - The combo of a host that is not connected is swallowed the same way, without switching
   - When an input device disconnects, the keys it was holding are treated as released
   - The active host is kept across restarts (power, firmware update)
+
+## 0.7.6 → 0.7.7 changes
+
+- `hello` has `name`: the board's Bluetooth name, which is now "Blue Baton" and the last four hex digits of its address (for example "Blue Baton 3F2A"; it was "Blue Baton" on every board).
+- Developer builds: commands `probe` and `trace`.
 
 ## 0.7.5 → 0.7.6 changes
 

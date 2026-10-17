@@ -60,7 +60,8 @@ export function createController(params = new URLSearchParams(location.search), 
       case '_closed':
         store.set({ link: 'disconnected', prompt: null });
         if (ev.reason !== 'closed') {
-          store.notice('error', ev.reason === 'unplugged' ? t('notice.unplugged') : t('notice.lost'));
+          /* Writing firmware frees the port and restarts the board: the progress dialog already says so */
+          if (!store.state.fwJob) store.notice('error', ev.reason === 'unplugged' ? t('notice.unplugged') : t('notice.lost'));
           reconnectSoon();
         }
         return;
@@ -111,7 +112,11 @@ export function createController(params = new URLSearchParams(location.search), 
     } else if (ev.event === 'host_pair_failed') {
       store.notice('error', t('notice.hostPairFailed'));
     } else if (ev.event === 'host_repair_blocked') {
-      store.notice('error', t('notice.hostRepairBlocked', { host: hostLabel(store.state, ev.host) }));
+      /* The board allows it only while the pairing window is open (a computer that forgot the board, or a spoofed one) */
+      store.notice('error', t('notice.hostRepairBlocked', { host: hostLabel(store.state, ev.host) }), {
+        label: t('notice.allowRepair'),
+        run: () => actions.openHostWindow(),
+      });
     } else if (ev.event === 'host_online' && !ev.online) {
       store.notice('info', t('notice.hostOffline', { host: hostLabel(store.state, ev.host) }));
     }
@@ -179,7 +184,8 @@ export function createController(params = new URLSearchParams(location.search), 
     store.set({ link: 'connected', linkError: '' });
     const hello = await run(() => client.request('hello'));
     if (!hello) return;
-    store.set({ fw: hello.version, fwChip: hello.chip || 'esp32s3' });   /* before 0.7.5 only ESP32-S3 builds were released */
+    /* before 0.7.5 only ESP32-S3 builds were released; the name ("Blue Baton 1A2B") from 0.7.7 */
+    store.set({ fw: hello.version, fwChip: hello.chip || 'esp32s3', boardName: hello.name || null });
     refresh();
     if (monitorWanted) renewMonitor();
   }

@@ -18,6 +18,7 @@ export class Store {
       transport: '',
       fw: null,
       fwChip: null,                /* chip the board's firmware was built for (hello) */
+      boardName: null,             /* the board's Bluetooth name, as computers list it (hello) */
       fwBundled: null,             /* firmware version the app carries (app/src-tauri/src/firmware.rs), null without one */
       appBoard: '',                /* the app's board link: searching | busy | open | released | other (no Blue Baton on it) */
       fwJob: null,                 /* firmware being written {stage: connecting|writing|done|failed, percent, error} */
@@ -72,8 +73,9 @@ export class Store {
     this.changed();
   }
 
-  notice(kind, text) {
-    this.state.notice = { kind, text, at: Date.now() };
+  /* action: {label, run} for a button on the notice */
+  notice(kind, text, action = null) {
+    this.state.notice = { kind, text, action, at: Date.now() };
     this.changed();
   }
 

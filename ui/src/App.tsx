@@ -23,8 +23,9 @@ export function App({ ctl }: { ctl: Controller }) {
   useEffect(() => {
     const n = s.notice;
     if (!n) return;
-    if (n.kind === 'error') toast.error(n.text, { id: n.text });
-    else toast(n.text, { id: n.text });
+    const action = n.action ? { label: n.action.label, onClick: n.action.run } : undefined;
+    if (n.kind === 'error') toast.error(n.text, { id: n.text, action });
+    else toast(n.text, { id: n.text, action });
   }, [s.notice?.at]);
 
   const ready = s.link === 'connected';

@@ -4,6 +4,20 @@ Notable changes in each release, newest first. The format follows [Keep a Change
 (sections Added, Changed, Fixed, Removed; only the ones a release has), and versions follow
 [Semantic Versioning](https://semver.org/). The release workflow copies a version's section into its GitHub release.
 
+## [0.7.7] - 2026-10-17
+
+### Changed
+
+- Hosts: a computer that forgot the board pairs again into its own row with More → Pair Again (or Allow on the notice that it is trying to); before, this took Add on an empty row
+- Each board has its own Bluetooth name: "Blue Baton" and the last four hex digits of its address (for example "Blue Baton 3F2A"), shown at the top of the app, so two boards can be told apart on a computer
+- ESP32-C6 is not supported: with two computers connected at the same interval, the chip's Bluetooth controller lets one of the links time out every few minutes (README, Boards)
+- An input device that asks for a connection interval lining up with the computers' links (7.5 or 15 ms, or a whole multiple of 7.5 ms) is refused and asks again; the ESP32-S3 controller already refused these itself
+
+### Fixed
+
+- Writing firmware no longer shows a "Board disconnected" error while the board restarts
+- A development build of the app offered the firmware image it carried under the source tree's version, and could write an older firmware; the version now comes from the image itself
+
 ## [0.7.6] - 2026-10-16
 
 ### Changed

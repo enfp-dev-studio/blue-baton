@@ -1,5 +1,10 @@
 cmake_minimum_required(VERSION 3.16)
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
+# The app description in the image carries main/version.h (instead of `git describe`), so the image says which
+# release it is wherever it was built; the app reads it from the image it bundles (app/src-tauri/build.rs)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS main/version.h)   # read again when it changes
+file(STRINGS main/version.h KM_FW_VERSION_LINE REGEX "^#define KM_FW_VERSION ")
+string(REGEX REPLACE ".*\"(.*)\".*" "\\1" PROJECT_VER "${KM_FW_VERSION_LINE}")
 project(blue_baton)
 
 # NimBLE runs one security procedure at a time by default (esp_nimble_cfg.h: BLE_SM_MAX_PROCS 1).

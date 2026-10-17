@@ -10,6 +10,7 @@
 #include "json_mini.h"
 #include "platform.h"
 #include "router.h"
+#include "trace.h"
 #include "usb_ctl.h"
 #include "version.h"
 
@@ -93,8 +94,8 @@ static void cmd_hello(int id)
 
     char fields[256];
     snprintf(fields, sizeof(fields),
-             ",\"fw\":\"blue-baton\",\"version\":\"%s\",\"chip\":\"%s\",\"combo_set\":%s",
-             KM_FW_VERSION, CONFIG_IDF_TARGET,
+             ",\"fw\":\"blue-baton\",\"version\":\"%s\",\"chip\":\"%s\",\"name\":\"%s\",\"combo_set\":%s",
+             KM_FW_VERSION, CONFIG_IDF_TARGET, ble_pair_device_name(),
              combo_set ? "true" : "false");
     reply_ok(id, fields);
 }
@@ -393,6 +394,17 @@ static void handle_line(const char *line)
         json_get_int(line, "host", &host);
         json_get_int(line, "minutes", &minutes);
         reply_ble(id, ble_pair_selftest(host, minutes));
+    } else if (strcmp(cmd, "probe") == 0) {
+        int minutes = 0;
+        json_get_int(line, "minutes", &minutes);
+        reply_ble(id, ble_pair_probe(minutes));
+    } else if (strcmp(cmd, "trace") == 0) {
+        /* Marks in the ms before (now - ago ms), then trace_end; the reply comes first */
+        int ms = 10000, ago = 0;
+        json_get_int(line, "ms", &ms);
+        json_get_int(line, "ago", &ago);
+        reply_ok(id, "");
+        trace_dump(plat_now_us() - (int64_t)ago * 1000, ms, usb_ctl_emit);
     } else if (strcmp(cmd, "host_itvl") == 0) {
         int min = 0, max = 0;
         json_get_int(line, "min", &min);

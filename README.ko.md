@@ -12,7 +12,7 @@ BLE 마우스 ─┴─→ ESP32-S3 (NimBLE) ─┼─ BLE HID → 호스트 2
                   └─ USB: 메뉴 막대 앱 (설정, 빠른 전환)
 ```
 
-상태: 버전 0.7.6. 입력 기기는 2대까지(키보드와 마우스, 또는 아무 두 대), 호스트는 3대. 키보드와 마우스를 동시에 연결하고,
+상태: 버전 0.7.7. 입력 기기는 2대까지(키보드와 마우스, 또는 아무 두 대), 호스트는 3대. 키보드와 마우스를 동시에 연결하고,
 Mac 2대·Windows PC·iPhone을 호스트로 실기 확인했다. 입력은 활성 호스트로 가고, 키 조합과 설정 창 모두로 호스트를 바꾼다.
 앱은 macOS와 Windows에서 확인했다. 실기 확인 전: 호스트 패스키를 키보드로 입력하기(앱 화면 입력은 확인), 시스템 키(전원·잠자기·깨우기),
 Linux 호스트, Linux용 앱.
@@ -32,11 +32,11 @@ Linux 호스트, Linux용 앱.
 |---|---|---|---|---|
 | ESP32-S3 SuperMini (플래시 4MB) | ESP32-S3 | 지원 | 됨 | 확인 (이 보드로 개발·측정) |
 | M5Stack AtomS3 Lite (케이스 포함) | ESP32-S3 | 지원, 같은 펌웨어 | 됨 | 아직 |
-| M5Stack NanoC6 (케이스 포함) | ESP32-C6 | 미지원: 직접 빌드 | 됨 | 일부: 앱·키보드·마우스 동작, 컴퓨터 연결은 아직 시험 안 함 |
+| M5Stack NanoC6 (케이스 포함) | ESP32-C6 | 미지원 | 됨 | 미지원: 컴퓨터 2대를 연결하면 몇 분마다 연결이 끊긴다 (아래 참고) |
 | 다른 ESP32-S3 보드 (플래시 4MB 이상, 칩 자체 USB 포트) | ESP32-S3 | 지원, 같은 펌웨어 | 됨 | 안 해 봄 |
 | ESP32-C3 보드 | ESP32-C3 | 미지원: 직접 빌드 | 됨 | 안 해 봄 |
 | ESP32-C5 보드 | ESP32-C5 | 미지원: 직접 빌드 | 됨 | 안 해 봄 |
-| 다른 ESP32-C6 보드 | ESP32-C6 | 미지원: 직접 빌드 | 됨 | 안 해 봄 |
+| 다른 ESP32-C6 보드 | ESP32-C6 | 미지원 | 됨 | 미지원 (아래 참고) |
 | ESP32-H2 보드 | ESP32-H2 | 미지원: 직접 빌드 | 됨 | 안 해 봄 |
 | ESP32 (초기형) 보드 | ESP32 | 미지원 | 됨 | 안 해 봄 |
 | ESP32-S2 보드 | ESP32-S2 | 미지원 | 되지만 칩에 블루투스 무선부가 없음 | 안 해 봄 |
@@ -46,6 +46,10 @@ Linux 호스트, Linux용 앱.
   C5는 S3와 같은 240 MHz). 지연과 연결 안정성은 재 보지 않았다. 빌드와 설치 (`firmware/`에서):
   `idf.py -B build-esp32c3 -DIDF_TARGET=esp32c3 build`, 그다음 `idf.py -B build-esp32c3 -p <포트> flash`. 이 보드들에서
   써 본 결과를 알려 주면 반영한다.
+- ESP32-C6: 컴퓨터 2대가 같은 연결 간격(Mac은 15 ms)으로 붙어 있으면, 칩의 블루투스 컨트롤러가 가끔 두 연결 중
+  하나를 연결 유지 한도(6초) 내내 처리하지 않아서 그 연결이 시간 초과로 끊긴다. 쓰는 동안 몇 분마다, 데이터가 계속
+  오가면 20~40초마다 일어난다. 컨트롤러는 ESP-IDF에 들어 있는 Espressif의 비공개 라이브러리라 수정은 Espressif가 해야
+  하고, 수정이 나오면 다시 빌드한 펌웨어에 들어간다.
 - 초기형 ESP32에는 앱이 보드와 통신하는 USB Serial/JTAG가 없다 (콘솔이 UART로 나간다). ESP32-S2에는 블루투스 무선부가 없다. nRF52840, Pico W,
   Raspberry Pi는 블루투스 스택이 달라서 펌웨어의 블루투스 부분을 새로 짜야 한다.
 
@@ -61,9 +65,10 @@ Linux 호스트, Linux용 앱.
    **블루 바톤 설치**를 누른다. 펌웨어는 앱에 들어 있어서 따로 설치할 것이 없다. 보드를 찾지 못하면 BOOT 버튼을 누른 채로
    꽂는다.
 3. **키보드와 마우스 추가**: 입력 기기 → 기기 추가…, 기기를 페어링 모드로 두고 목록에 나오면 연결을 누른다.
-4. **컴퓨터 추가**: 호스트 → 빈 줄의 추가. 3분 동안 보드가 검색된다. 그 컴퓨터에서:
-   - macOS: 시스템 설정 → Bluetooth에서 "Blue Baton" 옆 연결.
-   - Windows: 설정 → Bluetooth 및 장치 → 장치 추가 → Bluetooth → "Blue Baton".
+4. **컴퓨터 추가**: 호스트 → 빈 줄의 추가. 3분 동안 보드가 검색된다. 그 컴퓨터에서 앱 위쪽에 나오는 이름("Blue Baton"과
+   네 글자, 예: "Blue Baton 3F2A". 보드마다 다르다)의 보드를 고른다:
+   - macOS: 시스템 설정 → Bluetooth에서 그 이름 옆 연결.
+   - Windows: 설정 → Bluetooth 및 장치 → 장치 추가 → Bluetooth → 그 보드.
 
    컴퓨터에 숫자 6자리가 나오면 앱에 입력한다 (보드에 연결된 키보드로 쳐도 된다).
 5. **전환**: `Alt+1`, `2`, `3` (Mac 키보드는 Option), 또는 메뉴 막대 아이콘. 키 조합은 앱에서 바꿀 수 있다.
@@ -92,13 +97,13 @@ Linux 호스트, Linux용 앱.
 릴리스마다 [esptool](https://docs.espressif.com/projects/esptool/)용 펌웨어 파일도 있다 (`pip install esptool`):
 
 ```bash
-esptool --chip esp32s3 write-flash 0x0 blue-baton-firmware-v0.7.6-esp32s3.bin
+esptool --chip esp32s3 write-flash 0x0 blue-baton-firmware-v0.7.7-esp32s3.bin
 ```
 
 는 전체 이미지를 쓰고(처음 설치. 페어링도 지운다),
 
 ```bash
-esptool --chip esp32s3 write-flash 0x20000 blue-baton-firmware-v0.7.6-esp32s3-app.bin
+esptool --chip esp32s3 write-flash 0x20000 blue-baton-firmware-v0.7.7-esp32s3-app.bin
 ```
 
 는 페어링을 그대로 두고 펌웨어만 업데이트한다.
