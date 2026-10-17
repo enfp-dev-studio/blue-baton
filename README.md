@@ -50,8 +50,9 @@ tested), system keys (power, sleep, wake), Linux as a host, and the Linux build 
 - ESP32-C6: with two computers connected at the same connection interval (Macs use 15 ms), the chip's Bluetooth
   controller now and then stops serving one of the two links for its whole supervision timeout (6 s), and the link
   drops with a connection timeout. It happens every few minutes in use and every 20 to 40 seconds under steady
-  traffic. The controller is Espressif's closed library in ESP-IDF, so the fix has to come from Espressif; once it
-  does, a rebuilt firmware picks it up.
+  traffic. The controller is Espressif's closed library in ESP-IDF, so the fix has to come from Espressif
+  ([espressif/esp-idf#19260](https://github.com/espressif/esp-idf/issues/19260)); once it does, a rebuilt firmware
+  picks it up.
 - The original ESP32 has no USB Serial/JTAG, which is how the app reaches the board (its console is on the UART). The
   ESP32-S2 has no Bluetooth radio. nRF52840, Pico W and Raspberry Pi use other Bluetooth stacks: the firmware's
   Bluetooth part would have to be written again for them.
