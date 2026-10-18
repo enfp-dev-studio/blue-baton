@@ -187,6 +187,7 @@
   "notice.newDevice": "新裝置",
   "notice.hostPaired": "已新增主機 {host}",
   "notice.hostPairFailed": "主機配對失敗。請在電腦上再試一次。",
+  "notice.hostSlotsFull": "有新電腦嘗試配對，但 3 個主機位置都在使用中。請先移除一個。",
   "notice.hostRepairBlocked": "主機 {host} 正在嘗試重新配對。",
   "notice.allowRepair": "允許",
   "notice.hostOffline": "主機 {host} 未連線",

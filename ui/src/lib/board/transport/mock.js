@@ -11,7 +11,7 @@
  * Hosts: host 1 is a bonded mock Mac (connects after boot). Opening the host pairing window makes a mock PC
  * connect 2 s later and request a passkey. The code shown on that PC is printed as a board log line.
  *
- * URL options: ?mock turns it on, &fast (10 s scan), &chip=esp32c6 (firmware built for another chip)
+ * URL options: ?mock turns it on, &fast (10 s scan), &chip=esp32c6 (firmware built for another chip), &hosts=3 (every host slot in use)
  */
 
 import { t } from '../i18n.js';
@@ -98,6 +98,10 @@ class MockBoard {
     this.seq = 3;
     /* Hosts: number -> {addr, name, connected, state}. Host 1 is a bonded mock Mac */
     this.hosts = new Map([[1, { addr: '00:00:5E:00:53:31', name: 'Mock MacBook Pro', connected: false, state: 'offline' }]]);
+    /* ?mock&hosts=3: every host slot in use (two more bonded mock PCs, offline) */
+    for (let n = 2; n <= Math.min(3, opts.hosts || 1); n++) {
+      this.hosts.set(n, { addr: '00:00:5E:00:53:3' + n, name: 'Mock PC ' + n, connected: false, state: 'offline' });
+    }
     this.hostWindow = null;   /* timer that closes the window */
     this.candidate = null;    /* {addr, code} mock PC that connected through the window */
     this.boot();
@@ -346,8 +350,8 @@ class MockBoard {
     return 0;
   }
 
+  /* Opens also with every slot in use (as the firmware does, for pairing again); a new mock PC is then turned away */
   openHostWindow(open) {
-    if (open && !this.freeHost()) return false;
     if (!!this.hostWindow === open) return true;
     if (open) {
       this.stopScan('radio');
@@ -355,6 +359,10 @@ class MockBoard {
       /* time the user takes to pick "Blue Baton" on the computer */
       this.later(2000, () => {
         if (!this.hostWindow || this.candidate) return;
+        if (!this.freeHost()) {
+          this.ev({ event: 'host_slots_full', addr: '00:00:5E:00:53:69' });
+          return;
+        }
         this.candidate = { addr: '00:00:5E:00:53:6' + this.freeHost(), code: String(100000 + Math.floor(Math.random() * 900000)) };
         this.ev({ event: 'host_connected', host: 0, addr: this.candidate.addr, bonded: false, itvl: 24 });
         this.later(500, () => {
@@ -430,7 +438,7 @@ class MockBoard {
       }
       case 'host_pair':
         if (typeof req.on !== 'boolean') return this.fail(id, 'bad_request', 'on (true or false) is missing');
-        if (!this.openHostWindow(req.on)) return this.fail(id, 'hosts_full', 'All 3 host slots are in use. Remove one, then open the window again');
+        this.openHostWindow(req.on);
         return this.reply(id);
       case 'host_list': {
         const hosts = [...this.hosts.entries()].sort((x, y) => x[0] - y[0]).map(([n, h]) => ({
@@ -590,7 +598,7 @@ export class MockTransport {
   }
 
   constructor(params = new URLSearchParams()) {
-    this.opts = { fast: params.has('fast'), found: Number(params.get('found')) || 0, chip: params.get('chip') || 'esp32s3' };
+    this.opts = { fast: params.has('fast'), found: Number(params.get('found')) || 0, chip: params.get('chip') || 'esp32s3', hosts: Number(params.get('hosts')) || 1 };
     this.board = null;
     this.onLine = () => {};
     this.onClose = () => {};

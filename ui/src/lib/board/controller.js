@@ -111,6 +111,8 @@ export function createController(params = new URLSearchParams(location.search), 
       store.notice('info', t('notice.hostPaired', { host: ev.host }));
     } else if (ev.event === 'host_pair_failed') {
       store.notice('error', t('notice.hostPairFailed'));
+    } else if (ev.event === 'host_slots_full') {
+      store.notice('error', t('notice.hostSlotsFull'));
     } else if (ev.event === 'host_repair_blocked') {
       /* The board allows it only while the pairing window is open (a computer that forgot the board, or a spoofed one) */
       store.notice('error', t('notice.hostRepairBlocked', { host: hostLabel(store.state, ev.host) }), {
@@ -302,8 +304,10 @@ export function createController(params = new URLSearchParams(location.search), 
       if (store.state.addOpen) actions.closeAdd();
       await run(() => client.request('host_pair', { on: true }));
     },
+    /* Closed once the board says so: it answers ok also when the window was already shut (for example after it restarted) */
     async closeHostWindow() {
-      await run(() => client.request('host_pair', { on: false }));
+      const ok = await run(() => client.request('host_pair', { on: false }));
+      if (ok) store.set({ hostWindow: { open: false, until: 0 }, hostPrompt: null, hostCandidate: null });
     },
     /* One combo per host, in host order ('' leaves that host without one). The board validates and saves */
     async setCombos(list) {

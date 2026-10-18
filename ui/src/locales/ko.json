@@ -187,6 +187,7 @@
   "notice.newDevice": "새 기기",
   "notice.hostPaired": "호스트 {host} 추가됨",
   "notice.hostPairFailed": "호스트 페어링 실패. 컴퓨터에서 다시 연결하세요.",
+  "notice.hostSlotsFull": "새 컴퓨터가 페어링하려 했지만 호스트 3대가 모두 찼어요. 먼저 하나를 삭제하세요.",
   "notice.hostRepairBlocked": "호스트 {host}가 다시 페어링하려고 합니다.",
   "notice.allowRepair": "허용",
   "notice.hostOffline": "호스트 {host} 연결 안 됨",

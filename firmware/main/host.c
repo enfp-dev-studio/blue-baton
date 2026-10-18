@@ -1134,8 +1134,8 @@ static void adv_update(void)
     }
     int mode = 0;
     int itvl = ADV_ITVL_SLOW;
-    if (s_window && host_count() < ROUTER_HOST_MAX) {
-        mode = 2;
+    if (s_window) {
+        mode = 2;   /* Discoverable, also with every slot in use: a computer that forgot the board looks for it */
         itvl = now < s_fast_until_us ? ADV_ITVL_WINDOW_FAST : ADV_ITVL_SLOW;
     } else if (any_host_offline()) {
         mode = 1;
@@ -1339,6 +1339,12 @@ static host_link_t *link_ensure(uint16_t conn)
     }
     /* Accept only a bonded host, or a new one while the window is open with a slot left. No advertising filter (bonded hosts may use RPAs), so filter here */
     bool accept = l && (index >= 0 ? !link_by_index(index) : (s_window && host_count() < ROUTER_HOST_MAX));
+    if (!accept && l && index < 0 && s_window) {
+        char buf[96], addr[18];
+        val_to_str(d.peer_id_addr.val, addr);
+        snprintf(buf, sizeof(buf), "{\"event\":\"host_slots_full\",\"addr\":\"%s\"}", addr);
+        emit(buf);
+    }
     if (!accept) {
         ble_gap_terminate(conn, HCI_USER_TERM);
         adv_update();
@@ -1671,11 +1677,12 @@ bool host_window_open(void)
     return s_window;
 }
 
+/*
+ * The window also opens with all 3 slots in use: a computer that forgot the board pairs again into its own slot
+ * (on_repeat_pairing). A new host is then turned away when it connects (host_slots_full).
+ */
 esp_err_t host_pair_window(bool open)
 {
-    if (open && host_count() >= ROUTER_HOST_MAX) {
-        return ESP_ERR_NO_MEM;   /* All 3 host slots are in use. The GUI picks a host to remove */
-    }
     if (open == s_window) {
         return ESP_OK;
     }

@@ -187,6 +187,7 @@
   "notice.newDevice": "New device",
   "notice.hostPaired": "Host {host} added",
   "notice.hostPairFailed": "Host pairing failed. Try again from the computer.",
+  "notice.hostSlotsFull": "A new computer tried to pair, but all 3 host slots are in use. Remove one first.",
   "notice.hostRepairBlocked": "Host {host} is trying to pair again.",
   "notice.allowRepair": "Allow",
   "notice.hostOffline": "Host {host} not connected",

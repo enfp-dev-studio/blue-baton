@@ -4,6 +4,13 @@ Notable changes in each release, newest first. The format follows [Keep a Change
 (sections Added, Changed, Fixed, Removed; only the ones a release has), and versions follow
 [Semantic Versioning](https://semver.org/). The release workflow copies a version's section into its GitHub release.
 
+## [0.7.8] - 2026-10-18
+
+### Fixed
+
+- Pair Again with all 3 host slots in use said there was no slot; pairing again does not need one. The window now opens, and a new computer that tries to pair meanwhile is turned away with a message
+- The host pairing window could not be closed after the board had restarted while it was open (Close and the X did nothing); the app now closes it when the board restarts or confirms the close
+
 ## [0.7.7] - 2026-10-17
 
 ### Changed

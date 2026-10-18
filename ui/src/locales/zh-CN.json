@@ -187,6 +187,7 @@
   "notice.newDevice": "新设备",
   "notice.hostPaired": "已添加主机 {host}",
   "notice.hostPairFailed": "主机配对失败。请在电脑上重试。",
+  "notice.hostSlotsFull": "有新电脑尝试配对，但 3 个主机位置都已占用。请先移除一个。",
   "notice.hostRepairBlocked": "主机 {host} 正在尝试重新配对。",
   "notice.allowRepair": "允许",
   "notice.hostOffline": "主机 {host} 未连接",

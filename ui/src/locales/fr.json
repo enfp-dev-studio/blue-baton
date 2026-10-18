@@ -187,6 +187,7 @@
   "notice.newDevice": "Nouvel appareil",
   "notice.hostPaired": "Hôte {host} ajouté",
   "notice.hostPairFailed": "Échec du jumelage de l’hôte. Réessayez depuis l’ordinateur.",
+  "notice.hostSlotsFull": "Un nouvel ordinateur a tenté de se jumeler, mais les 3 emplacements d’hôte sont occupés. Supprimez-en un d’abord.",
   "notice.hostRepairBlocked": "L’hôte {host} tente de se jumeler à nouveau.",
   "notice.allowRepair": "Autoriser",
   "notice.hostOffline": "Hôte {host} non connecté",

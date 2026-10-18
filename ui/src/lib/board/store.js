@@ -156,8 +156,13 @@ export class Store {
     const s = this.state;
     switch (ev.event) {
       case 'ble_ready':
+        /* The board (re)started: nothing it had open survives. Real hardware: the board restarted while the
+         * host pairing window was open, and the window could not be closed from the app */
         s.bonds = ev.bonds;
         s.bondsMax = ev.max;
+        s.hostWindow = { open: false, until: 0 };
+        s.hostPrompt = null;
+        s.hostCandidate = null;
         break;
       case 'scan_started':
         s.found.clear();   /* A scan lists what is advertising now (the board starts its list over too) */

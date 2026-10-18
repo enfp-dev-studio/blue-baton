@@ -188,12 +188,7 @@ static void cmd_host_pair(int id, const char *line)
         reply_err_code(id, "bad_request", "on (true or false) is missing");
         return;
     }
-    esp_err_t err = ble_pair_host_pair(on);
-    if (err == ESP_ERR_NO_MEM) {
-        reply_err_code(id, "hosts_full", "All 3 host slots are in use. Remove one, then open the window again");
-        return;
-    }
-    reply_ble(id, err);
+    reply_ble(id, ble_pair_host_pair(on));
 }
 
 static void cmd_host_list(int id)

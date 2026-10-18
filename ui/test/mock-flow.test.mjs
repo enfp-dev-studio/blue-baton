@@ -205,3 +205,27 @@ test('a host that is not connected cannot be picked (host_offline)', async () =>
   await assert.rejects(c.request('host_select', { host: 2 }), (e) => e.code === 'host_offline');
   await t.close();
 });
+
+test('every host slot in use: the window still opens (to pair again), and a new host is turned away', async () => {
+  const { t, c, waitFor } = setup('hosts=3');
+  await t.open();
+  await c.request('hello');
+  const r = await c.request('host_pair', { on: true });
+  assert.equal(r.ok, true);
+  await waitFor((e) => e.event === 'host_window' && e.open === true);
+  await waitFor((e) => e.event === 'host_slots_full', 6000);
+  await c.request('host_pair', { on: false });
+  await waitFor((e) => e.event === 'host_window' && e.open === false);
+  await t.close();
+});
+
+test('a board restart (ble_ready) closes the pairing window in the app state', async () => {
+  const { Store } = await import('../src/lib/board/store.js');
+  const s = new Store();
+  s.applyEvent({ event: 'host_window', open: true, seconds: 180 });
+  s.applyEvent({ event: 'host_passkey_request', host: 0, addr: '00:00:5E:00:53:61' });
+  assert.equal(s.state.hostWindow.open, true);
+  s.applyEvent({ event: 'ble_ready', bonds: 4, max: 8 });
+  assert.equal(s.state.hostWindow.open, false);
+  assert.equal(s.state.hostPrompt, null);
+});

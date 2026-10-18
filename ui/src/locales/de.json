@@ -187,6 +187,7 @@
   "notice.newDevice": "Neues Gerät",
   "notice.hostPaired": "Host {host} hinzugefügt",
   "notice.hostPairFailed": "Host-Kopplung fehlgeschlagen. Versuche es am Computer erneut.",
+  "notice.hostSlotsFull": "Ein neuer Computer wollte sich koppeln, aber alle 3 Host-Plätze sind belegt. Entferne zuerst einen Host.",
   "notice.hostRepairBlocked": "Host {host} versucht, sich erneut zu koppeln.",
   "notice.allowRepair": "Zulassen",
   "notice.hostOffline": "Host {host} nicht verbunden",

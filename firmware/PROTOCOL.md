@@ -1,8 +1,8 @@
-# USB Control Protocol (firmware 0.7.7)
+# USB Control Protocol (firmware 0.7.8)
 
 The board connects over USB to the main machine, and that machine's settings app (`app/`, or the UI in `ui/` via the local bridge or Web Serial) controls the board with this protocol.
 
-Changes from earlier versions are collected at the end under "0.7.6 → 0.7.7 changes", "0.7.5 → 0.7.6 changes", "0.7.4 → 0.7.5 changes", "0.7.2 → 0.7.3 changes", "0.7 → 0.7.1 changes", "0.6 → 0.7 changes", "0.5 → 0.6 changes", "0.4 → 0.5 changes" and "0.3 → 0.4 changes". Firmware 0.7.2 and 0.7.4 did not change the protocol.
+Changes from earlier versions are collected at the end under "0.7.7 → 0.7.8 changes", "0.7.6 → 0.7.7 changes", "0.7.5 → 0.7.6 changes", "0.7.4 → 0.7.5 changes", "0.7.2 → 0.7.3 changes", "0.7 → 0.7.1 changes", "0.6 → 0.7 changes", "0.5 → 0.6 changes", "0.4 → 0.5 changes" and "0.3 → 0.4 changes". Firmware 0.7.2 and 0.7.4 did not change the protocol.
 
 ## Basic rules
 
@@ -51,7 +51,7 @@ Changes from earlier versions are collected at the end under "0.7.6 → 0.7.7 ch
 | `combo_get` | none | The host switch combos actually in effect (`combo`). If nothing is stored or the stored value is malformed, the default applies and `default:true`; if an invalid value is stored, `stored_invalid:true` |
 | `combo_set` | `combo` | Comma-separated list of combos in host order (e.g. `alt+1,alt+2,alt+3`, up to 95 characters). Validated, then applied and saved immediately. If invalid, `code:"bad_combo"` |
 | `host_select` | `host` (1–3) | Select the active host directly. Same handling as a combo switch (release-all to the previous host). A host that is not `ready` cannot be selected: `code:"host_offline"` |
-| `host_pair` | `on` | Open or close the host pairing window. When opened, it accepts connections and pairing from new hosts for 180 seconds. It closes by itself once one host pairs. If 3 hosts are already paired, `code:"hosts_full"`. Opening it stops input device scanning and user connection attempts |
+| `host_pair` | `on` | Open or close the host pairing window. When opened, it accepts connections and pairing from new hosts for 180 seconds, and lets a paired host that forgot the board pair again into its own slot. It closes by itself once one host pairs. With all 3 slots in use it still opens (for pairing again); a new host is then turned away (`host_slots_full`). Opening it stops input device scanning and user connection attempts |
 | `host_list` | none | List of paired hosts (`hosts`). See "host_list entries" below |
 | `host_remove` | `host` (1–3) | Delete the bond of the host at that number. Disconnects it if connected. "Blue Baton" must also be removed on that computer before it can be added again |
 | `host_move` | `host` (1–3), `to` (1–3) | The host at `host` takes number `to`, and the host at `to`, if any, takes `host`. Links stay up. The switch combos stay with the numbers (the combo for 1 goes to whichever host is 1); the active host stays the same computer under its new number. Event `host_moved` |
@@ -79,7 +79,6 @@ Failure `code`
 | `bad_addr` | Address missing or malformed |
 | `no_request` | No pending pairing input request to answer |
 | `host_window` | The host pairing window is open, so input device scanning/new connections are not accepted |
-| `hosts_full` | All 3 host slots are in use |
 | `host_offline` | That host is not connected (`host_select`) |
 | `bad_host` | Host number is not 1–3 |
 | `bad_code` | Passkey is not 6 digits |
@@ -179,7 +178,8 @@ hosts: [{"host":1,"addr":"00:00:5E:00:53:30","name":"Example’s MacBook Pro","n
 | `host_passkey_sent` | `host`, `addr`, `ok` | The passkey was handed to the security procedure (SMP) |
 | `host_paired` | `host`, `addr` | Saved the new host under that number, or a known host paired again (same number). The window closes |
 | `host_pair_failed` | `host`, `addr`, `status`, `authenticated` | Host pairing (or key restore) failed. A new bond that is not authenticated is deleted and the connection dropped |
-| `host_repair_blocked` | `host`, `addr` | A bonded host tried to pair again (the board was removed on that computer). Outside the window (or the new pairing was not authenticated), so it was rejected and disconnected. If it reconnects while the window is open, it is accepted (number and name are kept). With all 3 host slots in use the window does not open (`hosts_full`); remove that host and add it again |
+| `host_repair_blocked` | `host`, `addr` | A bonded host tried to pair again (the board was removed on that computer). Outside the window (or the new pairing was not authenticated), so it was rejected and disconnected. If it reconnects while the window is open, it is accepted (number and name are kept) |
+| `host_slots_full` | `addr` | A new host connected while the window was open, but all 3 slots are in use: it was disconnected |
 | `host_ready` | `host`, `addr` | The host enabled notifications and can receive reports |
 | `host_name` | `host`, `addr`, `name` | The host's GAP Device Name |
 | `host_conn_params` | `host`, `addr`, `status`, `itvl`, `latency`, `timeout` | The host connection parameters changed. The board asks the active host for 7.5 ms with latency 4, and for 15 ms if its controller or the host refuses; idle hosts get 15 ms with latency 30; supervision timeout 6 s. The host has the final say (measured: Windows takes 7.5 ms; for a Mac link the board's controller refuses it, so a Mac stays at 15 ms) |
@@ -238,6 +238,10 @@ Only while the window is open does the board present itself as a keyboard (IO ca
   - The combo of a host that is not connected is swallowed the same way, without switching
   - When an input device disconnects, the keys it was holding are treated as released
   - The active host is kept across restarts (power, firmware update)
+
+## 0.7.7 → 0.7.8 changes
+
+- `host_pair` opens the window also with all 3 slots in use (a host that forgot the board pairs again into its own slot) and no longer fails with `hosts_full`. A new host that connects then gets `host_slots_full` and is disconnected.
 
 ## 0.7.6 → 0.7.7 changes
 

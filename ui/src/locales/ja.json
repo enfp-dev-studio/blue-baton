@@ -187,6 +187,7 @@
   "notice.newDevice": "新しいデバイス",
   "notice.hostPaired": "ホスト {host} を追加しました",
   "notice.hostPairFailed": "ホストのペアリングに失敗しました。コンピューターからもう一度お試しください。",
+  "notice.hostSlotsFull": "新しいコンピューターがペアリングしようとしましたが、ホストの枠（3台）がすべて使用中です。先に1台を削除してください。",
   "notice.hostRepairBlocked": "ホスト {host} が再ペアリングしようとしています。",
   "notice.allowRepair": "許可",
   "notice.hostOffline": "ホスト {host} は未接続です",

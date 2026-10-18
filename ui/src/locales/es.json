@@ -187,6 +187,7 @@
   "notice.newDevice": "Dispositivo nuevo",
   "notice.hostPaired": "Host {host} añadido",
   "notice.hostPairFailed": "No se pudo enlazar el host. Vuelve a intentarlo desde el equipo.",
+  "notice.hostSlotsFull": "Un equipo nuevo intentó enlazarse, pero los 3 espacios para hosts están ocupados. Elimina uno primero.",
   "notice.hostRepairBlocked": "El host {host} intenta volver a enlazarse.",
   "notice.allowRepair": "Permitir",
   "notice.hostOffline": "Host {host} sin conexión",
