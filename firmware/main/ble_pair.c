@@ -2289,41 +2289,47 @@ static esp_err_t op_remove(const char *addr)
     return unpair_id(&id);
 }
 
+/*
+ * Stop scanning, connection attempts and advertising around a bond deletion. The controller refuses to change its
+ * resolving list while any of them runs (Core Vol 4 Part E 7.8.39, Command Disallowed), and ble_gap_unpair checks
+ * only scanning and advertising: during an input connection attempt it removed the bond but left the computer's IRK
+ * in the controller (real hardware: "Error while removing IRK, rc = 20c" when a host was removed). Host task only
+ */
+void ble_pair_radio_pause(bool pause)
+{
+    s_radio_hold = pause;
+    host_adv_hold(pause);
+    if (!pause) {
+        s_auto_dirty = true;
+    }
+    radio_update();
+}
+
 /* Delete one bond with its keys, resolving list entry, metadata and cache, then tell the GUI (unpaired) */
 static esp_err_t unpair_id(const ble_addr_t *idp)
 {
     ble_addr_t id = *idp;
-    /* ble_gap_unpair returns EBUSY while scanning or advertising. Pause the radio briefly */
-    s_radio_hold = true;
-    radio_update();
-    host_adv_hold(true);            /* ble_gap_unpair also returns EBUSY while advertising */
+    ble_pair_radio_pause(true);
     int rc = ble_gap_unpair(&id);   /* Disconnects if connected, and removes it from the resolving list and the store */
-    host_adv_hold(false);
-    s_radio_hold = false;
-    if (rc != 0) {
+    if (rc == 0) {
+        cfg_paired_remove(id.type & 1, id.val);
+        cache_forget(&id);
+        auto_resume(&id);
+        char id_str[18];
+        char buf[96];
+        val_to_str(id.val, id_str);
+        snprintf(buf, sizeof(buf), "{\"event\":\"unpaired\",\"id_addr\":\"%s\"}", id_str);
+        emit(buf);
+    } else {
         ESP_LOGE(TAG, "unpair failed rc=%d", rc);
-        s_auto_dirty = true;
-        radio_update();
-        return ESP_FAIL;
     }
-    cfg_paired_remove(id.type & 1, id.val);
-    cache_forget(&id);
-    auto_resume(&id);
-    char id_str[18];
-    char buf[96];
-    val_to_str(id.val, id_str);
-    snprintf(buf, sizeof(buf), "{\"event\":\"unpaired\",\"id_addr\":\"%s\"}", id_str);
-    emit(buf);
-    s_auto_dirty = true;
-    radio_update();
-    return ESP_OK;
+    ble_pair_radio_pause(false);
+    return rc == 0 ? ESP_OK : ESP_FAIL;
 }
 
 static esp_err_t op_clear(void)
 {
-    s_radio_hold = true;
-    radio_update();
-    host_adv_hold(true);
+    ble_pair_radio_pause(true);
     ble_addr_t bonds[CFG_PAIRED_MAX];
     int n = bonds_get(bonds, CFG_PAIRED_MAX);
     esp_err_t result = ESP_OK;
@@ -2343,10 +2349,7 @@ static esp_err_t op_clear(void)
     } else {
         bonds_reconcile();
     }
-    host_adv_hold(false);
-    s_radio_hold = false;
-    s_auto_dirty = true;
-    radio_update();
+    ble_pair_radio_pause(false);
     return result;
 }
 

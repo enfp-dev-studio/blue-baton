@@ -116,6 +116,9 @@ size_t ble_pair_stats_json(char *buf, size_t len);
 
 /* Developer builds (CONFIG_KM_DIAG): mouse self-test traffic to host (1-3) for minutes; host 0 stops it. The host must not be the active one */
 esp_err_t ble_pair_selftest(int host, int minutes);
+/* Stop (true) or resume (false) scanning, connection attempts and advertising, around a bond deletion. Host task only */
+void ble_pair_radio_pause(bool pause);
+
 /* The board's Bluetooth name, as computers see it (see host_device_name) */
 const char *ble_pair_device_name(void);
 /* Developer builds: reports with no motion to every host for minutes (0 stops): see host_probe */

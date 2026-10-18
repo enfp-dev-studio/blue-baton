@@ -1071,6 +1071,36 @@ esp_err_t host_probe(int minutes)
 
 /* ---------- Advertising ---------- */
 
+/*
+ * Back-off. A computer that keeps connecting and failing reconnects at once, every few hundred milliseconds: one
+ * removed from the board that still has its keys, or a new one turned away while every slot is in use. Real
+ * hardware: a Windows PC removed from the board connected and failed about 15 times in 9 s, then the ESP32-S3's
+ * Bluetooth controller stopped (assert sch_arb.c 517) and the board restarted. When FAIL_BURST host connections
+ * end before the link is ready within FAIL_WINDOW_MS, advertising stops for BACKOFF_MS: connected hosts stay
+ * connected, a host that is offline reconnects up to BACKOFF_MS later.
+ */
+#define FAIL_BURST 4
+#define FAIL_WINDOW_MS 10000
+#define BACKOFF_MS 10000
+static int64_t s_fail_us[FAIL_BURST];   /* When the last FAIL_BURST failed host connections ended */
+static unsigned s_fail_n;
+static int64_t s_backoff_until_us;
+
+static void note_failed_link(void)
+{
+    int64_t now = now_us();
+    s_fail_us[s_fail_n % FAIL_BURST] = now;
+    s_fail_n++;
+    int64_t oldest = s_fail_us[s_fail_n % FAIL_BURST];   /* The one FAIL_BURST - 1 failures before this one */
+    if (s_fail_n >= FAIL_BURST && now - oldest < (int64_t)FAIL_WINDOW_MS * 1000) {
+        s_fail_n = 0;
+        s_backoff_until_us = now + (int64_t)BACKOFF_MS * 1000;
+        char buf[64];
+        snprintf(buf, sizeof(buf), "{\"event\":\"host_backoff\",\"seconds\":%d}", BACKOFF_MS / 1000);
+        emit(buf);
+    }
+}
+
 static void adv_stop(void)
 {
     if (ble_gap_adv_active()) {
@@ -1130,6 +1160,10 @@ static void adv_update(void)
     int64_t now = now_us();
     if (s_window && now >= s_window_until_us) {
         host_pair_window(false);
+        return;
+    }
+    if (now < s_backoff_until_us) {
+        adv_stop();   /* The tick (1 s) brings advertising back afterwards */
         return;
     }
     int mode = 0;
@@ -1347,6 +1381,7 @@ static host_link_t *link_ensure(uint16_t conn)
     }
     if (!accept) {
         ble_gap_terminate(conn, HCI_USER_TERM);
+        note_failed_link();
         adv_update();
         return NULL;
     }
@@ -1405,6 +1440,9 @@ static void link_drop(host_link_t *l, int reason)
     char extra[48];
     snprintf(extra, sizeof(extra), ",\"reason\":%d", reason);
     emit_link("host_disconnected", l, extra);
+    if (l->state != HL_READY) {
+        note_failed_link();
+    }
     l->used = false;
     fast_adv();   /* Advertise fast right after a disconnect so the host reconnects (HOGP Table 5.2) */
     adv_update();
@@ -1462,7 +1500,9 @@ static void on_enc_change(struct ble_gap_event *event)
         /* New host: assign the lowest free number */
         int index = free_host_index();
         if (index < 0) {
+            ble_pair_radio_pause(true);
             ble_gap_unpair(&l->id);
+            ble_pair_radio_pause(false);
             return;
         }
         cfg_paired_t m;
@@ -1718,18 +1758,16 @@ esp_err_t host_remove(int index)
         }
         ble_addr_t id = {.type = recs[i].type};
         memcpy(id.val, recs[i].val, 6);
-        host_adv_hold(true);   /* ble_gap_unpair returns EBUSY while advertising */
+        ble_pair_radio_pause(true);   /* Also removes the computer's IRK from the controller (see there) */
         int rc = ble_gap_unpair(&id);
-        host_adv_hold(false);
-        if (rc != 0 && rc != BLE_HS_ENOENT) {
-            return ESP_FAIL;
+        if (rc == 0 || rc == BLE_HS_ENOENT) {
+            cfg_paired_remove(recs[i].type, recs[i].val);
+            char buf[64];
+            snprintf(buf, sizeof(buf), "{\"event\":\"host_removed\",\"host\":%d}", index + 1);
+            emit(buf);
         }
-        cfg_paired_remove(recs[i].type, recs[i].val);
-        char buf[64];
-        snprintf(buf, sizeof(buf), "{\"event\":\"host_removed\",\"host\":%d}", index + 1);
-        emit(buf);
-        adv_update();
-        return ESP_OK;
+        ble_pair_radio_pause(false);
+        return rc == 0 || rc == BLE_HS_ENOENT ? ESP_OK : ESP_FAIL;
     }
     return ESP_ERR_NOT_FOUND;
 }

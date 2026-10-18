@@ -111,6 +111,8 @@ export function createController(params = new URLSearchParams(location.search), 
       store.notice('info', t('notice.hostPaired', { host: ev.host }));
     } else if (ev.event === 'host_pair_failed') {
       store.notice('error', t('notice.hostPairFailed'));
+    } else if (ev.event === 'host_backoff') {
+      store.notice('error', t('notice.hostBackoff', { seconds: ev.seconds, board: store.state.boardName || 'Blue Baton' }));
     } else if (ev.event === 'host_slots_full') {
       store.notice('error', t('notice.hostSlotsFull'));
     } else if (ev.event === 'host_repair_blocked') {

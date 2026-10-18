@@ -10,6 +10,9 @@ Notable changes in each release, newest first. The format follows [Keep a Change
 
 - Pair Again with all 3 host slots in use said there was no slot; pairing again does not need one. The window now opens, and a new computer that tries to pair meanwhile is turned away with a message
 - The host pairing window could not be closed after the board had restarted while it was open (Close and the X did nothing); the app now closes it when the board restarts or confirms the close
+- The board could restart when a computer removed from it kept reconnecting with its old keys (seen with a Windows PC, about 15 times in 9 seconds). After 4 failed host connections within 10 seconds the board now stops advertising for 10 seconds and says so in the app
+- Removing a host while the board was trying to reconnect an input device left the computer's address key in the Bluetooth controller; the board now pauses its radio for the removal, as it already did for input devices
+- Removing a host now asks to also remove the board on that computer, by the board's name
 
 ## [0.7.7] - 2026-10-17
 

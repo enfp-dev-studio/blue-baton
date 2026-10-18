@@ -118,7 +118,7 @@ function HostRow({ n, s, a, host, confirm, rename, recording, setRecording }: Ro
             onSelect={() =>
               confirm({
                 title: t('common.remove'),
-                body: t('confirm.removeHost', { name: host.name || t('confirm.hostName', { n }) }),
+                body: t('confirm.removeHost', { name: host.name || t('confirm.hostName', { n }), board: s.boardName || 'Blue Baton' }),
                 action: () => a.removeHost(n),
               })
             }

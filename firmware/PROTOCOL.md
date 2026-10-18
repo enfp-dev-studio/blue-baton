@@ -180,6 +180,7 @@ hosts: [{"host":1,"addr":"00:00:5E:00:53:30","name":"Example’s MacBook Pro","n
 | `host_pair_failed` | `host`, `addr`, `status`, `authenticated` | Host pairing (or key restore) failed. A new bond that is not authenticated is deleted and the connection dropped |
 | `host_repair_blocked` | `host`, `addr` | A bonded host tried to pair again (the board was removed on that computer). Outside the window (or the new pairing was not authenticated), so it was rejected and disconnected. If it reconnects while the window is open, it is accepted (number and name are kept) |
 | `host_slots_full` | `addr` | A new host connected while the window was open, but all 3 slots are in use: it was disconnected |
+| `host_backoff` | `seconds` | 4 host connections ended before the link was ready within 10 s (a computer removed from the board that still has its keys reconnects at once): advertising stops for `seconds`. Connected hosts stay connected |
 | `host_ready` | `host`, `addr` | The host enabled notifications and can receive reports |
 | `host_name` | `host`, `addr`, `name` | The host's GAP Device Name |
 | `host_conn_params` | `host`, `addr`, `status`, `itvl`, `latency`, `timeout` | The host connection parameters changed. The board asks the active host for 7.5 ms with latency 4, and for 15 ms if its controller or the host refuses; idle hosts get 15 ms with latency 30; supervision timeout 6 s. The host has the final say (measured: Windows takes 7.5 ms; for a Mac link the board's controller refuses it, so a Mac stays at 15 ms) |
@@ -242,6 +243,7 @@ Only while the window is open does the board present itself as a keyboard (IO ca
 ## 0.7.7 → 0.7.8 changes
 
 - `host_pair` opens the window also with all 3 slots in use (a host that forgot the board pairs again into its own slot) and no longer fails with `hosts_full`. A new host that connects then gets `host_slots_full` and is disconnected.
+- New event `host_backoff`.
 
 ## 0.7.6 → 0.7.7 changes
 
