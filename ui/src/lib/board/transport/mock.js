@@ -11,7 +11,7 @@
  * Hosts: host 1 is a bonded mock Mac (connects after boot). Opening the host pairing window makes a mock PC
  * connect 2 s later and request a passkey. The code shown on that PC is printed as a board log line.
  *
- * URL options: ?mock turns it on, &fast (10 s scan), &chip=esp32c6 (firmware built for another chip), &hosts=3 (every host slot in use)
+ * URL options: ?mock turns it on, &fast (10 s scan), &chip=esp32c6 (firmware built for another chip), &hosts=3 (every host slot in use), &drops=2 (host 2 drops 3 times, then stays offline)
  */
 
 import { t } from '../i18n.js';
@@ -140,6 +140,13 @@ class MockBoard {
       this.radioUpdate();
       for (const d of this.bonded()) this.later(d.wakeAfter, () => this.wake(d));
       this.later(800, () => this.hostConnect(1));
+      /* ?mock&hosts=3&drops=2: host 2 reconnects and times out 3 times, then stays offline (a Mac that gave up) */
+      const n = this.opts.drops;
+      const h = n && this.hosts.get(n);
+      for (let i = 0; h && i < 3; i++) {
+        this.later(1000 + i * 400, () => this.ev({ event: 'host_connected', host: n, addr: h.addr, bonded: true, itvl: 24 }));
+        this.later(1200 + i * 400, () => this.ev({ event: 'host_disconnected', host: n, addr: h.addr, reason: 520 }));
+      }
     });
     this.every(5000, () => this.emit(`I (${Math.round(performance.now())}) km: alive (mock)`));
     this.every(40, () => this.tickInputs());
@@ -598,7 +605,7 @@ export class MockTransport {
   }
 
   constructor(params = new URLSearchParams()) {
-    this.opts = { fast: params.has('fast'), found: Number(params.get('found')) || 0, chip: params.get('chip') || 'esp32s3', hosts: Number(params.get('hosts')) || 1 };
+    this.opts = { fast: params.has('fast'), found: Number(params.get('found')) || 0, chip: params.get('chip') || 'esp32s3', hosts: Number(params.get('hosts')) || 1, drops: Number(params.get('drops')) || 0 };
     this.board = null;
     this.onLine = () => {};
     this.onClose = () => {};

@@ -460,6 +460,23 @@ export function createController(params = new URLSearchParams(location.search), 
 }
 
 /* What a host is called on screen: the name the user gave it, otherwise its number */
+/*
+ * Hosts that have probably stopped reconnecting: not connected, with 3 or more link drops in the last 3 minutes, the
+ * last one 10 s ago or more. macOS counts a connection that ends before the keyboard service is in use as a strike and
+ * stops reconnecting the accessory after 5 (BTLEServer: "did not use any built-in service, strike #5", "Removing
+ * autoconnect tag"); then only Connect on that computer brings it back. Removing the host on the board would instead
+ * throw away its keys and force a new pairing.
+ */
+export function stalledHosts(s, now = Date.now()) {
+  const out = [];
+  for (const [n, drops] of s.hostDrops) {
+    const h = s.hosts.get(n);
+    const recent = drops.filter((t) => now - t < 180000);
+    if (h && !h.connected && recent.length >= 3 && now - recent[recent.length - 1] >= 10000) out.push(n);
+  }
+  return out;
+}
+
 export function hostLabel(s, n) {
   return s.hosts.get(n)?.nick || String(n);
 }

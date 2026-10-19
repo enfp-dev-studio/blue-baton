@@ -37,7 +37,7 @@ const NOT_OURS_FOR: Duration = Duration::from_secs(60);
 /// Longest a read waits while the board is quiet. Only `release` waits for it; writes have their own thread
 const READ_TIMEOUT: Duration = Duration::from_secs(1);
 /// board.log moves to board.log.1 at this size
-const LOG_MAX: u64 = 1024 * 1024;
+const LOG_MAX: u64 = 8 * 1024 * 1024;
 
 #[derive(Clone, Serialize)]
 pub struct Status {

@@ -70,6 +70,7 @@ export interface BoardState {
   activeHost: number;
   hosts: Map<number, Host>;
   hostWindow: { open: boolean; until: number };
+  hostDrops: Map<number, number[]>;
   hostCandidate: { addr: string; state: string } | null;
   hostPrompt: { addr: string; len: number; digits?: string } | null;
   combos: string[];

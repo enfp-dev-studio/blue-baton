@@ -32,6 +32,7 @@ export class Store {
       activeHost: 1,               /* 1-based */
       hosts: new Map(),            /* number (1 to 3) -> {host, addr, name, state, connected} (host_list is the source) */
       hostWindow: { open: false, until: 0 },
+      hostDrops: new Map(),        /* host number -> times its link dropped, until it is ready again (stalledHosts) */
       hostCandidate: null,         /* host that connected through the pairing window and has no number yet {addr, state} */
       hostPrompt: null,            /* host passkey entry {addr, len} */
       combos: [],                  /* switch combo string per host */
@@ -323,6 +324,7 @@ export class Store {
       case 'host_ready': {
         const h = s.hosts.get(ev.host);
         if (h) h.state = 'ready';
+        s.hostDrops.delete(ev.host);
         break;
       }
       case 'host_name': {
@@ -335,6 +337,7 @@ export class Store {
         break;
       case 'host_disconnected':
         if (ev.host >= 1) {
+          s.hostDrops.set(ev.host, [...(s.hostDrops.get(ev.host) || []), Date.now()].slice(-10));
           const h = s.hosts.get(ev.host);
           if (h) {
             h.connected = false;

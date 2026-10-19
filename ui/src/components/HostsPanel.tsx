@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { RadioGroup as RadioGroupPrimitive } from 'radix-ui';
 import { Group, HostBadge, Keycaps, RowMenu, StateTag, comboLabel } from '@/components/parts';
 import { DEFAULT_COMBOS, comboFromEvent, modifiers, sameCombo } from '@/lib/board/combo.js';
-import { hostLabel } from '@/lib/board/controller.js';
+import { hostLabel, stalledHosts } from '@/lib/board/controller.js';
 import { hostStateText, hostStateTone, t, tParts } from '@/lib/board/i18n.js';
 import type { Actions, BoardState, Host, Tone } from '@/lib/board/types';
 import { cn } from '@/lib/utils';
@@ -28,6 +28,7 @@ export function HostsPanel({ s, a, confirm }: { s: BoardState; a: Actions; confi
   /* The one combo being recorded (0: none). One for the whole list: WebKit does not focus a clicked button, so a
      recorder that ends on blur would stay on when another one is clicked */
   const [recording, setRecording] = useState(0);
+  const stalled = stalledHosts(s);   /* Re-read on every refresh (host_list every few seconds) */
   return (
     <>
     <Group
@@ -61,10 +62,15 @@ export function HostsPanel({ s, a, confirm }: { s: BoardState; a: Actions; confi
             </li>
           )}
           {[1, 2, 3].map((n) => (
-            <HostRow key={n} n={n} s={s} a={a} host={s.hosts.get(n)} confirm={confirm} rename={rename} recording={recording} setRecording={setRecording} />
+            <HostRow key={n} n={n} s={s} a={a} host={s.hosts.get(n)} stalled={stalled.includes(n)} confirm={confirm} rename={rename} recording={recording} setRecording={setRecording} />
           ))}
         </ul>
       </RadioGroupPrimitive.Root>
+      {stalled.map((n) => (
+        <p key={n} role="status" className="border-t px-3 py-2.5 text-xs text-muted-foreground">
+          {t('hosts.stalled', { name: s.hosts.get(n)?.name || hostLabel(s, n), board: s.boardName || 'Blue Baton' })}
+        </p>
+      ))}
     </Group>
     <RenameDialog req={renaming} a={a} onClose={() => setRenaming(null)} />
     </>
@@ -72,11 +78,11 @@ export function HostsPanel({ s, a, confirm }: { s: BoardState; a: Actions; confi
 }
 
 type RowProps = {
-  n: number; s: BoardState; a: Actions; host?: Host; confirm: Confirm; rename: (n: number) => void;
+  n: number; s: BoardState; a: Actions; host?: Host; stalled: boolean; confirm: Confirm; rename: (n: number) => void;
   recording: number; setRecording: (n: number) => void;
 };
 
-function HostRow({ n, s, a, host, confirm, rename, recording, setRecording }: RowProps) {
+function HostRow({ n, s, a, host, stalled, confirm, rename, recording, setRecording }: RowProps) {
   const on = !!host && s.activeHost === n;
   return (
     <li
@@ -95,7 +101,12 @@ function HostRow({ n, s, a, host, confirm, rename, recording, setRecording }: Ro
           <span className={cn('block truncate', host ? 'font-medium' : 'text-muted-foreground')}>
             {host ? host.name || t('hosts.unnamed') : t('hosts.empty')}
           </span>
-          {host && <StateTag tone={hostStateTone(host.state) as Tone}>{hostStateText(host.state)}</StateTag>}
+          {host &&
+            (stalled ? (
+              <StateTag tone="bad">{t('hostState.stalled')}</StateTag>
+            ) : (
+              <StateTag tone={hostStateTone(host.state) as Tone}>{hostStateText(host.state)}</StateTag>
+            ))}
         </span>
       </RadioGroupPrimitive.Item>
       <ComboButton n={n} s={s} a={a} rec={recording === n} setRec={(on) => setRecording(on ? n : 0)} />

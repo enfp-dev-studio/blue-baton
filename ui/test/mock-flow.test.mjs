@@ -229,3 +229,19 @@ test('a board restart (ble_ready) closes the pairing window in the app state', a
   assert.equal(s.state.hostWindow.open, false);
   assert.equal(s.state.hostPrompt, null);
 });
+
+test('a host whose link dropped 3 times and stays offline counts as stalled until it is ready again', async () => {
+  const { Store } = await import('../src/lib/board/store.js');
+  const { stalledHosts } = await import('../src/lib/board/controller.js');
+  const s = new Store();
+  s.applyHosts([{ host: 2, addr: '00:00:5E:00:53:0A', name: 'Mac', nick: '', connected: true, state: 'ready', active: false }]);
+  for (let i = 0; i < 3; i++) {
+    s.applyEvent({ event: 'host_connected', host: 2, addr: '00:00:5E:00:53:0A', bonded: true, itvl: 24 });
+    s.applyEvent({ event: 'host_disconnected', host: 2, addr: '00:00:5E:00:53:0A', reason: 520 });
+  }
+  const now = Date.now();
+  assert.deepEqual(stalledHosts(s.state, now + 1000), []);   /* still within 10 s of the last drop */
+  assert.deepEqual(stalledHosts(s.state, now + 15000), [2]);
+  s.applyEvent({ event: 'host_ready', host: 2, addr: '00:00:5E:00:53:0A' });
+  assert.deepEqual(stalledHosts(s.state, now + 15000), []);
+});

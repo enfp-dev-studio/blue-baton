@@ -13,6 +13,8 @@ Notable changes in each release, newest first. The format follows [Keep a Change
 - The board could restart when a computer removed from it kept reconnecting with its old keys (seen with a Windows PC, about 15 times in 9 seconds). After 4 failed host connections within 10 seconds the board now stops advertising for 10 seconds and says so in the app
 - Removing a host while the board was trying to reconnect an input device left the computer's address key in the Bluetooth controller; the board now pauses its radio for the removal, as it already did for input devices
 - Removing a host now asks to also remove the board on that computer, by the board's name
+- A computer that stopped reconnecting is shown as such, with what to do: macOS gives up on an accessory after 5 connections that end before its keyboard service is in use, and only Connect on that Mac brings it back (removing the host on the board would throw its keys away). Seen on a Mac whose link timed out repeatedly within 80 seconds
+- The app keeps more of the board log (8 MB before it rotates, was 1 MB), so a problem from hours ago can still be traced
 
 ## [0.7.7] - 2026-10-17
 
