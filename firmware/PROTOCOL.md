@@ -1,4 +1,4 @@
-# USB Control Protocol (firmware 0.7.8)
+# USB Control Protocol (firmware 0.7.9)
 
 The board connects over USB to the main machine, and that machine's settings app (`app/`, or the UI in `ui/` via the local bridge or Web Serial) controls the board with this protocol.
 

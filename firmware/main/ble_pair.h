@@ -116,6 +116,9 @@ size_t ble_pair_stats_json(char *buf, size_t len);
 
 /* Developer builds (CONFIG_KM_DIAG): mouse self-test traffic to host (1-3) for minutes; host 0 stops it. The host must not be the active one */
 esp_err_t ble_pair_selftest(int host, int minutes);
+/* Retry a refused auto-reconnect now (the active host link just left its short interval). Host task only */
+void ble_pair_retry_inputs(void);
+
 /* Stop (true) or resume (false) scanning, connection attempts and advertising, around a bond deletion. Host task only */
 void ble_pair_radio_pause(bool pause);
 

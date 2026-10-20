@@ -1704,6 +1704,9 @@ static int host_gap_event(struct ble_gap_event *event, void *arg)
             bool collision = st == BLE_HS_HCI_ERR(BLE_ERR_DIFF_TRANS_COLL) || st == BLE_HS_HCI_ERR(BLE_ERR_LMP_COLLISION);
             if (st == 0) {
                 l->param_retries = 0;
+                if (s_inputs_waiting && d.conn_itvl >= ITVL_HOST_MIN && l->index == router_active_host()) {
+                    ble_pair_retry_inputs();   /* The controller refused while this link was at 7.5 ms (HCI 0x0D) */
+                }
             }
             if (collision && l->param_retries < PARAM_RETRY_MAX) {
                 l->param_retries++;

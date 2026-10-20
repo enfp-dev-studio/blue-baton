@@ -836,6 +836,16 @@ static void auto_retry_cb(struct ble_npl_event *ev)
     radio_update();
 }
 
+/* The active host link has left its short interval (host_inputs_waiting): try at once instead of after AUTO_RETRY_MS */
+void ble_pair_retry_inputs(void)
+{
+    if (ble_npl_callout_is_active(&s_auto_retry) && s_radio == RADIO_IDLE) {
+        ble_npl_callout_stop(&s_auto_retry);
+        s_auto_dirty = true;
+        radio_update();
+    }
+}
+
 /* A device dropped (or the board started): listen fast for AUTO_FAST_MS */
 static void auto_fast(void)
 {
