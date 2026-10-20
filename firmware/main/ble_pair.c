@@ -683,6 +683,13 @@ static int auto_candidates(ble_addr_t *out, int max)
     return n;
 }
 
+/* An input device is waiting for its connection: a user connection, or auto-reconnect with a free slot */
+static bool inputs_waiting(void)
+{
+    ble_addr_t list[CFG_PAIRED_MAX];
+    return s_user_pending || (peers_free() > 0 && auto_candidates(list, CFG_PAIRED_MAX) > 0);
+}
+
 static radio_t radio_wanted(void)
 {
     if (s_radio_hold) {
@@ -869,7 +876,17 @@ static void radio_start_auto(void)
 
 static void radio_update(void)
 {
-    if (!s_synced || s_radio == RADIO_CANCEL) {
+    if (!s_synced) {
+        return;
+    }
+    /* The active host link gives up its short interval while an input device waits (host_inputs_waiting) */
+    static bool s_waiting_told;
+    bool waiting = inputs_waiting();
+    if (waiting != s_waiting_told) {
+        s_waiting_told = waiting;
+        host_inputs_waiting(waiting);
+    }
+    if (s_radio == RADIO_CANCEL) {
         return;   /* Called again once the cancel completes (CONNECT event) */
     }
     if (s_user_pending && s_radio != RADIO_CONNECT && peers_free() == 0) {

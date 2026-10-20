@@ -48,6 +48,10 @@ esp_err_t host_move(int index, int to);
 /* The name shown for a host instead of its number: up to CFG_NICK_CHARS characters of UTF-8; "" for none */
 esp_err_t host_nick(int index, const char *nick);
 
+/* An input device waits for its connection (true) or nothing waits (false): the active host link leaves or takes back
+ * its short interval. Host task only */
+void host_inputs_waiting(bool waiting);
+
 /* The board's Bluetooth name, as computers see it ("Blue Baton 1A2B" once the stack has started) */
 const char *host_device_name(void);
 

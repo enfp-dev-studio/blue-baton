@@ -4,6 +4,12 @@ Notable changes in each release, newest first. The format follows [Keep a Change
 (sections Added, Changed, Fixed, Removed; only the ones a release has), and versions follow
 [Semantic Versioning](https://semver.org/). The release workflow copies a version's section into its GitHub release.
 
+## [Unreleased]
+
+### Fixed
+
+- A keyboard or mouse that slept could not reconnect while the active computer was one that takes 7.5 ms (Windows): the board's Bluetooth controller refused every new connection (HCI 0x0D) until another computer was picked. The active computer now gives up 7.5 ms while an input device waits to connect, and gets it back once nothing waits
+
 ## [0.7.8] - 2026-10-18
 
 ### Fixed

@@ -233,6 +233,15 @@ static host_link_t s_links[HOST_LINK_MAX];
 /* The interval asked of the active host (1.25 ms units). Developer builds can change it at run time (host_itvl) */
 static uint16_t s_active_itvl_min = ITVL_ACTIVE;
 static uint16_t s_active_itvl_max = ITVL_ACTIVE;
+/*
+ * Whether an input device is waiting for its connection (ble_pair.c). The active host is then asked for 15 ms
+ * instead of the short interval: with a host link at 7.5 ms and two at 15 ms, the ESP32-S3 controller refused every
+ * LE Create Connection with HCI 0x0D (limited resources). Real hardware (10-20 11:04-12:22): the keyboard and mouse
+ * slept while a Windows PC was active at 7.5 ms, auto-reconnect was refused 2319 times in 78 minutes and they
+ * never came back; once the Windows link went to 15 ms (another host picked), they connected at the first attempt.
+ * Links already connected kept working at 7.5 ms, so the short interval comes back once nothing waits.
+ */
+static bool s_inputs_waiting;
 static host_event_fn s_emit;
 static bool s_synced;
 static bool s_window;
@@ -912,6 +921,16 @@ void host_send(const router_out_t *out, int switched_from)
     pump(l);
 }
 
+void host_inputs_waiting(bool waiting)
+{
+    s_inputs_waiting = waiting;
+    host_link_t *l = link_by_index(router_active_host());
+    if (l && l->state == HL_READY && !l->short_refused && s_active_itvl_min < ITVL_HOST_MIN) {
+        l->param_retries = 0;
+        request_conn_params(l);
+    }
+}
+
 #if CONFIG_KM_DIAG
 #if CONFIG_KM_DIAG
 esp_err_t host_set_active_itvl(uint16_t min, uint16_t max)
@@ -1258,11 +1277,12 @@ static void emit_link(const char *event, const host_link_t *l, const char *extra
 #define LATENCY_ACTIVE 4
 #define LATENCY_IDLE 30
 
+
 static void request_conn_params(host_link_t *l)
 {
     /* Latency 4 or 30, supervision 6 s (Apple ADG R31 58.6; Microsoft Bluetooth Accessory Guidelines 4.4) */
     bool active = l->index == router_active_host();
-    l->short_asked = active && !l->short_refused && s_active_itvl_min < ITVL_HOST_MIN;
+    l->short_asked = active && !l->short_refused && !s_inputs_waiting && s_active_itvl_min < ITVL_HOST_MIN;
     struct ble_gap_upd_params p = {
         .itvl_min = l->short_asked ? s_active_itvl_min : ITVL_HOST_MIN,
         .itvl_max = l->short_asked ? s_active_itvl_max : ITVL_HOST_MAX,
