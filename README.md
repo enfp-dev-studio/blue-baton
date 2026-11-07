@@ -2,7 +2,7 @@
 
 English | [한국어](README.ko.md)
 
-One Bluetooth LE keyboard and mouse for three computers (for example two Macs and a Windows PC), built on a single ESP32-S3 SuperMini. Input devices must support Bluetooth LE: the chip has no Bluetooth Classic.
+One Bluetooth LE keyboard and mouse for three computers (for example two Macs and a Windows PC), built on a single ESP32-S3 board such as an ESP32-S3 SuperMini or an M5Stack AtomS3 Lite. Input devices must support Bluetooth LE: the chip has no Bluetooth Classic.
 The router stays connected to the input devices and to every host at the same time, and only changes which host receives the input. Switching does not reconnect anything.
 
 ```text
@@ -12,16 +12,16 @@ BLE mouse ────┴─→ ESP32-S3 (NimBLE) ─┼─ BLE HID → host 2
                     └─ USB: menu bar app (settings, quick switch)
 ```
 
-Status: version 0.7.9. Up to two input devices (a keyboard and a mouse, or any two) and three hosts. Tested on real
+Status: version 0.7.10. Up to two input devices (a keyboard and a mouse, or any two) and three hosts. Tested on real
 hardware with a keyboard and a mouse connected at the same time, and with two Macs, a Windows PC and an iPhone as
-hosts: input goes to the active host, and both the key combo and the settings window switch hosts. The app was tested
-on macOS and Windows. Not yet tested on hardware: typing a host's passkey on the keyboard (entering it in the app was
-tested), system keys (power, sleep, wake), Linux as a host, and the Linux build of the app.
+hosts: input goes to the active host, and both the key combo and the settings window switch hosts. A computer's
+pairing code was typed both in the app and on the keyboard connected to the board. The app was tested on macOS and
+Windows. Not yet tested on hardware: system keys (power, sleep, wake), Linux as a host, and the Linux build of the app.
 
 ## What you need
 
 - An ESP32-S3 board with at least 4 MB of flash, connected by the chip's own USB port (on boards with two ports, the
-  one marked USB, not UART). Tested with an ESP32-S3 SuperMini. Other chips: [Boards](#boards).
+  one marked USB, not UART). Tested with an ESP32-S3 SuperMini, an M5Stack AtomS3 Lite and a Seeed XIAO ESP32S3 Sense. Other chips: [Boards](#boards).
 - Bluetooth LE keyboard and mouse. Bluetooth Classic-only devices do not work: the ESP32-S3 has only Bluetooth LE.
 - Up to three computers with Bluetooth LE.
 - One of them runs the Blue Baton app, with the board plugged into it by USB. The cable powers the board, and the
@@ -32,7 +32,8 @@ tested), system keys (power, sleep, wake), Linux as a host, and the Linux build 
 | Board | Chip | Releases and the app | Builds | Run on a real board |
 |---|---|---|---|---|
 | ESP32-S3 SuperMini (4 MB flash) | ESP32-S3 | Yes | Yes | Yes (developed and measured on it) |
-| M5Stack AtomS3 Lite (in a case) | ESP32-S3 | Yes, the same firmware | Yes | Not yet |
+| M5Stack AtomS3 Lite (in a case) | ESP32-S3 | Yes, the same firmware | Yes | Yes (two Macs, 30 min of real use: over 99% within 45 ms, no drops) |
+| Seeed XIAO ESP32S3 Sense (with the included antenna) | ESP32-S3 | Yes, the same firmware | Yes | Yes (two Macs, 30 min of real use: over 99% within 45 ms, no drops) |
 | M5Stack NanoC6 (in a case) | ESP32-C6 | No | Yes | Not supported: with two computers connected, their links drop every few minutes (see below) |
 | Other ESP32-S3 boards (4 MB or more flash, the chip's own USB port) | ESP32-S3 | Yes, the same firmware | Yes | No |
 | ESP32-C3 boards | ESP32-C3 | No: build it yourself | Yes | No |
@@ -43,6 +44,8 @@ tested), system keys (power, sleep, wake), Linux as a host, and the Linux build 
 | ESP32-S2 boards | ESP32-S2 | No | Yes, but the chip has no Bluetooth radio | No |
 | nRF52840, Raspberry Pi Pico W, Raspberry Pi | — | No | No | No |
 
+- The XIAO ESP32S3 has no antenna on the board: attach the external antenna that comes with it. Without it, a
+  keyboard reached the board about 40 dB weaker than on the AtomS3 Lite (-99 vs -59 dBm) and would not connect.
 - ESP32-C3, C5, C6 and H2 use the same ESP-IDF, NimBLE and USB port as the S3, but have one core (clock: C3 and C6
   160 MHz, H2 96 MHz, C5 240 MHz like the S3). Latency and link stability have not been measured on them. Build and
   install (from `firmware/`): `idf.py -B build-esp32c3 -DIDF_TARGET=esp32c3 build`, then
@@ -68,15 +71,18 @@ tested), system keys (power, sleep, wake), Linux as a host, and the Linux build 
 2. **Plug the board in** and open the app. A board without Blue Baton shows "This board doesn't run Blue Baton
    yet": click **Install Blue Baton**. The app carries the firmware, so nothing else needs installing. If the board
    is not found, hold its BOOT button while plugging it in.
-3. **Add your keyboard and mouse**: Input devices → Add Device…, put the device into pairing mode, and click Connect
-   when it shows up.
-4. **Add each computer**: Hosts → Add on an empty row. The board is discoverable for 3 minutes. On the computer,
-   pick the board by the name the app shows at the top ("Blue Baton" and four characters, such as "Blue Baton 3F2A";
-   each board has its own):
+3. **Add your keyboard and mouse** before the computers: each computer's pairing code is typed on this keyboard.
+   Input devices → Add Device…, put the device into pairing mode, and click Connect when it shows up. If the computer
+   the board is plugged into has no other mouse or trackpad, add the mouse after that computer: connecting the board
+   there takes a click.
+4. **Add each computer**, starting with the one the board is plugged into: Hosts → Add on an empty row. The board is
+   discoverable for 3 minutes. On the computer, pick the board by the name the app shows at the top ("Blue Baton" and
+   four characters, such as "Blue Baton 3F2A"; each board has its own):
    - macOS: System Settings → Bluetooth, Connect next to it.
    - Windows: Settings → Bluetooth & devices → Add device → Bluetooth → the board.
 
-   When the computer shows a 6-digit code, enter it in the app (or type it on a keyboard connected to the board).
+   When the computer shows a 6-digit code, type it on the keyboard connected to the board and press Enter (or enter
+   it in the app).
 5. **Switch** with `Alt+1`, `2`, `3` (on a Mac keyboard: Option), or from the menu bar icon. The combos
    can be changed in the app. A host's row menu renames it (up to 8 characters, shown instead of its number) and moves
    it up or down without reconnecting.
@@ -107,13 +113,13 @@ Each release also has the firmware as files, for [esptool](https://docs.espressi
 (`pip install esptool`):
 
 ```bash
-esptool --chip esp32s3 write-flash 0x0 blue-baton-firmware-v0.7.9-esp32s3.bin
+esptool --chip esp32s3 write-flash 0x0 blue-baton-firmware-v0.7.10-esp32s3.bin
 ```
 
 writes the whole image (a first install; it also clears pairings), and
 
 ```bash
-esptool --chip esp32s3 write-flash 0x20000 blue-baton-firmware-v0.7.9-esp32s3-app.bin
+esptool --chip esp32s3 write-flash 0x20000 blue-baton-firmware-v0.7.10-esp32s3-app.bin
 ```
 
 updates the firmware and keeps pairings.

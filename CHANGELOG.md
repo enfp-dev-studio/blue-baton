@@ -4,6 +4,17 @@ Notable changes in each release, newest first. The format follows [Keep a Change
 (sections Added, Changed, Fixed, Removed; only the ones a release has), and versions follow
 [Semantic Versioning](https://semver.org/). The release workflow copies a version's section into its GitHub release.
 
+## [0.7.10] - 2026-11-07
+
+### Changed
+
+- The settings window lists input devices before hosts, and its empty lists say what to add first: the keyboard (each computer's pairing code is typed on it), then the computer the board is plugged into. Getting started in the README follows the same order
+
+### Added
+
+- Tested on real boards: M5Stack AtomS3 Lite and Seeed XIAO ESP32S3 Sense run the same firmware (README, Boards). The XIAO needs the antenna that comes with it: without it a keyboard would not connect
+- The board log notes each time the app has no board and why: another program has the port, the device there does not answer as a Blue Baton board, the port was released, or no board is plugged in
+
 ## [0.7.9] - 2026-10-20
 
 ### Fixed

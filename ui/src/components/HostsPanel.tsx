@@ -36,7 +36,7 @@ export function HostsPanel({ s, a, confirm }: { s: BoardState; a: Actions; confi
       aside={
         active
           ? tParts('hosts.sendingTo', { name: <b key="n" className="font-medium text-foreground">{active.name || t('hosts.unnamed')}</b> })
-          : s.hosts.size ? undefined : t('hosts.noneActive')
+          : s.hosts.size ? undefined : t('hosts.startHere')
       }
       footer={
         !s.combosDefault && (
