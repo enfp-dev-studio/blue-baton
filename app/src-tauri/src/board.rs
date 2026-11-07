@@ -148,6 +148,9 @@ impl Board {
     }
 
     fn set_state(&self, state: &'static str, port: Option<String>) {
+        // The log says why there are no board lines (busy: another program has the port; other: it does not
+        // answer hello). "open" has its own "#bridge open" line
+        let note = format!("#bridge {state}{}", port.as_deref().map(|p| format!(" {p}")).unwrap_or_default());
         let changed = {
             let mut s = self.status.lock().unwrap();
             let changed = s.state != state || s.port != port;
@@ -158,6 +161,9 @@ impl Board {
         };
         self.status_changed.notify_all();
         if changed {
+            if state != "open" {
+                self.write_log(&note);
+            }
             let _ = self.app.emit("board-state", self.status());
         }
     }
