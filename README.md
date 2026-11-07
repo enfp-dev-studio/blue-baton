@@ -33,7 +33,7 @@ Windows. Not yet tested on hardware: system keys (power, sleep, wake), Linux as 
 |---|---|---|---|---|
 | ESP32-S3 SuperMini (4 MB flash) | ESP32-S3 | Yes | Yes | Yes (developed and measured on it) |
 | M5Stack AtomS3 Lite (in a case) | ESP32-S3 | Yes, the same firmware | Yes | Yes (two Macs, 30 min of real use: over 99% within 45 ms, no drops) |
-| Seeed XIAO ESP32S3 Sense (with the included antenna) | ESP32-S3 | Yes, the same firmware | Yes | Yes (two Macs, 30 min of real use: over 99% within 45 ms, no drops) |
+| Seeed XIAO ESP32S3 Sense (with the included antenna) | ESP32-S3 | Yes, the same firmware | Yes | Yes (two Macs, 30 min of real use: over 99% within 45 ms, no drops; firmware updated from the app, pairings kept) |
 | M5Stack NanoC6 (in a case) | ESP32-C6 | No | Yes | Not supported: with two computers connected, their links drop every few minutes (see below) |
 | Other ESP32-S3 boards (4 MB or more flash, the chip's own USB port) | ESP32-S3 | Yes, the same firmware | Yes | No |
 | ESP32-C3 boards | ESP32-C3 | No: build it yourself | Yes | No |
