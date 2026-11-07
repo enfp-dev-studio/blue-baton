@@ -13,10 +13,11 @@ BLE mouse ────┴─→ ESP32-S3 (NimBLE) ─┼─ BLE HID → host 2
 ```
 
 Status: version 0.7.10. Up to two input devices (a keyboard and a mouse, or any two) and three hosts. Tested on real
-hardware with a keyboard and a mouse connected at the same time, and with two Macs, a Windows PC and an iPhone as
-hosts: input goes to the active host, and both the key combo and the settings window switch hosts. A computer's
-pairing code was typed both in the app and on the keyboard connected to the board. The app was tested on macOS and
-Windows. Not yet tested on hardware: system keys (power, sleep, wake), Linux as a host, and the Linux build of the app.
+hardware with a keyboard and a mouse connected at the same time, and with two Macs, a Windows PC, an iPhone and an
+Android tablet as hosts: input goes to the active host, and both the key combo and the settings window switch hosts. A
+computer's pairing code was typed both in the app and on the keyboard connected to the board. The app was tested on
+macOS and Windows. Not yet tested on hardware: system keys (power, sleep, wake), Linux as a host, and the Linux build
+of the app.
 
 ## What you need
 
