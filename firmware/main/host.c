@@ -1094,7 +1094,8 @@ esp_err_t host_probe(int minutes)
  * Back-off. A computer that keeps connecting and failing reconnects at once, every few hundred milliseconds: one
  * removed from the board that still has its keys, or a new one turned away while every slot is in use. Real
  * hardware: a Windows PC removed from the board connected and failed about 15 times in 9 s, then the ESP32-S3's
- * Bluetooth controller stopped (assert sch_arb.c 517) and the board restarted. When FAIL_BURST host connections
+ * Bluetooth controller stopped (assert sch_arb.c 517, an input device was reconnecting; the cause is the controller's
+ * scan window, see platform_esp.c) and the board restarted. When FAIL_BURST host connections
  * end before the link is ready within FAIL_WINDOW_MS, advertising stops for BACKOFF_MS: connected hosts stay
  * connected, a host that is offline reconnects up to BACKOFF_MS later.
  */

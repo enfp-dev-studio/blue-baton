@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "esp_attr.h"
 #include "esp_system.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -47,9 +48,56 @@ static void host_task(void *param)
     nimble_port_freertos_deinit();
 }
 
+#if CONFIG_IDF_TARGET_ESP32S3
+/*
+ * ESP32-S3 Bluetooth controller: a scan or connection-attempt window of zero length. The controller limits each
+ * window to the gap between the events of its connections (ROM sch_slice_compute: interval minus reserved event
+ * time, in 312.5 us half-slots, minus 2 when 3 or more). A connection whose reservation fills its interval leaves a
+ * gap of exactly 0, the next window is inserted with length 0 and fails the controller's own range check (BLE assert
+ * sch_arb.c 517, param 0 = the length, lowest allowed 625 half-microseconds) and the board restarts. Gaps of 1 or 2
+ * half-slots pass. Real hardware: 12 restarts in 86 s while input devices were reconnecting and hosts connecting,
+ * every one in lld_init_sched -> sch_arb_insert. Forcing the gap to 0 while an input device was reconnecting gave
+ * the same assert at once. So a gap of 0 becomes one half-slot, what a gap of 1 gives (forced: 2,135 times, no assert).
+ * ROM code calls the function through its function table (the slot offset is in the ROM code), as do Espressif's
+ * own controller patches, so this wraps whatever the slot holds.
+ */
+extern void *r_ip_funcs_p;   /* esp32s3.rom.ld */
+struct sch_slice_params_rom {
+    uint32_t fg_end_ts;
+    uint16_t scan_evt_dur;   /* Half-microseconds */
+};
+extern struct sch_slice_params_rom sch_slice_params;   /* esp32s3.rom.ld */
+#define IP_FUNCS_SCH_SLICE_COMPUTE 0x71c
+#define HALF_SLOT_HUS 625
+
+static void (*s_slice_compute)(void);
+
+static IRAM_ATTR void slice_compute(void)
+{
+    s_slice_compute();
+    if (sch_slice_params.scan_evt_dur == 0) {
+        sch_slice_params.scan_evt_dur = HALF_SLOT_HUS;
+    }
+}
+
+/* After the controller starts and before anything is scheduled (the host task is not running yet) */
+static void controller_patch(void)
+{
+    void (**slot)(void) = (void (**)(void))((uint8_t *)r_ip_funcs_p + IP_FUNCS_SCH_SLICE_COMPUTE);
+    s_slice_compute = *slot;
+    *slot = slice_compute;
+}
+#endif
+
 esp_err_t plat_ble_init(void)
 {
-    return nimble_port_init();
+    esp_err_t err = nimble_port_init();
+#if CONFIG_IDF_TARGET_ESP32S3
+    if (err == ESP_OK) {
+        controller_patch();
+    }
+#endif
+    return err;
 }
 
 void plat_ble_start(void)
