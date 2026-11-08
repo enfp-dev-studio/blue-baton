@@ -4,6 +4,12 @@ Notable changes in each release, newest first. The format follows [Keep a Change
 (sections Added, Changed, Fixed, Removed; only the ones a release has), and versions follow
 [Semantic Versioning](https://semver.org/). The release workflow copies a version's section into its GitHub release.
 
+## [0.7.11] - 2026-11-08
+
+### Fixed
+
+- The board could restart over and over (12 times in 86 seconds once) while a keyboard or mouse was reconnecting and computers were connecting to it. The ESP32-S3's Bluetooth controller gave a connection attempt a window of zero length and stopped itself (`BLE assert sch_arb.c 517` in the board log). The firmware now raises such a window to the shortest length the controller accepts. With the window forced to zero on a board, it kept running through 2,135 of them; without the fix it stopped at the first
+
 ## [0.7.10] - 2026-11-07
 
 ### Changed

@@ -338,7 +338,7 @@ dependencies = [
 
 [[package]]
 name = "blue-baton"
-version = "0.7.10"
+version = "0.7.11"
 dependencies = [
  "auto-launch",
  "espflash",
